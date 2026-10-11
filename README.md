@@ -56,16 +56,26 @@ subtitles** to the new length. Everything is powered by `ffmpeg`.
 
 ## Requirements
 
-- **Node.js 18+** (developed on Node 25)
-- **ffmpeg + ffprobe** available on your `PATH` (or set full paths in ⚙ Settings)
+- **Node.js 18+** to run from source (developed on Node 25)
 - Windows, macOS or Linux
+- **ffmpeg / ffprobe — optional.** CUCI² prefers your own install and falls back to a
+  bundled copy when you don't have one (see below).
 
-Check ffmpeg:
+### Where ffmpeg comes from
 
-```bash
-ffmpeg -version
-ffprobe -version
-```
+CUCI² uses the first of these that actually runs:
+
+1. an explicit path you set in ⚙ Settings,
+2. the `FFMPEG_PATH` / `FFPROBE_PATH` environment variables,
+3. a **system** install found on your `PATH`,
+4. the **bundled** copy — only used when none of the above exist.
+
+The bundled build is fetched into `vendor/ffmpeg/` on `npm install` (or manually with
+`npm run fetch:ffmpeg`) and is copied into the packaged app. The ⚙ Settings panel shows
+which binary is in use and where it came from (`custom` / `env var` / `system` /
+`bundled`). A **Prefer bundled** toggle swaps the priority of 3 and 4 if you want
+reproducible rendering. The bundled build includes `libass`, so subtitle burn-in works
+without a system ffmpeg.
 
 ---
 
@@ -74,9 +84,12 @@ ffprobe -version
 ```bash
 git clone https://github.com/abahkool/cuci2.git
 cd cuci2
-npm install
+npm install     # also fetches the bundled ffmpeg into vendor/ffmpeg (skippable)
 npm start
 ```
+
+`npm install` downloads the bundled ffmpeg (~110 MB). Set `CUCI2_SKIP_FFMPEG_FETCH=1` to
+skip it, or set full ffmpeg paths in ⚙ Settings to use your own.
 
 `npm run dev` starts the app with DevTools open and renderer console logs forwarded to the
 terminal — handy when developing.
@@ -109,8 +122,10 @@ terminal — handy when developing.
 
 The ⚙ button opens Settings:
 
-- **ffmpeg / ffprobe paths** — auto-detected from `PATH` by default; set full paths if your
-  install isn't on the PATH (common for Chocolatey/Scoop shims or portable builds).
+- **ffmpeg / ffprobe paths** — leave empty to auto-detect (system, then bundled); use
+  **Browse…** to point at a specific install (common for Chocolatey/Scoop shims or portable
+  builds), or **Fill bundled paths** to use the shipped build explicitly.
+- **Prefer the bundled ffmpeg over a system install** — for reproducible output.
 - **Load keyframe snapshots into the timeline** — **off by default**. When enabled, CUCI²
   samples frames with ffmpeg to draw the filmstrip. On long videos this decodes the whole
   file, so it can take a while; the status bar shows progress. When off, the timeline shows
@@ -185,7 +200,8 @@ resolutions/fps/audio). Choose a CRF you're happy with.
 - **`[pid:...:ERROR:ffmpeg_common.cc] Unsupported pixel format: -1` on exit** — harmless.
   That is Chromium's *bundled* media library (not CUCI²'s `ffmpeg` CLI) tearing down the
   `<video>` decoder as the window closes. It does not affect cutting, matching or exports.
-- **`ffmpeg ✗ not found`** — install ffmpeg or set its full path in ⚙ Settings.
+- **`ffmpeg ✗ not found`** — the bundled build is probably missing too. Run
+  `npm run fetch:ffmpeg`, or install ffmpeg / set its full path in ⚙ Settings.
 - **Export fails with "No such filter: subtitles"** — your ffmpeg build lacks libass; turn
   off *Burn subtitles* (or use a full ffmpeg build).
 - **Preview shows a black frame / refuses to play** — the codec isn't decodable by Chromium;

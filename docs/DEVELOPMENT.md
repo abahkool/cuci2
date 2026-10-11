@@ -44,11 +44,17 @@ preload.js              contextBridge API surface (window.api)
 lib/
   ipc.js                all ipcMain handlers, settings, export orchestration
   exporter.js           pure ffmpeg filtergraph/encoder builders  ← unit-testable
+  ffmpeg-locate.js      resolves custom/env/system/bundled ffmpeg+ffprobe
   media-protocol.js     seekable media:// handler (HTTP range support)
   selftest.js           export-pipeline test against real ffmpeg   (node)
+  test-locate.js        verifies the tool resolution chain         (node)
   smoke.js              boots the real renderer, fails on console errors
   e2e.js                full UI flow test (load → subtitle → cut → seek → export → job)
   test-cancel.js        verifies cancel kills ffmpeg + removes residue
+scripts/
+  fetch-ffmpeg.mjs      downloads a recent ffmpeg into vendor/ (postinstall)
+vendor/
+  ffmpeg/               bundled binaries (gitignored — npm run fetch:ffmpeg)
 src/
   index.html            UI markup
   styles.css            dark theme, timeline, modals, status bar, context menu
@@ -89,6 +95,66 @@ scratch images). It is fully gitignored — nothing in it is committed. See
 4. `--dev` flag: opens DevTools and forwards renderer console messages to stdout.
 
 ---
+
+## Tool resolution & bundled ffmpeg
+
+`lib/ffmpeg-locate.js` owns every decision about which binary to run. Everything else asks
+it via `ffmpegPath(settings)` / `ffprobePath(settings)` (wrapped as `ffmpegBin()` /
+`ffprobeBin()` in `lib/ipc.js`).
+
+Resolution order — the first candidate that successfully runs `-version` wins:
+
+| Tier | Source tag | Notes |
+| --- | --- | --- |
+| 1 | `custom` | `settings.ffmpegPath` / `settings.ffprobePath` |
+| 2 | `env` | `FFMPEG_PATH` / `FFPROBE_PATH` |
+| — | `sibling` | ffprobe next to the resolved ffmpeg (before `system`) |
+| 3 | `system` | `ffmpeg` / `ffprobe` on `PATH` |
+| 4 | `bundled` | vendored build or the `ffmpeg-static` / `ffprobe-static` npm packages |
+
+`settings.preferBundled` swaps tiers 3 and 4. A non-runnable candidate is skipped and
+recorded in `warnings`, so a stale custom path falls back gracefully instead of breaking
+the app.
+
+A failed probe is never fatal — the resolver keeps going and `resolve()` returns
+`{ ok, path, source, version, banner, libass, warnings }` per tool plus combined
+`warnings`. `libass` is detected from the full `-version` output (the `--enable-libass`
+flag is on the configuration line, not the first line) and is surfaced in Settings because
+it gates subtitle burn-in.
+
+Bundled lookup order (`bundledBin`):
+
+1. `<process.resourcesPath>/ffmpeg/` — packaged app (electron-builder `extraResources`),
+2. `<appRoot>/vendor/ffmpeg/` — dev checkout,
+3. the optional `ffmpeg-static` / `ffprobe-static` packages if installed.
+
+### Fetching the bundled build
+
+`scripts/fetch-ffmpeg.mjs` downloads a recent release for the current platform into
+`vendor/ffmpeg/`:
+
+| Platform | Source |
+| --- | --- |
+| win32 | gyan.dev `ffmpeg-release-essentials.zip` (ffmpeg + ffprobe, libass) |
+| linux-x64 / arm64 | johnvansickle.com static builds |
+| darwin | evermeet.cx (ffmpeg and ffprobe separately) |
+
+It is **resumable** (downloads into `vendor/.cache/` and continues partial files with
+`curl -C -`), skips when the binaries already exist, and is run automatically by
+`npm install` via `postinstall`. Flags:
+
+- `--force` — re-download even if present (`npm run fetch:ffmpeg`),
+- `--strict` — non-zero exit on failure (`predist`, so `npm run dist` fails loudly),
+- `CUCI2_SKIP_FFMPEG_FETCH=1` — skip entirely (useful in CI).
+
+Without `--strict` the script always exits 0, so a failed download never breaks
+`npm install` — the app simply falls back to a system ffmpeg.
+
+Extraction uses whatever is available: `unzip`, Windows `tar.exe` (bsdtar reads zips),
+GNU `tar -xJf` for `.tar.xz`, or `7z`.
+
+`vendor/` is gitignored. Binaries are ~105 MB each, so they are shipped via
+`extraResources` rather than committed.
 
 ## IPC reference
 
@@ -324,10 +390,11 @@ single clip). An event spanning a boundary produces one output event per overlap
 ### Settings (`<userData>/settings.json`)
 
 ```json
-{ "ffmpegPath": "", "ffprobePath": "", "loadThumbs": false }
+{ "ffmpegPath": "", "ffprobePath": "", "loadThumbs": false, "preferBundled": false }
 ```
 
-Empty paths mean "use `PATH`". `loadThumbs` defaults to `false`.
+Empty paths mean "auto-detect" (system, then bundled). `loadThumbs` and `preferBundled`
+default to `false`.
 
 ### Cut job — verbose (`.cuci2.json`)
 
@@ -413,6 +480,7 @@ npm run test:cancel # electron lib/test-cancel.js
 
 | Suite | What it covers |
 | --- | --- |
+| `test:locate` | the ffmpeg resolution chain: default finds *something*, a bogus custom path falls through, `preferBundled` selects the vendored build and it reports `libass` |
 | `selftest` | builds sample clips (mixed resolution, one silent), joins them with the production filtergraph, asserts output duration (~6 s) and streams |
 | `smoke` | loads the real `src/index.html` in a hidden window; fails on any renderer console error |
 | `e2e` | loads a generated video, checks snapshots are **off** by default then enables them, verifies filmstrip, double-click In/Out, subtitles + cut remap, seek/step, context menu, job codec round-trip, status bar, export guard, and a burn-in export (`5.000 s`) |
@@ -451,7 +519,17 @@ subtitle remapping by hand.
 ## Packaging
 
 `package.json` contains an `electron-builder` `build` block (Windows NSIS + portable, macOS
-dmg, Linux AppImage).
+dmg, Linux AppImage). `predist` runs the ffmpeg fetcher with `--strict`, so a release build
+always contains the bundled binaries.
+
+The asar holds only `main.js`, `preload.js`, `lib/**`, `src/**` and `package.json`; the
+vendored ffmpeg is shipped outside it via:
+
+```json
+"extraResources": [{ "from": "vendor/ffmpeg", "to": "ffmpeg" }]
+```
+
+which lands at `<resources>/ffmpeg/ffmpeg[.exe]` — exactly where `bundledBin()` looks first.
 
 ```bash
 npm i -D electron-builder

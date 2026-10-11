@@ -49,7 +49,8 @@
       'exportModal', 'expPath', 'expBrowse', 'expContainer', 'expVcodec', 'expCrf', 'expCrfVal',
       'expPreset', 'expRes', 'expFps', 'expAbitrate', 'expBurn', 'expSrt', 'expSummary',
       'expProgressWrap', 'expProgressBar', 'expStatus', 'expStart', 'expCancel', 'expClose', 'expClose2',
-      'settingsModal', 'setFfmpeg', 'setFfprobe', 'setLoadThumbs', 'setDetect', 'setSave', 'setClose', 'setClose2', 'setStatus',
+      'settingsModal', 'setFfmpeg', 'setFfprobe', 'setFfmpegBrowse', 'setFfprobeBrowse', 'setPreferBundled', 'setUseBundled',
+      'setLoadThumbs', 'setDetect', 'setSave', 'setClose', 'setClose2', 'setStatus',
       'btnJob', 'jobModal', 'jobClose', 'jobClose2', 'jobSave', 'jobOpen', 'jobDesc', 'jobDescCount', 'jobIncludeSubs', 'jobCode',
       'jobCopy', 'jobRefresh', 'jobCodeInfo', 'jobPaste', 'jobImport', 'jobPasteClip', 'jobStatus',
       'statusbar', 'statusIcon', 'statusSpinner', 'statusText', 'statusInfo', 'statusClear', 'statusProgress', 'statusProgressBar', 'statusLog',
@@ -1845,27 +1846,43 @@
   }
 
   /* ───────────────────────────── ffmpeg / settings ───────────────────────────── */
+  const SOURCE_LABEL = { custom: 'custom', env: 'env var', system: 'system', bundled: 'bundled', sibling: 'next to ffmpeg', missing: 'missing' };
+
+  function toolLine(label, t) {
+    if (!t || !t.ok) return `${label.padEnd(8)}: not found`;
+    const meta = `${SOURCE_LABEL[t.source] || t.source}${t.version ? ' · ' + t.version : ''}${t.libass ? ' · libass ✓' : ''}`;
+    return `${label.padEnd(8)}: ${t.path}\n          ${meta}`;
+  }
+
   async function refreshInfo() {
     const info = await api.getInfo();
     state.info = info;
+    state.settings = { loadThumbs: false, preferBundled: false, ...(info.settings || {}) };
+
     if (info.ffmpeg.ok) {
       els.ffStatus.className = 'ff-status ok';
-      const v = (info.ffmpeg.version.match(/ffmpeg version\s+(\S+)/i) || [])[1] || '';
-      els.ffStatus.textContent = `ffmpeg ✓ ${v}`.trim();
-      els.ffStatus.title = info.ffmpeg.version;
+      els.ffStatus.textContent = `ffmpeg ✓ ${info.ffmpeg.version || '?'} · ${SOURCE_LABEL[info.ffmpeg.source] || info.ffmpeg.source}`;
+      els.ffStatus.title = `${info.ffmpeg.path}\nsource: ${info.ffmpeg.source}\nlibass: ${info.ffmpeg.libass ? 'yes' : 'no'}`;
     } else {
       els.ffStatus.className = 'ff-status bad';
       els.ffStatus.textContent = 'ffmpeg ✗ not found';
-      els.ffStatus.title = (info.ffmpeg.error || 'ffmpeg was not found on PATH') + '\nClick to configure.';
-      setStatus('ffmpeg was not found — thumbnails and export will not work. Open Settings to configure it.', 'error');
+      els.ffStatus.title = (info.ffmpeg.error || 'ffmpeg was not found') + '\nClick to configure.';
+      setStatus('ffmpeg was not found — thumbnails and export will not work. Open Settings to configure or fetch the bundled build.', 'error');
     }
-    state.settings = { loadThumbs: false, ...(info.settings || {}) };
+
     els.setFfmpeg.value = info.settings.ffmpegPath || '';
     els.setFfprobe.value = info.settings.ffprobePath || '';
+    els.setPreferBundled.checked = !!state.settings.preferBundled;
     els.setLoadThumbs.checked = !!state.settings.loadThumbs;
-    els.setStatus.innerHTML = info.ffmpeg.ok
-      ? `<b>Detected:</b> ${CU.escapeHtml(info.ffmpeg.version)}`
-      : `<b style="color:var(--warn)">ffmpeg not detected.</b> Install ffmpeg and make sure it is on your PATH, or set the full path above.`;
+
+    const b = info.bundled || {};
+    els.setStatus.innerHTML = CU.escapeHtml(
+      [
+        toolLine('ffmpeg', info.ffmpeg),
+        toolLine('ffprobe', info.ffprobe),
+        `bundled : ${b.present ? 'installed' : 'not installed'}${b.ffmpeg ? '\n          ' + b.ffmpeg : ''}`,
+      ].join('\n'),
+    );
     return info;
   }
 
@@ -2167,12 +2184,31 @@
         ffmpegPath: els.setFfmpeg.value.trim(),
         ffprobePath: els.setFfprobe.value.trim(),
         loadThumbs: els.setLoadThumbs.checked,
+        preferBundled: els.setPreferBundled.checked,
       });
       await refreshInfo();
       applyThumbSetting();
       toast('Settings saved.', 'ok', 2500);
     });
     els.setDetect.addEventListener('click', () => refreshInfo());
+
+    const pickBinary = async (input) => {
+      const p = await api.openFile({
+        title: 'Select executable',
+        filters: [{ name: 'Executable', extensions: ['exe'] }, { name: 'All files', extensions: ['*'] }],
+      });
+      if (p) input.value = p;
+    };
+    els.setFfmpegBrowse.addEventListener('click', () => pickBinary(els.setFfmpeg));
+    els.setFfprobeBrowse.addEventListener('click', () => pickBinary(els.setFfprobe));
+    els.setUseBundled.addEventListener('click', () => {
+      const b = (state.info && state.info.bundled) || {};
+      if (!b.ffmpeg) return toast('No bundled ffmpeg path is known.', 'warn');
+      els.setFfmpeg.value = b.ffmpeg;
+      els.setFfprobe.value = b.ffprobe || '';
+      els.setPreferBundled.checked = true;
+      toast('Bundled paths filled in — press Save to apply.', 'info', 3500);
+    });
 
     // keyboard
     window.addEventListener('keydown', onKeyDown);

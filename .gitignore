@@ -13,5 +13,9 @@ Thumbs.db
 # local sample media / scratch folder — never committed (see docs/DEVELOPMENT.md)
 Sample/
 
+# vendored ffmpeg binaries + download cache — never committed
+# (recreate with: npm run fetch:ffmpeg)
+vendor/
+
 # temp / scratch
 *.tmp

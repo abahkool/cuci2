@@ -253,18 +253,32 @@
           <button id="setClose" class="btn ghost icon">✕</button>
         </div>
         <div class="modal-body">
-          <p class="hint">CUCI2 uses ffmpeg for probing, thumbnails and encoding. It is detected from your <code>PATH</code> by default.</p>
+          <p class="hint">
+            CUCI² uses ffmpeg for probing, thumbnails and encoding. It prefers your own
+            <b>system</b> install and falls back to a <b>bundled</b> copy when none is found.
+          </p>
           <label class="field wide">
-            <span>ffmpeg path (leave empty to use PATH)</span>
+            <span>ffmpeg path — leave empty to auto-detect (system, then bundled)</span>
             <div class="input-row">
-              <input id="setFfmpeg" type="text" spellcheck="false" placeholder="ffmpeg" />
-              <button id="setDetect" class="btn">Re-detect</button>
+              <input id="setFfmpeg" type="text" spellcheck="false" placeholder="auto" />
+              <button id="setFfmpegBrowse" class="btn">Browse…</button>
             </div>
           </label>
           <label class="field wide">
-            <span>ffprobe path (leave empty to auto-derive)</span>
-            <input id="setFfprobe" type="text" spellcheck="false" placeholder="ffprobe" />
+            <span>ffprobe path — leave empty to auto-detect</span>
+            <div class="input-row">
+              <input id="setFfprobe" type="text" spellcheck="false" placeholder="auto" />
+              <button id="setFfprobeBrowse" class="btn">Browse…</button>
+            </div>
           </label>
+          <label class="check">
+            <input id="setPreferBundled" type="checkbox" />
+            <span>Prefer the bundled ffmpeg over a system install</span>
+          </label>
+          <div class="job-row">
+            <button id="setDetect" class="btn">Re-detect</button>
+            <button id="setUseBundled" class="btn tiny ghost">Fill bundled paths</button>
+          </div>
 
           <div class="job-sep"></div>
 

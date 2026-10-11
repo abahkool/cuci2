@@ -9,11 +9,15 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
-    "test": "npm run test:export && npm run test:smoke && npm run test:e2e && npm run test:cancel",
+    "postinstall": "node scripts/fetch-ffmpeg.mjs",
+    "fetch:ffmpeg": "node scripts/fetch-ffmpeg.mjs --force",
+    "test": "npm run test:locate && npm run test:export && npm run test:smoke && npm run test:e2e && npm run test:cancel",
+    "test:locate": "node lib/test-locate.js",
     "test:export": "node lib/selftest.js",
     "test:smoke": "electron lib/smoke.js",
     "test:e2e": "electron lib/e2e.js",
     "test:cancel": "electron lib/test-cancel.js",
+    "predist": "node scripts/fetch-ffmpeg.mjs --strict",
     "dist": "electron-builder"
   },
   "devDependencies": {
@@ -22,9 +26,35 @@
   "build": {
     "appId": "com.cuci2.app",
     "productName": "CUCI2",
-    "files": ["main.js", "preload.js", "lib/**/*", "src/**/*", "package.json"],
-    "win": { "target": ["nsis", "portable"] },
-    "mac": { "target": ["dmg"] },
-    "linux": { "target": ["AppImage"] }
+    "files": [
+      "main.js",
+      "preload.js",
+      "lib/**/*",
+      "src/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "vendor/ffmpeg",
+        "to": "ffmpeg",
+        "filter": ["**/*"]
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ]
+    }
   }
 }
