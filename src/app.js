@@ -1,0 +1,2386 @@
+/* CUCI2 renderer — video cut & merge studio */
+(function () {
+  const api = window.api;
+  const CU = window.CUCI;
+  const $ = (id) => document.getElementById(id);
+
+  /* ───────────────────────────── state ───────────────────────────── */
+  const state = {
+    clips: [],
+    activeClipId: null,
+    selection: null, // { clipId, start, end }
+    inPoint: null,
+    outPoint: null,
+    playhead: 0, // source ms within active clip
+    resultTime: 0, // output ms in merged result
+    playMode: 'source',
+    snap: true,
+    zoom: 1,
+    pxPerMs: 0,
+    globalSubOffset: 0,
+    settings: { loadThumbs: false },
+    jobDescription: '',
+    pendingJob: null,
+    scrubbing: false,
+    undo: [],
+    redo: [],
+    info: null,
+    exporting: false,
+  };
+
+  let videoFile = null; // currently loaded media url in #video
+  const program = { ranges: [], idx: 0, playing: false };
+  const thumbJobs = new Map();
+  let remapCache = null;
+  let lastFocus = null;
+
+  const els = {};
+  function cacheEls() {
+    [
+      'video', 'subtitleOverlay', 'playerNotice', 'playerNoticeText', 'btnMakeProxy', 'btnDismissNotice',
+      'btnAddVideo', 'btnAddVideo2', 'btnAddSub', 'btnExport', 'btnSettings', 'ffStatus',
+      'clipList', 'clipCount', 'cutList', 'cutCount', 'ioReadout',
+      'btnSetIn', 'btnSetOut', 'btnCut', 'btnClearCuts', 'btnClearMarks',
+      'subInfo', 'subOffset', 'btnSubExport', 'subEventList',
+      'btnPlay', 'btnStop', 'btnPrevFrame', 'btnNextFrame', 'btnPrevSec', 'btnNextSec',
+      'timecode', 'timeTotal', 'resultTc', 'seekRange', 'modeSource', 'modeResult', 'chkSnap', 'zoomRange',
+      'timelineScroll', 'timeline', 'tlRuler', 'tlFilm', 'tlCuts', 'tlSubs',
+      'tlSelection', 'tlMarkerIn', 'tlMarkerOut', 'tlPlayhead', 'emptyState',
+      'exportModal', 'expPath', 'expBrowse', 'expContainer', 'expVcodec', 'expCrf', 'expCrfVal',
+      'expPreset', 'expRes', 'expFps', 'expAbitrate', 'expBurn', 'expSrt', 'expSummary',
+      'expProgressWrap', 'expProgressBar', 'expStatus', 'expStart', 'expCancel', 'expClose', 'expClose2',
+      'settingsModal', 'setFfmpeg', 'setFfprobe', 'setLoadThumbs', 'setDetect', 'setSave', 'setClose', 'setClose2', 'setStatus',
+      'btnJob', 'jobModal', 'jobClose', 'jobClose2', 'jobSave', 'jobOpen', 'jobDesc', 'jobDescCount', 'jobIncludeSubs', 'jobCode',
+      'jobCopy', 'jobRefresh', 'jobCodeInfo', 'jobPaste', 'jobImport', 'jobPasteClip', 'jobStatus',
+      'statusbar', 'statusIcon', 'statusSpinner', 'statusText', 'statusInfo', 'statusClear', 'statusProgress', 'statusProgressBar', 'statusLog',
+      'ctxMenu', 'toasts',
+    ].forEach((id) => (els[id] = $(id)));
+  }
+
+  /* ───────────────────────────── helpers ───────────────────────────── */
+  const activeClip = () => state.clips.find((c) => c.id === state.activeClipId) || null;
+  const even = (n) => {
+    const v = Math.round(n);
+    return v % 2 === 0 ? v : v + 1;
+  };
+  const pathJoin = (dir, file) => String(dir).replace(/[\\/]+$/, '') + '/' + file;
+  const invalidate = () => {
+    remapCache = null;
+  };
+
+  function totalKept(clip) {
+    return keptRanges(clip).reduce((a, r) => a + (r.end - r.start), 0);
+  }
+
+  function keptRanges(clip) {
+    if (!clip) return [];
+    const cuts = [...clip.cuts].sort((a, b) => a.start - b.start);
+    const out = [];
+    let cur = 0;
+    for (const c of cuts) {
+      if (c.start > cur) out.push({ start: cur, end: c.start });
+      cur = Math.max(cur, c.end);
+    }
+    if (cur < clip.durationMs) out.push({ start: cur, end: clip.durationMs });
+    return out.filter((r) => r.end - r.start >= 1);
+  }
+
+  function programRanges() {
+    const ranges = [];
+    let offset = 0;
+    for (const clip of state.clips) {
+      for (const r of keptRanges(clip)) {
+        ranges.push({
+          clipId: clip.id,
+          srcStart: r.start,
+          srcEnd: r.end,
+          outStart: offset,
+          outEnd: offset + (r.end - r.start),
+        });
+        offset += r.end - r.start;
+      }
+    }
+    return { ranges, total: offset };
+  }
+
+  function remapAll() {
+    if (remapCache) return remapCache;
+    const baseFor = new Map();
+    let base = 0;
+    for (const c of state.clips) {
+      baseFor.set(c.id, base);
+      base += totalKept(c);
+    }
+    let out = [];
+    for (const c of state.clips) {
+      if (c.subtitle) {
+        out = out.concat(CU.remapEvents(c.subtitle.events, keptRanges(c), baseFor.get(c.id), state.globalSubOffset));
+      }
+    }
+    remapCache = out;
+    return out;
+  }
+
+  /** Per-event source→output mapping used by the subtitle panel. */
+  function buildSubRows(events, ranges, globalOffset) {
+    const rangeOffsets = CU.rangeOutputOffsets(ranges);
+    return events.map((ev) => {
+      const parts = [];
+      for (let i = 0; i < ranges.length; i++) {
+        const r = ranges[i];
+        const s = Math.max(ev.start, r.start);
+        const e = Math.min(ev.end, r.end);
+        if (e - s > 0) parts.push({ start: rangeOffsets[i] + (s - r.start) + globalOffset, end: rangeOffsets[i] + (e - r.start) + globalOffset });
+      }
+      return { ev, parts, dropped: parts.length === 0 };
+    });
+  }
+
+  function snapMs(ms) {
+    const clip = activeClip();
+    let v = Math.max(0, Math.min(clip ? clip.durationMs : ms, ms));
+    if (state.snap && clip && clip.fps) {
+      const f = clip.fps;
+      v = Math.round((v * f) / 1000) * (1000 / f);
+    }
+    v = Math.round(v * 1000) / 1000; // strip float noise, keep sub-ms precision
+    return Math.max(0, Math.min(clip ? clip.durationMs : v, v));
+  }
+
+  function frameMs() {
+    const clip = activeClip();
+    return clip && clip.fps ? 1000 / clip.fps : 40;
+  }
+
+  function toast(msg, kind = 'info', timeout = 4200) {
+    const el = document.createElement('div');
+    el.className = 'toast ' + (kind === 'info' ? '' : kind);
+    el.innerHTML = `<div class="t-body">${CU.escapeHtml(msg)}</div><div class="t-close">✕</div>`;
+    const close = () => {
+      el.style.opacity = '0';
+      el.style.transform = 'translateY(8px)';
+      setTimeout(() => el.remove(), 180);
+    };
+    el.querySelector('.t-close').addEventListener('click', close);
+    els.toasts.appendChild(el);
+    if (timeout) setTimeout(close, timeout);
+    // Errors and warnings are important enough to also hold in the status bar.
+    if (kind === 'error') setStatus(msg, 'error');
+    else if (kind === 'warn') setStatus(msg, 'warn');
+    return close;
+  }
+
+  /* ───────────────────────────── status bar ───────────────────────────── */
+  const STATUS_ICONS = { idle: '●', info: 'ℹ', busy: '●', ok: '✓', warn: '⚠', error: '✕' };
+  const statusHistory = [];
+  let statusState = { text: 'Ready', level: 'idle', progress: null };
+  let statusTimer = null;
+
+  function pushStatusHistory(text, level) {
+    const last = statusHistory[statusHistory.length - 1];
+    if (last && last.text === text && last.level === level) return;
+    statusHistory.push({ time: Date.now(), text, level });
+    if (statusHistory.length > 120) statusHistory.shift();
+  }
+
+  function renderStatus() {
+    const { text, level, progress } = statusState;
+    els.statusbar.className = 'statusbar ' + level;
+    els.statusIcon.textContent = STATUS_ICONS[level] || '●';
+    els.statusText.textContent = text;
+    els.statusSpinner.classList.toggle('hidden', level !== 'busy');
+    const hasProgress = typeof progress === 'number';
+    els.statusProgress.classList.toggle('hidden', !hasProgress);
+    if (hasProgress) els.statusProgressBar.style.width = Math.max(0, Math.min(100, progress * 100)) + '%';
+    els.statusClear.classList.toggle('hidden', !(level === 'error' || level === 'warn'));
+  }
+
+  function setStatus(text, level = 'info', opts = {}) {
+    statusState = {
+      text: text || 'Ready',
+      level: text ? level : 'idle',
+      progress: typeof opts.progress === 'number' ? opts.progress : null,
+    };
+    renderStatus();
+    clearTimeout(statusTimer);
+    if (text && opts.log !== false) pushStatusHistory(text, level);
+    const auto = opts.timeout != null ? opts.timeout : level === 'ok' ? 4000 : level === 'info' ? 6000 : 0;
+    if (auto > 0) {
+      statusTimer = setTimeout(() => {
+        statusState = { text: 'Ready', level: 'idle', progress: null };
+        renderStatus();
+      }, auto);
+    }
+    return statusState;
+  }
+
+  function clearStatus() {
+    if (statusState.level === 'error' || statusState.level === 'warn') return;
+    setStatus('Ready', 'idle');
+  }
+
+  function updateStatusInfo() {
+    const clip = activeClip();
+    if (!clip) {
+      els.statusInfo.textContent = state.clips.length ? '' : 'No media loaded';
+      return;
+    }
+    const idx = state.clips.indexOf(clip) + 1;
+    els.statusInfo.textContent = `${idx}/${state.clips.length} · ${clip.name} · ${clip.width}×${clip.height} · ${
+      clip.fps ? clip.fps.toFixed(2) : '?'
+    } fps · ${CU.fmt(totalKept(clip), 3)} / ${CU.fmt(clip.durationMs, 3)}`;
+  }
+
+  function renderStatusLog() {
+    els.statusLog.innerHTML = '';
+    if (!statusHistory.length) {
+      els.statusLog.innerHTML = '<div class="status-log-empty">No messages yet.</div>';
+      return;
+    }
+    for (let i = statusHistory.length - 1; i >= 0; i--) {
+      const m = statusHistory[i];
+      const d = new Date(m.time);
+      const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+      const row = document.createElement('div');
+      row.className = 'status-log-row ' + m.level;
+      row.innerHTML = `<span class="sl-time">${time}</span><span class="sl-text">${CU.escapeHtml(m.text)}</span>`;
+      els.statusLog.appendChild(row);
+    }
+  }
+
+  function toggleStatusLog() {
+    if (!els.statusLog.classList.contains('hidden')) {
+      hideStatusLog();
+      return;
+    }
+    renderStatusLog();
+    const r = els.statusbar.getBoundingClientRect();
+    els.statusLog.style.left = r.left + 8 + 'px';
+    els.statusLog.style.width = Math.min(720, window.innerWidth - 24) + 'px';
+    els.statusLog.style.bottom = window.innerHeight - r.top + 6 + 'px';
+    els.statusLog.classList.remove('hidden');
+  }
+
+  function hideStatusLog() {
+    els.statusLog.classList.add('hidden');
+  }
+
+  /* ───────────────────────────── undo ───────────────────────────── */
+  function snapshot() {
+    return JSON.stringify(
+      state.clips.map((c) => ({
+        id: c.id,
+        cuts: c.cuts.map((x) => ({ id: x.id, start: x.start, end: x.end })),
+        subtitle: c.subtitle ? { path: c.subtitle.path, name: c.subtitle.name, format: c.subtitle.format, events: c.subtitle.events } : null,
+        order: null,
+      })),
+    );
+  }
+  function pushUndo() {
+    state.undo.push(snapshot());
+    if (state.undo.length > 60) state.undo.shift();
+    state.redo.length = 0;
+  }
+  function applySnapshot(json) {
+    const data = JSON.parse(json);
+    const byId = new Map(state.clips.map((c) => [c.id, c]));
+    const ordered = [];
+    for (const d of data) {
+      const c = byId.get(d.id);
+      if (!c) continue;
+      c.cuts = d.cuts || [];
+      c.subtitle = d.subtitle || null;
+      ordered.push(c);
+    }
+    for (const c of state.clips) if (!ordered.includes(c)) ordered.push(c);
+    state.clips = ordered;
+    invalidate();
+    renderAll();
+  }
+  function undo() {
+    if (!state.undo.length) return toast('Nothing to undo', 'warn', 1600);
+    state.redo.push(snapshot());
+    applySnapshot(state.undo.pop());
+  }
+  function redo() {
+    if (!state.redo.length) return toast('Nothing to redo', 'warn', 1600);
+    state.undo.push(snapshot());
+    applySnapshot(state.redo.pop());
+  }
+
+  /* ───────────────────────────── media ───────────────────────────── */
+  async function addVideos(paths) {
+    if (!paths || !paths.length) return;
+    for (const p of paths) {
+      try {
+        setStatus(`Analyzing ${CU.basename(p)}…`, 'busy', { log: false });
+        const info = await api.probe(p);
+        if (!info.hasVideo) {
+          toast(`Skipped "${CU.basename(p)}" — no video stream found.`, 'warn');
+          continue;
+        }
+        const clip = {
+          id: CU.uid('clip'),
+          path: p,
+          name: info.name,
+          durationMs: info.durationMs,
+          fps: info.fps,
+          width: info.width,
+          height: info.height,
+          hasAudio: info.hasAudio,
+          videoCodec: info.videoCodec,
+          audioCodec: info.audioCodec,
+          fileSize: info.size || 0,
+          cuts: [],
+          subtitle: null,
+          thumbs: null,
+          proxyPath: null,
+        };
+        state.clips.push(clip);
+        if (!state.activeClipId) state.activeClipId = clip.id;
+        if (state.settings.loadThumbs) loadThumbs(clip);
+        else clip.thumbs = { dir: '', files: [], stepMs: 1000 };
+      } catch (err) {
+        toast(`Could not read "${CU.basename(p)}":\n${err.message || err}`, 'error', 7000);
+      }
+    }
+    invalidate();
+    renderAll();
+    const clip = activeClip();
+    if (clip) await activateClip(clip.id);
+    tryApplyPendingJob();
+
+    // Don't leave the transient "Analyzing…" status on screen when nothing else
+    // will replace it (i.e. keyframe snapshots are disabled).
+    if (!thumbJobs.size && !state.clips.some((c) => c.thumbsLoading)) {
+      const n = paths.length;
+      const label = `Added ${n} clip${n > 1 ? 's' : ''}`;
+      if (state.settings.loadThumbs) setStatus(label, 'ok', { timeout: 3000 });
+      else setStatus(`${label} · keyframe snapshots are off`, 'info', { timeout: 4500 });
+    }
+  }
+
+  async function loadThumbs(clip) {
+    if (!state.settings.loadThumbs) {
+      if (!clip.thumbs) clip.thumbs = { dir: '', files: [], stepMs: 1000 };
+      return;
+    }
+    if (clip.thumbsLoading) return;
+    clip.thumbsLoading = true;
+    setStatus(`Loading keyframe snapshots for ${clip.name}…`, 'busy', { progress: 0, log: false });
+    let failed = false;
+    try {
+      clip.thumbs = await api.thumbs(clip.path, { durationMs: clip.durationMs, height: 64, maxCount: 170 });
+    } catch {
+      clip.thumbs = { dir: '', files: [], stepMs: 1000 };
+      failed = true;
+    } finally {
+      clip.thumbsLoading = false;
+      thumbJobs.delete(clip.path);
+    }
+    if (state.activeClipId === clip.id) renderTimeline();
+    if (failed) setStatus(`Could not generate keyframe snapshots for ${clip.name}`, 'warn');
+    else if (!thumbJobs.size) {
+      const n = clip.thumbs && clip.thumbs.files ? clip.thumbs.files.length : 0;
+      if (n) setStatus(`Loaded ${n} keyframe snapshots`, 'ok', { timeout: 2500 });
+    }
+  }
+
+  /** Enable/disable the filmstrip according to the current setting. */
+  function applyThumbSetting() {
+    if (state.settings.loadThumbs) {
+      let started = false;
+      for (const clip of state.clips) {
+        if (!clip.thumbs || !clip.thumbs.files || !clip.thumbs.files.length) {
+          loadThumbs(clip);
+          started = true;
+        }
+      }
+      if (!started) setStatus('Keyframe snapshots enabled', 'info', { timeout: 3000 });
+    } else {
+      for (const clip of state.clips) {
+        clip.thumbs = { dir: '', files: [], stepMs: 1000 };
+        thumbJobs.delete(clip.path);
+      }
+      setStatus('Keyframe snapshots disabled', 'info', { timeout: 3000 });
+    }
+    renderTimeline();
+    updateStatusInfo();
+  }
+
+  /** Re-generate any filmstrip that was interrupted (e.g. by cancelling an export). */
+  function retryMissingThumbs() {
+    for (const clip of state.clips) {
+      if ((!clip.thumbs || !clip.thumbs.files || clip.thumbs.files.length === 0) && !clip.thumbsLoading) loadThumbs(clip);
+    }
+  }
+
+  async function loadSubtitleFromPath(clip, p) {
+    try {
+      const text = await api.readText(p);
+      const parsed = CU.parseSubtitles(text);
+      if (!parsed.events.length) {
+        toast(`No subtitle events were found in ${CU.basename(p)}.`, 'warn');
+        return false;
+      }
+      pushUndo();
+      clip.subtitle = { path: p, name: CU.basename(p), format: parsed.format, events: parsed.events };
+      invalidate();
+      renderAll();
+      toast(`Loaded ${parsed.events.length} subtitle events from ${CU.basename(p)}.`, 'ok');
+      return true;
+    } catch (err) {
+      toast('Failed to read subtitle file:\n' + (err.message || err), 'error');
+      return false;
+    }
+  }
+
+  async function addSubtitleToClip(clip) {
+    const p = await api.openSubtitle();
+    if (!p) return false;
+    return loadSubtitleFromPath(clip, p);
+  }
+
+  /* ───────────────────────────── video element ───────────────────────────── */
+  function ensureVideoFor(clip) {
+    const src = api.mediaUrl(clip.proxyPath || clip.path);
+    return new Promise((resolve) => {
+      if (videoFile === src) return resolve(true);
+      let settled = false;
+      const done = (ok) => {
+        if (settled) return;
+        settled = true;
+        els.video.removeEventListener('loadedmetadata', onOk);
+        els.video.removeEventListener('error', onErr);
+        resolve(ok);
+      };
+      const onOk = () => done(true);
+      const onErr = () => done(false);
+      els.video.addEventListener('loadedmetadata', onOk);
+      els.video.addEventListener('error', onErr);
+      videoFile = src;
+      els.video.src = src;
+      els.video.load();
+      setTimeout(() => done(false), 20000);
+    });
+  }
+
+  function seekVideo(ms) {
+    const video = els.video;
+    return new Promise((resolve) => {
+      const target = Math.max(0, ms / 1000);
+      if (Math.abs(video.currentTime - target) < 0.0008) return resolve();
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        video.removeEventListener('seeked', finish);
+        resolve();
+      };
+      video.addEventListener('seeked', finish);
+      try {
+        video.currentTime = target;
+      } catch {
+        finish();
+      }
+      setTimeout(finish, 2500);
+    });
+  }
+
+  async function activateClip(clipId, opts = {}) {
+    state.activeClipId = clipId;
+    program.playing = false;
+    const clip = activeClip();
+    updateClipList();
+    if (!clip) {
+      state.playhead = 0;
+      renderTimeline();
+      updateTransport();
+      return;
+    }
+    if (opts.seek != null) state.playhead = opts.seek;
+    if (opts.loadVideo !== false) {
+      const ok = await ensureVideoFor(clip);
+      if (ok) {
+        await seekVideo(state.playhead);
+      }
+    }
+    renderTimeline();
+    updateTransport();
+    updateStatusInfo();
+  }
+
+  /* ───────────────────────────── rendering ───────────────────────────── */
+  function renderAll() {
+    invalidate();
+    updateStatusInfo();
+    updateClipList();
+    updateCutList();
+    updateSubPanel();
+    renderTimeline();
+    updateTransport();
+    updateModeUI();
+    if (!els.exportModal.classList.contains('hidden')) updateExportSummary();
+  }
+
+  function renderTimeline() {
+    const clip = activeClip();
+    els.emptyState.classList.toggle('hidden', state.clips.length > 0 && !!clip);
+    if (!clip) {
+      state.pxPerMs = 0;
+      els.timeline.style.width = '100%';
+      [els.tlRuler, els.tlFilm, els.tlCuts, els.tlSubs].forEach((e) => (e.innerHTML = ''));
+      renderOverlays();
+      return;
+    }
+    const scrollW = els.timelineScroll.clientWidth || 900;
+    const width = Math.max(scrollW, scrollW * state.zoom);
+    els.timeline.style.width = width + 'px';
+    state.pxPerMs = width / clip.durationMs;
+    buildBase(clip);
+    renderOverlays();
+  }
+
+  function buildBase(clip) {
+    const ppm = state.pxPerMs;
+    const width = clip.durationMs * ppm;
+
+    // ruler
+    els.tlRuler.innerHTML = '';
+    const steps = [50, 100, 200, 250, 500, 1000, 2000, 2500, 5000, 10000, 15000, 30000, 60000, 120000, 300000, 600000, 1800000, 3600000];
+    const step = steps.find((s) => s * ppm >= 84) || 3600000;
+    for (let t = 0; t <= clip.durationMs + 1; t += step) {
+      const x = t * ppm;
+      const tick = document.createElement('div');
+      tick.className = 'tl-tick';
+      tick.style.left = x + 'px';
+      const label = document.createElement('div');
+      label.className = 'tl-tick-label';
+      label.style.left = x + 'px';
+      label.textContent = CU.fmt(t, step < 1000 ? 3 : 0);
+      els.tlRuler.append(tick, label);
+    }
+
+    // filmstrip
+    els.tlFilm.innerHTML = '';
+    if (clip.thumbs && clip.thumbs.files && clip.thumbs.files.length) {
+      const stepMs = clip.thumbs.stepMs || 1000;
+      clip.thumbs.files.forEach((f, i) => {
+        const left = i * stepMs * ppm;
+        if (left > width) return;
+        const img = document.createElement('img');
+        img.className = 'tl-thumb';
+        img.draggable = false;
+        img.src = api.mediaUrl(pathJoin(clip.thumbs.dir, f));
+        img.style.left = left + 'px';
+        img.style.width = Math.max(1, stepMs * ppm + 1) + 'px';
+        els.tlFilm.appendChild(img);
+      });
+    } else if (!clip.thumbsLoading) {
+      const hint = document.createElement('div');
+      hint.className = 'tl-film-hint';
+      hint.textContent = state.settings.loadThumbs
+        ? 'No keyframe snapshots'
+        : 'Keyframe snapshots are disabled — enable them in Settings';
+      els.tlFilm.appendChild(hint);
+    }
+
+    // cuts
+    els.tlCuts.innerHTML = '';
+    for (const cut of clip.cuts) {
+      const el = document.createElement('div');
+      el.className = 'tl-cut';
+      el.dataset.cutId = cut.id;
+      el.style.left = cut.start * ppm + 'px';
+      el.style.width = Math.max(3, (cut.end - cut.start) * ppm) + 'px';
+      el.innerHTML =
+        `<div class="cut-handle start" data-handle="start"></div>` +
+        `<div class="cut-handle end" data-handle="end"></div>` +
+        `<div class="cut-label">${CU.fmt(cut.start, 3)} → ${CU.fmt(cut.end, 3)} · ${CU.fmt(cut.end - cut.start, 3)}</div>`;
+      els.tlCuts.appendChild(el);
+    }
+
+    // subtitles
+    els.tlSubs.innerHTML = '';
+    if (clip.subtitle) {
+      const ranges = keptRanges(clip);
+      const dropped = new Set(CU.droppedEvents(clip.subtitle.events, ranges));
+      clip.subtitle.events.forEach((ev) => {
+        const el = document.createElement('div');
+        el.className = 'tl-sub' + (dropped.has(ev) ? ' dropped' : '');
+        el.style.left = ev.start * ppm + 'px';
+        el.style.width = Math.max(2, (ev.end - ev.start) * ppm) + 'px';
+        el.title = `${CU.fmt(ev.start, 3)} → ${CU.fmt(ev.end, 3)}\n${ev.text}${dropped.has(ev) ? '\n\n(entirely inside a cut — will be removed)' : ''}`;
+        el.textContent = ev.text.replace(/\s*\n\s*/g, ' ');
+        el.dataset.subStart = String(ev.start);
+        els.tlSubs.appendChild(el);
+      });
+    }
+  }
+
+  function renderOverlays() {
+    const clip = activeClip();
+    if (!clip) {
+      els.tlSelection.classList.add('hidden');
+      els.tlMarkerIn.classList.add('hidden');
+      els.tlMarkerOut.classList.add('hidden');
+      els.tlPlayhead.style.left = '0px';
+      return;
+    }
+    const ppm = state.pxPerMs || 0;
+
+    const sel = state.selection && state.selection.clipId === clip.id ? state.selection : null;
+    if (sel && Math.abs(sel.end - sel.start) > 1) {
+      els.tlSelection.classList.remove('hidden');
+      els.tlSelection.style.left = Math.min(sel.start, sel.end) * ppm + 'px';
+      els.tlSelection.style.width = Math.abs(sel.end - sel.start) * ppm + 'px';
+    } else {
+      els.tlSelection.classList.add('hidden');
+    }
+
+    toggleMarker(els.tlMarkerIn, state.inPoint, ppm);
+    toggleMarker(els.tlMarkerOut, state.outPoint, ppm);
+
+    els.tlPlayhead.style.left = CU.clamp(state.playhead, 0, clip.durationMs) * ppm + 'px';
+  }
+
+  function toggleMarker(el, value, ppm) {
+    if (value == null) el.classList.add('hidden');
+    else {
+      el.classList.remove('hidden');
+      el.style.left = value * ppm + 'px';
+    }
+  }
+
+  function updateClipList() {
+    els.clipCount.textContent = String(state.clips.length);
+    els.clipList.innerHTML = '';
+    if (!state.clips.length) {
+      els.clipList.innerHTML = '<div class="sub-info">No media loaded yet.</div>';
+      return;
+    }
+    state.clips.forEach((clip, i) => {
+      const kept = totalKept(clip);
+      const el = document.createElement('div');
+      el.className = 'clip' + (clip.id === state.activeClipId ? ' active' : '');
+      const badges = [];
+      if (clip.subtitle) badges.push(`<span class="badge sub">SUB</span>`);
+      if (clip.proxyPath) badges.push(`<span class="badge">PROXY</span>`);
+      el.innerHTML = `
+        <div class="clip-top">
+          <div class="clip-name" title="${CU.escapeHtml(clip.path)}">${i + 1}. ${CU.escapeHtml(clip.name)}</div>
+          <div class="clip-badges">${badges.join('')}</div>
+        </div>
+        <div class="clip-meta">
+          <span>${CU.fmt(clip.durationMs, 3)}</span>
+          <span class="kept">→ ${CU.fmt(kept, 3)}</span>
+          <span>${clip.width}×${clip.height}</span>
+          <span>${clip.fps ? clip.fps.toFixed(2) : '?'} fps</span>
+          ${clip.hasAudio ? '' : '<span style="color:var(--warn)">no audio</span>'}
+          ${clip.cuts.length ? `<span style="color:var(--danger)">${clip.cuts.length} cut${clip.cuts.length > 1 ? 's' : ''}</span>` : ''}
+        </div>
+        <div class="clip-actions">
+          <button class="btn tiny" data-act="up" title="Move earlier">↑</button>
+          <button class="btn tiny" data-act="down" title="Move later">↓</button>
+          <button class="btn tiny ghost" data-act="sub">${clip.subtitle ? 'Replace sub' : 'Add sub'}</button>
+          <button class="btn tiny ghost" data-act="remove">Remove</button>
+        </div>`;
+      el.addEventListener('click', async (e) => {
+        const b = e.target.closest('button[data-act]');
+        if (b) {
+          e.stopPropagation();
+          await handleClipAction(b.dataset.act, clip.id);
+          return;
+        }
+        if (state.exporting) return;
+        await activateClip(clip.id);
+      });
+      els.clipList.appendChild(el);
+    });
+  }
+
+  async function handleClipAction(act, clipId) {
+    const idx = state.clips.findIndex((c) => c.id === clipId);
+    const clip = state.clips[idx];
+    if (!clip) return;
+    if (act === 'up' && idx > 0) {
+      pushUndo();
+      state.clips.splice(idx, 1);
+      state.clips.splice(idx - 1, 0, clip);
+      invalidate();
+      renderAll();
+    } else if (act === 'down' && idx < state.clips.length - 1) {
+      pushUndo();
+      state.clips.splice(idx, 1);
+      state.clips.splice(idx + 1, 0, clip);
+      invalidate();
+      renderAll();
+    } else if (act === 'sub') {
+      await addSubtitleToClip(clip);
+    } else if (act === 'remove') {
+      pushUndo();
+      state.clips.splice(idx, 1);
+      if (state.activeClipId === clipId) {
+        state.activeClipId = state.clips[0] ? state.clips[0].id : null;
+        videoFile = null;
+        els.video.removeAttribute('src');
+        els.video.load();
+      }
+      invalidate();
+      renderAll();
+      const a = activeClip();
+      if (a) await activateClip(a.id);
+    }
+  }
+
+  function updateCutList() {
+    const clip = activeClip();
+    const cuts = clip ? [...clip.cuts].sort((a, b) => a.start - b.start) : [];
+    els.cutCount.textContent = String(cuts.length);
+    els.cutList.innerHTML = '';
+    if (!clip) {
+      els.cutList.innerHTML = '<div class="sub-info">Select a clip first.</div>';
+    } else if (!cuts.length) {
+      els.cutList.innerHTML = '<div class="sub-info">No cuts. Drag on the filmstrip or set In/Out then press <b>Cut</b>.</div>';
+    }
+    cuts.forEach((c) => {
+      const el = document.createElement('div');
+      el.className = 'cut-item';
+      el.innerHTML =
+        `<span class="cut-time">${CU.fmt(c.start, 3)} → ${CU.fmt(c.end, 3)}</span>` +
+        `<span class="cut-dur">${CU.fmt(c.end - c.start, 3)}</span>` +
+        `<button class="btn tiny danger" data-del="${c.id}">✕</button>`;
+      el.querySelector('[data-del]').addEventListener('click', () => removeCut(c.id));
+      el.addEventListener('mouseenter', () => highlightCut(c.id, true));
+      el.addEventListener('mouseleave', () => highlightCut(c.id, false));
+      els.cutList.appendChild(el);
+    });
+    updateIoReadout();
+  }
+
+  function highlightCut(id, on) {
+    const el = els.tlCuts.querySelector(`[data-cut-id="${id}"]`);
+    if (el) el.style.outline = on ? '2px solid #fff' : 'none';
+  }
+
+  function updateIoReadout() {
+    const fmt = (v) => (v == null ? '—' : CU.fmt(v, 3));
+    let extra = '';
+    if (state.inPoint != null && state.outPoint != null && state.outPoint > state.inPoint) {
+      extra = ` · sel ${CU.fmt(state.outPoint - state.inPoint, 3)}`;
+    }
+    els.ioReadout.innerHTML = `In <b>${fmt(state.inPoint)}</b> · Out <b>${fmt(state.outPoint)}</b>${extra}`;
+  }
+
+  function updateSubPanel() {
+    const clip = activeClip();
+    if (document.activeElement !== els.subOffset) els.subOffset.value = String(state.globalSubOffset);
+    els.subEventList.innerHTML = '';
+    els.btnSubExport.disabled = !state.clips.some((c) => c.subtitle);
+
+    if (!clip) {
+      els.subInfo.textContent = 'Select a clip to manage its subtitles.';
+      return;
+    }
+    if (!clip.subtitle) {
+      els.subInfo.innerHTML = 'No subtitle loaded for this clip.';
+      return;
+    }
+    const ranges = keptRanges(clip);
+    const rows = buildSubRows(clip.subtitle.events, ranges, state.globalSubOffset);
+    const droppedCount = rows.filter((r) => r.dropped).length;
+    const keptCount = rows.length - droppedCount;
+    els.subInfo.innerHTML =
+      `<b>${CU.escapeHtml(clip.subtitle.name)}</b><br>` +
+      `${rows.length} events · <span class="ok">${keptCount} kept</span>` +
+      (droppedCount ? ` · <span class="warn">${droppedCount} dropped inside cuts</span>` : '');
+
+    const max = 400;
+    rows.slice(0, max).forEach((row) => {
+      const ev = row.ev;
+      const el = document.createElement('div');
+      el.className = 'sub-event' + (row.dropped ? ' dropped' : '');
+      const newLabel = row.dropped ? 'cut' : row.parts.map((p) => CU.fmt(p.start, 3)).join(', ');
+      el.innerHTML =
+        `<span class="se-time">${CU.fmt(ev.start, 3)}</span>` +
+        `<span class="se-arrow">→</span>` +
+        `<span class="se-new">${newLabel}</span>` +
+        `<span class="se-text" title="${CU.escapeHtml(ev.text)}">${CU.escapeHtml(ev.text.replace(/\s*\n\s*/g, ' '))}</span>`;
+      el.addEventListener('click', () => seekTo(ev.start));
+      els.subEventList.appendChild(el);
+    });
+    if (rows.length > max) {
+      const more = document.createElement('div');
+      more.className = 'sub-info';
+      more.textContent = `… ${rows.length - max} more events`;
+      els.subEventList.appendChild(more);
+    }
+  }
+
+  function updateTransport() {
+    const clip = activeClip();
+    const t = clip ? state.playhead : 0;
+    els.timecode.textContent = CU.fmt(t, 3);
+    els.timeTotal.textContent = clip ? CU.fmt(clip.durationMs, 3) : '0:00.000';
+    const { total } = programRanges();
+    if (state.playMode === 'result') {
+      els.resultTc.classList.remove('hidden');
+      els.resultTc.textContent = `result ${CU.fmt(state.resultTime, 3)} / ${CU.fmt(total, 3)}`;
+    } else {
+      els.resultTc.classList.add('hidden');
+    }
+
+    const totalMs = state.playMode === 'result' ? programRanges().total : clip ? clip.durationMs : 0;
+    const curMs = state.playMode === 'result' ? state.resultTime : clip ? state.playhead : 0;
+    if (!state.scrubbing && els.seekRange) {
+      els.seekRange.value = totalMs > 0 ? String(Math.round((curMs / totalMs) * 10000)) : '0';
+    }
+
+    els.btnPlay.textContent = !els.video.paused && (state.playMode === 'source' || program.playing) ? '❚❚' : '▶';
+  }
+
+  function updateModeUI() {
+    els.modeSource.classList.toggle('active', state.playMode === 'source');
+    els.modeResult.classList.toggle('active', state.playMode === 'result');
+    updateTransport();
+  }
+
+  function updateSubtitleOverlay() {
+    const clip = activeClip();
+    if (!clip || !clip.subtitle) {
+      els.subtitleOverlay.innerHTML = '';
+      return;
+    }
+    let events;
+    let time;
+    if (state.playMode === 'result') {
+      events = remapAll();
+      time = state.resultTime;
+    } else {
+      events = clip.subtitle.events;
+      time = state.playhead;
+    }
+    const active = [];
+    for (const e of events) {
+      if (time >= e.start && time <= e.end) active.push(e);
+      else if (e.start > time) break;
+    }
+    els.subtitleOverlay.innerHTML = active.map((e) => `<span>${CU.escapeHtml(e.text)}</span>`).join('');
+  }
+
+  /* ───────────────────────────── cut operations ───────────────────────────── */
+  function normalizeCuts(clip) {
+    const cuts = [...clip.cuts].sort((a, b) => a.start - b.start);
+    const merged = [];
+    for (const c of cuts) {
+      const last = merged[merged.length - 1];
+      if (last && c.start <= last.end + 1) last.end = Math.max(last.end, c.end);
+      else merged.push({ id: c.id, start: c.start, end: c.end });
+    }
+    clip.cuts = merged;
+  }
+
+  function addCut(start, end) {
+    const clip = activeClip();
+    if (!clip) return;
+    let s = snapMs(Math.min(start, end));
+    let e = snapMs(Math.max(start, end));
+    s = CU.clamp(s, 0, clip.durationMs);
+    e = CU.clamp(e, 0, clip.durationMs);
+    if (e - s < 1) {
+      toast('Selection is too short to cut.', 'warn', 2000);
+      return;
+    }
+    pushUndo();
+    clip.cuts.push({ id: CU.uid('cut'), start: s, end: e });
+    normalizeCuts(clip);
+    state.selection = null;
+    state.inPoint = null;
+    state.outPoint = null;
+    invalidate();
+    renderAll();
+  }
+
+  function removeCut(id) {
+    const clip = activeClip();
+    if (!clip) return;
+    pushUndo();
+    clip.cuts = clip.cuts.filter((c) => c.id !== id);
+    invalidate();
+    renderAll();
+  }
+
+  function getEditRange() {
+    const clip = activeClip();
+    if (!clip) return null;
+    const sel = state.selection;
+    if (sel && sel.clipId === clip.id && Math.abs(sel.end - sel.start) > 1) {
+      return { start: Math.min(sel.start, sel.end), end: Math.max(sel.start, sel.end) };
+    }
+    if (state.inPoint != null && state.outPoint != null && Math.abs(state.outPoint - state.inPoint) > 1) {
+      return { start: Math.min(state.inPoint, state.outPoint), end: Math.max(state.inPoint, state.outPoint) };
+    }
+    return null;
+  }
+
+  function cutSelection() {
+    const clip = activeClip();
+    if (!clip) return toast('Add a video first.', 'warn', 2600);
+    const r = getEditRange();
+    if (!r) {
+      if (state.inPoint != null && state.outPoint == null)
+        return toast('Out point is not set. Move the playhead and press O, or drag across the filmstrip.', 'warn', 4200);
+      if (state.outPoint != null && state.inPoint == null)
+        return toast('In point is not set. Move the playhead and press I, or drag across the filmstrip.', 'warn', 4200);
+      if (state.inPoint != null && state.outPoint != null)
+        return toast('In and Out are on the same frame — move the playhead between them.', 'warn', 4200);
+      return toast('Nothing selected. Drag across the filmstrip, or set In & Out with I / O.', 'warn', 4200);
+    }
+    addCut(r.start, r.end);
+  }
+
+  /** Double-click on the ruler/filmstrip: set In, then Out, then start a new range. */
+  function applyDoubleClickMark(t) {
+    const clip = activeClip();
+    if (!clip) return;
+    pause();
+    state.selection = null;
+    if (state.inPoint == null) {
+      state.inPoint = t;
+      state.outPoint = null;
+      setStatus(`In point ${CU.fmt(t, 3)} — double-click again to set the out point`, 'info', { timeout: 3500 });
+    } else if (state.outPoint == null) {
+      state.outPoint = t;
+      setStatus(`Out point ${CU.fmt(t, 3)} · ${CU.fmt(Math.abs(t - state.inPoint), 3)} selected`, 'info', { timeout: 3500 });
+    } else {
+      state.inPoint = t;
+      state.outPoint = null;
+      setStatus(`New in point ${CU.fmt(t, 3)}`, 'info', { timeout: 3000 });
+    }
+    renderOverlays();
+    updateIoReadout();
+  }
+
+  function clearMarks() {
+    if (state.inPoint == null && state.outPoint == null && !state.selection) return;
+    state.selection = null;
+    state.inPoint = null;
+    state.outPoint = null;
+    renderOverlays();
+    updateIoReadout();
+  }
+
+  function clearCuts() {
+    const clip = activeClip();
+    if (!clip || !clip.cuts.length) return;
+    pushUndo();
+    clip.cuts = [];
+    state.selection = null;
+    invalidate();
+    renderAll();
+  }
+
+  /* ───────────────────────── context menu ───────────────────────── */
+  function hideContextMenu() {
+    if (els.ctxMenu.classList.contains('hidden')) return;
+    els.ctxMenu.classList.add('hidden');
+    els.ctxMenu.innerHTML = '';
+  }
+
+  function buildContextItems(t, cutId) {
+    const clip = activeClip();
+    const range = getEditRange();
+    const at = CU.fmt(t, 3);
+    const items = [];
+
+    items.push({ label: 'Set In here', key: 'I', hint: at, action: () => { state.inPoint = t; renderOverlays(); updateIoReadout(); } });
+    items.push({ label: 'Set Out here', key: 'O', hint: at, action: () => { state.outPoint = t; renderOverlays(); updateIoReadout(); } });
+    items.push({ sep: true });
+
+    items.push({
+      label: 'Cut In → Out',
+      key: 'X',
+      hint: range ? CU.fmt(range.end - range.start, 3) : '',
+      disabled: !range,
+      action: () => cutSelection(),
+    });
+
+    if (state.inPoint != null && Math.abs(t - state.inPoint) > 1) {
+      items.push({ label: 'Cut from In to here', hint: CU.fmt(Math.abs(t - state.inPoint), 3), action: () => addCut(state.inPoint, t) });
+    }
+    if (state.outPoint != null && Math.abs(state.outPoint - t) > 1) {
+      items.push({ label: 'Cut from here to Out', hint: CU.fmt(Math.abs(state.outPoint - t), 3), action: () => addCut(t, state.outPoint) });
+    }
+
+    const cut = cutId && clip ? clip.cuts.find((c) => c.id === cutId) : null;
+    if (cut) {
+      items.push({ sep: true });
+      items.push({ label: 'Remove this cut', danger: true, hint: CU.fmt(cut.end - cut.start, 3), action: () => removeCut(cut.id) });
+    }
+
+    items.push({ sep: true });
+    items.push({ label: 'Clear marks', disabled: state.inPoint == null && state.outPoint == null && !state.selection, action: () => clearMarks() });
+    items.push({ label: 'Clear cuts', danger: true, disabled: !clip || !clip.cuts.length, action: () => clearCuts() });
+    return items;
+  }
+
+  function showContextMenu(clientX, clientY, timeMs, cutId) {
+    const clip = activeClip();
+    if (!clip) return;
+    const t = snapMs(timeMs);
+    const frame = clip.fps ? ` · frame ${Math.round(t / (1000 / clip.fps))}` : '';
+    const menu = els.ctxMenu;
+    menu.innerHTML = '';
+
+    const head = document.createElement('div');
+    head.className = 'ctx-head';
+    head.textContent = `at ${CU.fmt(t, 3)}${frame}`;
+    menu.appendChild(head);
+
+    for (const it of buildContextItems(t, cutId)) {
+      if (it.sep) {
+        const s = document.createElement('div');
+        s.className = 'ctx-sep';
+        menu.appendChild(s);
+        continue;
+      }
+      const el = document.createElement('div');
+      el.className = 'ctx-item' + (it.disabled ? ' disabled' : '') + (it.danger ? ' danger' : '');
+      const label = document.createElement('span');
+      label.textContent = it.label;
+      el.appendChild(label);
+      if (it.hint) {
+        const hint = document.createElement('span');
+        hint.className = 'ctx-hint';
+        hint.textContent = it.hint;
+        el.appendChild(hint);
+      }
+      if (it.key) {
+        const k = document.createElement('span');
+        k.className = 'ctx-key';
+        k.textContent = it.key;
+        el.appendChild(k);
+      }
+      if (!it.disabled) {
+        el.addEventListener('click', () => {
+          hideContextMenu();
+          it.action();
+        });
+      }
+      menu.appendChild(el);
+    }
+
+    // Measure off-screen, then clamp into the viewport.
+    menu.style.left = '-9999px';
+    menu.style.top = '0px';
+    menu.classList.remove('hidden');
+    const rect = menu.getBoundingClientRect();
+    menu.style.left = Math.max(8, Math.min(clientX, window.innerWidth - rect.width - 8)) + 'px';
+    menu.style.top = Math.max(8, Math.min(clientY, window.innerHeight - rect.height - 8)) + 'px';
+  }
+
+  function seekTo(ms) {
+    const clip = activeClip();
+    if (!clip) return;
+    state.playhead = CU.clamp(ms, 0, clip.durationMs);
+    if (state.playMode === 'source') {
+      seekVideo(state.playhead);
+    }
+    renderOverlays();
+    updateTransport();
+    updateSubtitleOverlay();
+    scrollPlayheadIntoView();
+  }
+
+  function scrollPlayheadIntoView(force) {
+    const sc = els.timelineScroll;
+    const x = state.playhead * state.pxPerMs;
+    if (force || x < sc.scrollLeft + 30 || x > sc.scrollLeft + sc.clientWidth - 30) {
+      sc.scrollLeft = Math.max(0, x - sc.clientWidth * 0.5);
+    }
+  }
+
+  /* ───────────────────────────── playback ───────────────────────────── */
+  async function playSource() {
+    const clip = activeClip();
+    if (!clip) return;
+    const ok = await ensureVideoFor(clip);
+    if (!ok) return;
+    await seekVideo(state.playhead);
+    await els.video.play().catch(() => {});
+    updateTransport();
+  }
+
+  async function programPlay(fromResultMs) {
+    const { ranges } = programRanges();
+    if (!ranges.length) {
+      toast('Nothing to preview — every frame is cut away.', 'warn');
+      return;
+    }
+    let idx = ranges.findIndex((r) => fromResultMs >= r.outStart && fromResultMs < r.outEnd - 1);
+    if (idx < 0) idx = ranges.findIndex((r) => r.outStart >= fromResultMs);
+    if (idx < 0) idx = ranges.length - 1;
+    program.ranges = ranges;
+    program.idx = idx;
+    program.playing = true;
+    state.resultTime = ranges[idx].outStart;
+    await playProgramRange();
+  }
+
+  async function playProgramRange() {
+    const r = program.ranges[program.idx];
+    if (!r) return;
+    const clip = state.clips.find((c) => c.id === r.clipId);
+    if (!clip) return;
+    state.activeClipId = r.clipId;
+    updateClipList();
+    const local = r.srcStart + CU.clamp(state.resultTime - r.outStart, 0, r.srcEnd - r.srcStart);
+    const ok = await ensureVideoFor(clip);
+    if (!ok) {
+      program.playing = false;
+      return;
+    }
+    await seekVideo(local);
+    state.playhead = local;
+    renderTimeline();
+    updateTransport();
+    await els.video.play().catch(() => {});
+  }
+
+  function pause() {
+    program.playing = false;
+    els.video.pause();
+    updateTransport();
+  }
+
+  /** Seek inside the merged result by output time (used by the scrubber). */
+  async function seekResult(ms) {
+    const { ranges, total } = programRanges();
+    if (!ranges.length) return;
+    const t = CU.clamp(ms, 0, total);
+    state.resultTime = t;
+    let idx = ranges.findIndex((r) => t >= r.outStart && t <= r.outEnd);
+    if (idx < 0) idx = ranges.length - 1;
+    program.idx = idx;
+    program.playing = false;
+    const r = ranges[idx];
+    const clip = state.clips.find((c) => c.id === r.clipId);
+    const local = r.srcStart + CU.clamp(t - r.outStart, 0, r.srcEnd - r.srcStart);
+    state.activeClipId = r.clipId;
+    updateClipList();
+    const ok = await ensureVideoFor(clip);
+    if (ok) await seekVideo(local);
+    state.playhead = local;
+    renderTimeline();
+    updateTransport();
+    updateSubtitleOverlay();
+  }
+
+  async function togglePlay() {
+    if (state.playMode === 'source') {
+      if (els.video.paused) await playSource();
+      else pause();
+      return;
+    }
+    if (program.playing && !els.video.paused) pause();
+    else await programPlay(state.resultTime);
+  }
+
+  /* ───────────────────────────── timeline interaction ───────────────────────────── */
+  let drag = null;
+
+  function xToMs(clientX) {
+    const rect = els.timeline.getBoundingClientRect();
+    return (clientX - rect.left) / (state.pxPerMs || 1);
+  }
+
+  function onPointerDown(e) {
+    if (e.button !== 0) return; // left button only; right button opens the context menu
+    const clip = activeClip();
+    if (!clip || state.exporting) return;
+    const target = e.target;
+
+    if (target.closest('#tlMarkerIn') && state.inPoint != null) {
+      pause();
+      seekTo(state.inPoint);
+      return;
+    }
+    if (target.closest('#tlMarkerOut') && state.outPoint != null) {
+      pause();
+      seekTo(state.outPoint);
+      return;
+    }
+    if (target.closest('#tlPlayhead')) {
+      drag = { type: 'playhead' };
+      pause();
+      return;
+    }
+    if (target.closest('#tlRuler')) {
+      drag = { type: 'scrub' };
+      pause();
+      seekTo(snapMs(xToMs(e.clientX)));
+      return;
+    }
+    const cutEl = target.closest('.tl-cut');
+    if (cutEl) {
+      const cut = clip.cuts.find((c) => c.id === cutEl.dataset.cutId);
+      if (!cut) return;
+      const handle = target.closest('[data-handle]');
+      const ms = snapMs(xToMs(e.clientX));
+      if (handle) {
+        drag = { type: 'cut-edge', cutId: cut.id, side: handle.dataset.handle, pushed: false };
+      } else {
+        drag = { type: 'cut-move', cutId: cut.id, grabMs: ms, origStart: cut.start, origEnd: cut.end, moved: false, pushed: false };
+      }
+      return;
+    }
+    if (target.closest('#tlSubs')) {
+      const sub = target.closest('.tl-sub');
+      if (sub) {
+        seekTo(Number(sub.dataset.subStart));
+        return;
+      }
+    }
+    if (target.closest('#tlFilm')) {
+      const ms = snapMs(xToMs(e.clientX));
+      drag = { type: 'select', anchor: ms, moved: false };
+      state.selection = { clipId: clip.id, start: ms, end: ms };
+      renderOverlays();
+    }
+  }
+
+  function onPointerMove(e) {
+    if (!drag) return;
+    const clip = activeClip();
+    if (!clip) return;
+    const ms = snapMs(xToMs(e.clientX));
+
+    if (drag.type === 'playhead' || drag.type === 'scrub') {
+      seekTo(ms);
+      return;
+    }
+    if (drag.type === 'select') {
+      if (Math.abs(ms - drag.anchor) > 3) drag.moved = true;
+      state.selection = { clipId: clip.id, start: drag.anchor, end: ms };
+      renderOverlays();
+      return;
+    }
+    const cut = clip.cuts.find((c) => c.id === drag.cutId);
+    if (!cut) return;
+    if (!drag.pushed && drag.type !== 'select' && drag.type !== 'scrub' && drag.type !== 'playhead') {
+      pushUndo();
+      drag.pushed = true;
+    }
+    if (drag.type === 'cut-edge') {
+      if (drag.side === 'start') cut.start = CU.clamp(ms, 0, cut.end - 1);
+      else cut.end = CU.clamp(ms, cut.start + 1, clip.durationMs);
+    } else if (drag.type === 'cut-move') {
+      const delta = ms - drag.grabMs;
+      if (Math.abs(delta) > 1) drag.moved = true;
+      const len = drag.origEnd - drag.origStart;
+      let s = CU.clamp(drag.origStart + delta, 0, clip.durationMs - len);
+      cut.start = s;
+      cut.end = s + len;
+    }
+    invalidate();
+    updateCutElement(cut);
+    updateCutList();
+  }
+
+  function updateCutElement(cut) {
+    const el = els.tlCuts.querySelector(`[data-cut-id="${cut.id}"]`);
+    if (!el) return;
+    el.style.left = cut.start * state.pxPerMs + 'px';
+    el.style.width = Math.max(3, (cut.end - cut.start) * state.pxPerMs) + 'px';
+    const label = el.querySelector('.cut-label');
+    if (label) label.textContent = `${CU.fmt(cut.start, 3)} → ${CU.fmt(cut.end, 3)} · ${CU.fmt(cut.end - cut.start, 3)}`;
+  }
+
+  function onPointerUp() {
+    if (!drag) return;
+    const clip = activeClip();
+    if (drag.type === 'select' && clip) {
+      if (!drag.moved) {
+        state.selection = null;
+        seekTo(snapMs(drag.anchor));
+      } else {
+        const sel = state.selection;
+        const s = Math.min(sel.start, sel.end);
+        const en = Math.max(sel.start, sel.end);
+        if (en - s < 2) state.selection = null;
+        else state.selection = { clipId: clip.id, start: s, end: en };
+        renderOverlays();
+      }
+    }
+    if ((drag.type === 'cut-edge' || drag.type === 'cut-move') && clip) {
+      normalizeCuts(clip);
+      invalidate();
+      updateCutList();
+      updateClipList();
+      renderTimeline();
+    }
+    drag = null;
+  }
+
+  /* ─────────────────── cut job: save / share / import ─────────────────── */
+  const SHARE_PREFIX = 'CUCI2-1';
+  const round3 = (v) => Math.round((Number(v) || 0) * 1000) / 1000;
+
+  function bytesToBase64url(bytes) {
+    let bin = '';
+    const chunk = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunk) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  function base64urlToBytes(str) {
+    let s = str.replace(/-/g, '+').replace(/_/g, '/');
+    while (s.length % 4) s += '=';
+    const bin = atob(s);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+
+  async function deflateRawBytes(bytes) {
+    const stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+  }
+
+  async function inflateRawBytes(bytes) {
+    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+  }
+
+  /** Short-key schema so a share code stays small enough for social posts. */
+  function toCompact(job) {
+    const e = job.export || {};
+    return {
+      a: 'CUCI2',
+      v: job.version || 1,
+      t: job.created,
+      D: job.description || undefined,
+      o: job.subOffsetMs || undefined,
+      e: job.export
+        ? [e.container, e.videoCodec, e.crf, e.preset, e.resolution, e.fps, e.audioBitrate, e.burnSubtitles ? 1 : 0, e.writeSrt === false ? 0 : 1]
+        : undefined,
+      c: (job.clips || []).map((c) => {
+        const o = { n: c.name, z: c.size || undefined, d: c.durationMs, f: c.fps, w: c.width, h: c.height, A: c.hasAudio ? 1 : 0, x: c.cuts || [] };
+        if (c.subtitle) o.u = { n: c.subtitle.name, f: c.subtitle.format || 'srt', v: c.subtitle.events || undefined };
+        return o;
+      }),
+    };
+  }
+
+  function fromCompact(k) {
+    if (!k || (k.a !== 'CUCI2' && k.app !== 'CUCI2')) throw new Error('Share code has an unexpected format.');
+    if (Array.isArray(k.clips)) return k; // already the verbose form
+    return {
+      app: 'CUCI2',
+      kind: 'cut-job',
+      version: k.v || 1,
+      created: k.t || '',
+      description: k.D || k.description || '',
+      subOffsetMs: k.o || 0,
+      export: k.e
+        ? { container: k.e[0], videoCodec: k.e[1], crf: k.e[2], preset: k.e[3], resolution: k.e[4], fps: k.e[5], audioBitrate: k.e[6], burnSubtitles: !!k.e[7], writeSrt: k.e[8] !== 0 }
+        : undefined,
+      clips: (k.c || []).map((c) => ({
+        name: c.n,
+        size: c.z || 0,
+        durationMs: c.d,
+        fps: c.f,
+        width: c.w,
+        height: c.h,
+        hasAudio: !!c.A,
+        cuts: c.x || [],
+        subtitle: c.u ? { name: c.u.n, format: c.u.f || 'srt', events: c.u.v || null } : null,
+      })),
+    };
+  }
+
+  /** job -> compact, paste-friendly code:  CUCI2-1z.<base64url(deflate(json))> */
+  async function encodeShareCode(job) {
+    const raw = new TextEncoder().encode(JSON.stringify(toCompact(job)));
+    try {
+      return `${SHARE_PREFIX}z.${bytesToBase64url(await deflateRawBytes(raw))}`;
+    } catch {
+      return `${SHARE_PREFIX}p.${bytesToBase64url(raw)}`;
+    }
+  }
+
+  async function decodeShareCode(text) {
+    const code = String(text).trim().replace(/\s+/g, '');
+    const m = /^CUCI2-1([zp])\.([A-Za-z0-9_-]+)$/.exec(code);
+    if (!m) throw new Error('This does not look like a CUCI2 share code.');
+    const bytes = base64urlToBytes(m[2]);
+    const raw = m[1] === 'z' ? await inflateRawBytes(bytes) : bytes;
+    return fromCompact(JSON.parse(new TextDecoder().decode(raw)));
+  }
+
+  function buildJob(includeSubtitles) {
+    const description = (state.jobDescription || '').trim().slice(0, 200);
+    return {
+      app: 'CUCI2',
+      kind: 'cut-job',
+      version: 1,
+      created: new Date().toISOString(),
+      description: description || undefined,
+      subOffsetMs: Math.round(state.globalSubOffset),
+      export: {
+        container: els.expContainer.value,
+        videoCodec: els.expVcodec.value,
+        crf: Number(els.expCrf.value),
+        preset: els.expPreset.value,
+        resolution: els.expRes.value,
+        fps: els.expFps.value,
+        audioBitrate: els.expAbitrate.value,
+        burnSubtitles: els.expBurn.checked,
+        writeSrt: els.expSrt.checked,
+      },
+      clips: state.clips.map((clip) => {
+        const entry = {
+          name: clip.name,
+          size: clip.fileSize || 0,
+          durationMs: Math.round(clip.durationMs),
+          fps: clip.fps ? Number(clip.fps.toFixed(4)) : 0,
+          width: clip.width,
+          height: clip.height,
+          hasAudio: !!clip.hasAudio,
+          cuts: [...clip.cuts].sort((a, b) => a.start - b.start).map((c) => [round3(c.start), round3(c.end)]),
+          subtitle: null,
+        };
+        if (clip.subtitle) {
+          entry.subtitle = { name: clip.subtitle.name, format: clip.subtitle.format || 'srt', events: null };
+          if (includeSubtitles) entry.subtitle.events = clip.subtitle.events.map((e) => [round3(e.start), round3(e.end), e.text]);
+        }
+        return entry;
+      }),
+    };
+  }
+
+  function findClipForEntry(entry, usedIds) {
+    let best = null;
+    let bestScore = 0;
+    for (const clip of state.clips) {
+      if (usedIds.has(clip.id)) continue;
+      let score = 0;
+      if (entry.name && clip.name === entry.name) score += 2;
+      if (entry.size && clip.fileSize && entry.size === clip.fileSize) score += 4;
+      if (entry.durationMs && Math.abs(clip.durationMs - entry.durationMs) <= 500) score += 2;
+      if (score > bestScore) {
+        bestScore = score;
+        best = clip;
+      }
+    }
+    return bestScore >= 2 ? best : null;
+  }
+
+  function applyExportSettings(exp) {
+    if (!exp) return;
+    const set = (el, v) => {
+      if (el && v != null && v !== '') el.value = String(v);
+    };
+    set(els.expContainer, exp.container);
+    set(els.expVcodec, exp.videoCodec);
+    set(els.expCrf, exp.crf);
+    set(els.expPreset, exp.preset);
+    set(els.expRes, exp.resolution);
+    set(els.expFps, exp.fps);
+    set(els.expAbitrate, exp.audioBitrate);
+    els.expCrfVal.textContent = els.expCrf.value;
+    if (exp.burnSubtitles != null) els.expBurn.checked = !!exp.burnSubtitles;
+    if (exp.writeSrt != null) els.expSrt.checked = !!exp.writeSrt;
+  }
+
+  function applyJob(job, opts = {}) {
+    if (!job || job.app !== 'CUCI2' || !Array.isArray(job.clips)) throw new Error('Not a CUCI2 job.');
+    if (!opts.silent) pushUndo();
+    const usedIds = new Set();
+    const matched = [];
+    const missing = [];
+    for (const entry of job.clips) {
+      const clip = findClipForEntry(entry, usedIds);
+      if (!clip) {
+        missing.push(entry);
+        continue;
+      }
+      usedIds.add(clip.id);
+      matched.push(clip);
+      clip.cuts = (entry.cuts || [])
+        .map((c) => ({ id: CU.uid('cut'), start: Number(c[0]) || 0, end: Number(c[1]) || 0 }))
+        .filter((c) => c.end > c.start);
+      normalizeCuts(clip);
+      if (entry.subtitle && Array.isArray(entry.subtitle.events) && entry.subtitle.events.length) {
+        clip.subtitle = {
+          path: '',
+          name: entry.subtitle.name || 'shared subtitles',
+          format: entry.subtitle.format || 'srt',
+          events: entry.subtitle.events.map((e) => ({ start: Number(e[0]) || 0, end: Number(e[1]) || 0, text: String(e[2] == null ? '' : e[2]) })),
+        };
+      }
+    }
+    if (typeof job.subOffsetMs === 'number') {
+      state.globalSubOffset = Math.round(job.subOffsetMs);
+      els.subOffset.value = String(state.globalSubOffset);
+    }
+    state.jobDescription = String(job.description || '').slice(0, 200);
+    if (els.jobDesc) els.jobDesc.value = state.jobDescription;
+    updateJobDescCount();
+    applyExportSettings(job.export);
+    if (matched.length && missing.length === 0) {
+      const extras = state.clips.filter((c) => !matched.includes(c));
+      state.clips = [...matched, ...extras];
+    }
+    invalidate();
+    renderAll();
+    if (matched.length && !matched.some((c) => c.id === state.activeClipId)) {
+      state.activeClipId = matched[0].id;
+      videoFile = null;
+      activateClip(state.activeClipId);
+    }
+    return { matched: matched.length, missing };
+  }
+
+  function finishJobApply(job, res, label) {
+    const names = res.missing.map((m) => m.name || 'unknown file').join(', ');
+    const desc = job.description ? `“${job.description}”\n` : '';
+    if (res.missing.length) {
+      state.pendingJob = job;
+      setJobStatus(`${desc}Applied to ${res.matched} clip(s)${label}. Waiting for ${res.missing.length} missing video(s): ${names}`, 'warn');
+      toast(`${desc}Job applied to ${res.matched} clip(s). Add the missing video(s) to finish:\n${names}`, 'warn', 9000);
+    } else {
+      state.pendingJob = null;
+      setJobStatus(`${desc}Applied to ${res.matched} clip(s)${label}.`, 'ok');
+      toast(`${desc}Cut job applied.`, 'ok');
+    }
+  }
+
+  let jobCodeTimer = null;
+  function scheduleShareCodeRefresh() {
+    clearTimeout(jobCodeTimer);
+    jobCodeTimer = setTimeout(refreshShareCode, 200);
+  }
+
+  function updateJobDescCount() {
+    if (els.jobDescCount) els.jobDescCount.textContent = `${(state.jobDescription || '').length} / 200`;
+    if (els.btnJob) els.btnJob.title = state.jobDescription ? `Job: ${state.jobDescription}` : 'Save / open / share the cut job';
+  }
+
+  function tryApplyPendingJob() {
+    if (!state.pendingJob) return;
+    try {
+      const res = applyJob(state.pendingJob, { silent: true });
+      if (res.missing.length === 0) {
+        state.pendingJob = null;
+        setJobStatus(`Job applied to ${res.matched} clip(s).`, 'ok');
+        toast('Cut job applied.', 'ok');
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function setJobStatus(text, kind) {
+    els.jobStatus.textContent = text || '';
+    els.jobStatus.classList.toggle('hidden', !text);
+    els.jobStatus.style.color = kind === 'warn' ? 'var(--warn)' : kind === 'ok' ? 'var(--ok)' : '';
+  }
+
+  async function refreshShareCode() {
+    if (!state.clips.length) {
+      els.jobCode.value = '';
+      els.jobCodeInfo.textContent = 'No media loaded yet.';
+      return;
+    }
+    const job = buildJob(els.jobIncludeSubs.checked);
+    const code = await encodeShareCode(job);
+    els.jobCode.value = code;
+    const bytes = new TextEncoder().encode(code).length;
+    const cuts = job.clips.reduce((a, c) => a + c.cuts.length, 0);
+    const hasSubs = job.clips.some((c) => c.subtitle && c.subtitle.events);
+    const sizeHint = bytes <= 280 ? ' · tweet-sized' : '';
+    els.jobCodeInfo.textContent = `${bytes.toLocaleString()} chars · ${job.clips.length} clip(s) · ${cuts} cut(s)${hasSubs ? ' · includes subtitles' : ''}${sizeHint}`;
+    els.jobCodeInfo.classList.toggle('warn', bytes > 4000);
+  }
+
+  async function saveJobFile() {
+    if (!state.clips.length) return toast('Add a video first.', 'warn');
+    const first = state.clips[0];
+    const def = pathJoin(CU.dirname(first.path), CU.stripExt(first.name) + '.cuci2.json');
+    const p = await api.saveFile({ title: 'Save cut job', defaultPath: def, filters: [{ name: 'CUCI2 job', extensions: ['json'] }] });
+    if (!p) return;
+    try {
+      await api.writeText(p, JSON.stringify(buildJob(true), null, 2));
+      setJobStatus('Saved: ' + p, 'ok');
+      toast('Job saved:\n' + p, 'ok', 6000);
+    } catch (err) {
+      toast('Could not save job:\n' + (err.message || err), 'error', 8000);
+    }
+  }
+
+  async function openJobFile() {
+    const p = await api.openFile({
+      title: 'Open cut job',
+      filters: [{ name: 'CUCI2 job / share code', extensions: ['json', 'txt', 'cuci2'] }, { name: 'All files', extensions: ['*'] }],
+    });
+    if (!p) return;
+    try {
+      const text = (await api.readText(p)).trim();
+      const job = text.startsWith('{') ? fromCompact(JSON.parse(text)) : await decodeShareCode(text);
+      const res = applyJob(job);
+      finishJobApply(job, res, ` from ${CU.basename(p)}`);
+    } catch (err) {
+      toast('Could not open job:\n' + (err.message || err), 'error', 9000);
+    }
+  }
+
+  async function copyShareCode() {
+    if (!els.jobCode.value) await refreshShareCode();
+    if (!els.jobCode.value) return toast('Nothing to share yet — add a video first.', 'warn');
+    await api.clipboardWrite(els.jobCode.value);
+    toast('Share code copied to clipboard.', 'ok', 3000);
+  }
+
+  async function pasteFromClipboard() {
+    const text = await api.clipboardRead();
+    if (!text || !text.trim()) return toast('Clipboard is empty.', 'warn');
+    els.jobPaste.value = text.trim();
+    toast('Pasted from clipboard.', 'ok', 2500);
+  }
+
+  async function importShareCode() {
+    const text = (els.jobPaste.value || '').trim();
+    if (!text) return toast('Paste a share code first.', 'warn');
+    try {
+      const job = await decodeShareCode(text);
+      const res = applyJob(job);
+      finishJobApply(job, res, ' from share code');
+    } catch (err) {
+      toast('Could not import:\n' + (err.message || err), 'error', 9000);
+    }
+  }
+
+  function openJobModal() {
+    setJobStatus('');
+    els.jobStatus.classList.add('hidden');
+    if (els.jobDesc) els.jobDesc.value = state.jobDescription || '';
+    updateJobDescCount();
+    refreshShareCode();
+    els.jobModal.classList.remove('hidden');
+  }
+
+  function closeJobModal() {
+    els.jobModal.classList.add('hidden');
+  }
+
+  /* ───────────────────────────── export ───────────────────────────── */
+  function currentSetup() {
+    const { ranges, total } = programRanges();
+    const first = state.clips[0];
+    const res = els.expRes.value;
+    let width = first ? first.width : 1920;
+    let height = first ? first.height : 1080;
+    if (res !== 'source') {
+      height = parseInt(res, 10);
+      const aspect = first && first.height ? first.width / first.height : 16 / 9;
+      width = Math.round(height * aspect);
+    }
+    width = even(width);
+    height = even(height);
+    const fpsSel = els.expFps.value;
+    const fps = fpsSel === 'source' ? (first && first.fps) || 25 : parseFloat(fpsSel);
+    return { ranges, total, width, height, fps, subs: remapAll() };
+  }
+
+  // Guards against accidentally exporting the full source when the user meant
+  // to cut something: the first click arms, the second confirms.
+  let exportConfirmArmed = false;
+
+  function resetExportConfirm() {
+    exportConfirmArmed = false;
+    els.expStart.classList.remove('armed');
+    if (!state.exporting) els.expStart.textContent = 'Start export';
+  }
+
+  function updateExportSummary() {
+    const { ranges, total, width, height, fps, subs } = currentSetup();
+    const completed = state.clips.reduce((a, c) => a + c.durationMs, 0);
+    const removed = Math.max(0, completed - total);
+    const noCuts = removed < 1;
+    const lines = [
+      `clips            : ${state.clips.length}`,
+      `segments to join : ${ranges.length}`,
+      `source duration  : ${CU.fmt(completed, 3)}`,
+      `output duration  : ${CU.fmt(total, 3)}`,
+      `removed          : ${CU.fmt(removed, 3)}`,
+      `video            : ${width}×${height} @ ${Number(fps).toFixed(3)} fps`,
+      `subtitles        : ${subs.length} events synced` + (els.expBurn.checked ? ' · burned in' : ''),
+    ];
+    let html = lines
+      .map((l) => CU.escapeHtml(l).replace(/^([a-z ]+):/, '<b>$1</b>:'))
+      .join('\n');
+    if (noCuts) {
+      html += '\n\n<b style="color:var(--warn)">⚠ No cuts applied yet — the output would be the full source length.</b>';
+    }
+    els.expSummary.innerHTML = html;
+    els.expStart.disabled = ranges.length === 0;
+    resetExportConfirm();
+  }
+
+  function defaultOutputPath() {
+    const first = state.clips[0];
+    if (!first) return '';
+    const dir = CU.dirname(first.path);
+    const container = els.expContainer.value || 'mp4';
+    return pathJoin(dir, CU.stripExt(first.name) + '.cut.' + container);
+  }
+
+  function openExportModal() {
+    if (!state.clips.length) return toast('Add a video first.', 'warn');
+    pause();
+    if (!els.expPath.value) els.expPath.value = defaultOutputPath();
+    updateExportSummary();
+    els.exportModal.classList.remove('hidden');
+  }
+
+  function closeExportModal() {
+    if (state.exporting) return;
+    els.exportModal.classList.add('hidden');
+  }
+
+  async function startExport() {
+    if (state.exporting) return;
+    const outputPath = els.expPath.value.trim();
+    if (!outputPath) return toast('Choose an output file.', 'warn');
+
+    const { ranges, total, width, height, fps, subs } = currentSetup();
+    if (!ranges.length) return toast('Nothing to export — the whole timeline is cut away.', 'warn');
+
+    const completed = state.clips.reduce((a, c) => a + c.durationMs, 0);
+    const removed = Math.max(0, completed - total);
+    if (removed < 1 && !exportConfirmArmed) {
+      exportConfirmArmed = true;
+      els.expStart.classList.add('armed');
+      els.expStart.textContent = '⚠ Click again to export full video';
+      toast('No cuts applied — the output would be the full source length. Click Start again to confirm.', 'warn', 7000);
+      return;
+    }
+    resetExportConfirm();
+
+    const burn = els.expBurn.checked && subs.length > 0;
+    if (els.expBurn.checked && subs.length === 0) toast('No subtitles to burn — continuing without them.', 'warn');
+
+    // option: also export a synced .srt
+    if (els.expSrt.checked && subs.length) {
+      const srtPath = outputPath.replace(/\.[^./\\]+$/, '') + '.srt';
+      try {
+        await api.writeText(srtPath, CU.serializeSrt(subs));
+        toast('Synced subtitle written:\n' + srtPath, 'ok', 6000);
+      } catch (err) {
+        toast('Could not write .srt:\n' + (err.message || err), 'error');
+      }
+    }
+
+    const segments = ranges.map((r) => {
+      const clip = state.clips.find((c) => c.id === r.clipId);
+      return { path: clip.path, start: r.srcStart, end: r.srcEnd, hasAudio: clip.hasAudio };
+    });
+
+    const req = {
+      outputPath,
+      container: els.expContainer.value,
+      segments,
+      width,
+      height,
+      fps,
+      videoCodec: els.expVcodec.value,
+      crf: Number(els.expCrf.value),
+      preset: els.expPreset.value,
+      audioBitrate: els.expAbitrate.value,
+      burnSubtitles: burn,
+      subtitleSrt: burn ? CU.serializeSrt(subs) : '',
+    };
+
+    state.exporting = true;
+    els.expStart.disabled = true;
+    els.expCancel.classList.remove('hidden');
+    els.expClose.disabled = true;
+    els.expProgressWrap.classList.remove('hidden');
+    els.expProgressBar.style.width = '0%';
+    els.expStatus.textContent = 'Starting ffmpeg…';
+
+    const started = Date.now();
+    const result = await api.exportVideo(req);
+    state.exporting = false;
+    els.expCancel.classList.add('hidden');
+    els.expClose.disabled = false;
+
+    if (result.ok) {
+      els.expProgressBar.style.width = '100%';
+      els.expStatus.textContent = 'Done.';
+      setStatus(`Export complete: ${CU.basename(result.outputPath)}`, 'ok', { timeout: 9000 });
+      const close = toast('Export complete:\n' + result.outputPath, 'ok', 0);
+      const el = els.toasts.lastElementChild;
+      if (el) {
+        const openBtn = document.createElement('button');
+        openBtn.className = 'btn tiny';
+        openBtn.textContent = 'Open folder';
+        openBtn.style.marginTop = '8px';
+        openBtn.addEventListener('click', () => api.showItem(result.outputPath));
+        el.querySelector('.t-body').appendChild(document.createElement('br'));
+        el.querySelector('.t-body').appendChild(openBtn);
+      }
+      updateExportSummary();
+    } else if (result.cancelled) {
+      els.expStatus.textContent = 'Cancelled.';
+      setStatus('Export cancelled', 'warn');
+      toast('Export cancelled.', 'warn');
+    } else {
+      els.expStatus.textContent = 'Failed.';
+      setStatus('Export failed', 'error');
+      toast('Export failed:\n' + (result.error || 'unknown error'), 'error', 12000);
+    }
+    els.expStart.disabled = false;
+  }
+
+  /* ───────────────────────────── ffmpeg / settings ───────────────────────────── */
+  async function refreshInfo() {
+    const info = await api.getInfo();
+    state.info = info;
+    if (info.ffmpeg.ok) {
+      els.ffStatus.className = 'ff-status ok';
+      const v = (info.ffmpeg.version.match(/ffmpeg version\s+(\S+)/i) || [])[1] || '';
+      els.ffStatus.textContent = `ffmpeg ✓ ${v}`.trim();
+      els.ffStatus.title = info.ffmpeg.version;
+    } else {
+      els.ffStatus.className = 'ff-status bad';
+      els.ffStatus.textContent = 'ffmpeg ✗ not found';
+      els.ffStatus.title = (info.ffmpeg.error || 'ffmpeg was not found on PATH') + '\nClick to configure.';
+      setStatus('ffmpeg was not found — thumbnails and export will not work. Open Settings to configure it.', 'error');
+    }
+    state.settings = { loadThumbs: false, ...(info.settings || {}) };
+    els.setFfmpeg.value = info.settings.ffmpegPath || '';
+    els.setFfprobe.value = info.settings.ffprobePath || '';
+    els.setLoadThumbs.checked = !!state.settings.loadThumbs;
+    els.setStatus.innerHTML = info.ffmpeg.ok
+      ? `<b>Detected:</b> ${CU.escapeHtml(info.ffmpeg.version)}`
+      : `<b style="color:var(--warn)">ffmpeg not detected.</b> Install ffmpeg and make sure it is on your PATH, or set the full path above.`;
+    return info;
+  }
+
+  function openSettings() {
+    refreshInfo();
+    els.settingsModal.classList.remove('hidden');
+  }
+
+  /* ───────────────────────────── wiring ───────────────────────────── */
+  function wire() {
+    els.btnAddVideo.addEventListener('click', async () => addVideos(await api.openVideos()));
+    els.btnAddVideo2.addEventListener('click', async () => addVideos(await api.openVideos()));
+
+    els.btnAddSub.addEventListener('click', async () => {
+      const clip = activeClip();
+      if (!clip) return toast('Add a video first.', 'warn');
+      await addSubtitleToClip(clip);
+    });
+
+    els.btnExport.addEventListener('click', openExportModal);
+    els.btnSettings.addEventListener('click', openSettings);
+    els.btnJob.addEventListener('click', openJobModal);
+    els.jobClose.addEventListener('click', closeJobModal);
+    els.jobClose2.addEventListener('click', closeJobModal);
+    els.jobSave.addEventListener('click', saveJobFile);
+    els.jobOpen.addEventListener('click', openJobFile);
+    els.jobCopy.addEventListener('click', copyShareCode);
+    els.jobRefresh.addEventListener('click', refreshShareCode);
+    els.jobIncludeSubs.addEventListener('change', refreshShareCode);
+    els.jobDesc.addEventListener('input', () => {
+      state.jobDescription = els.jobDesc.value.slice(0, 200);
+      updateJobDescCount();
+      scheduleShareCodeRefresh();
+    });
+    els.jobImport.addEventListener('click', importShareCode);
+    els.jobPasteClip.addEventListener('click', pasteFromClipboard);
+    els.ffStatus.addEventListener('click', openSettings);
+
+    els.btnPlay.addEventListener('click', togglePlay);
+    els.btnStop.addEventListener('click', () => {
+      pause();
+      seekTo(0);
+    });
+    els.btnPrevFrame.addEventListener('click', () => {
+      pause();
+      seekTo(state.playhead - frameMs());
+    });
+    els.btnNextFrame.addEventListener('click', () => {
+      pause();
+      seekTo(state.playhead + frameMs());
+    });
+    els.btnPrevSec.addEventListener('click', () => {
+      pause();
+      seekTo(state.playhead - 1000);
+    });
+    els.btnNextSec.addEventListener('click', () => {
+      pause();
+      seekTo(state.playhead + 1000);
+    });
+
+    els.btnSetIn.addEventListener('click', () => {
+      state.inPoint = snapMs(state.playhead);
+      renderOverlays();
+      updateIoReadout();
+    });
+    els.btnSetOut.addEventListener('click', () => {
+      state.outPoint = snapMs(state.playhead);
+      renderOverlays();
+      updateIoReadout();
+    });
+    els.btnCut.addEventListener('click', cutSelection);
+    els.btnClearMarks.addEventListener('click', clearMarks);
+    els.btnClearCuts.addEventListener('click', clearCuts);
+
+    els.modeSource.addEventListener('click', async () => {
+      pause();
+      state.playMode = 'source';
+      state.selection = null;
+      updateModeUI();
+      const clip = activeClip();
+      if (clip) {
+        await ensureVideoFor(clip);
+        await seekVideo(state.playhead);
+      }
+      renderTimeline();
+      updateSubtitleOverlay();
+    });
+    els.modeResult.addEventListener('click', async () => {
+      pause();
+      state.playMode = 'result';
+      updateModeUI();
+      state.resultTime = 0;
+      renderTimeline();
+      updateSubtitleOverlay();
+      await programPlay(0);
+    });
+
+    els.seekRange.addEventListener('pointerdown', () => {
+      state.scrubbing = true;
+      pause();
+    });
+    window.addEventListener('pointerup', () => {
+      if (state.scrubbing) {
+        state.scrubbing = false;
+        updateTransport();
+      }
+    });
+    els.seekRange.addEventListener('input', () => {
+      const frac = Number(els.seekRange.value) / 10000;
+      if (state.playMode === 'result') seekResult(frac * programRanges().total);
+      else {
+        const clip = activeClip();
+        if (clip) seekTo(frac * clip.durationMs);
+      }
+    });
+
+    els.chkSnap.addEventListener('change', () => (state.snap = els.chkSnap.checked));
+    els.zoomRange.addEventListener('input', () => {
+      state.zoom = parseFloat(els.zoomRange.value) || 1;
+      const center = state.playhead / (activeClip() ? activeClip().durationMs : 1);
+      renderTimeline();
+      els.timelineScroll.scrollLeft = Math.max(0, center * state.pxPerMs - els.timelineScroll.clientWidth / 2);
+    });
+
+    els.subOffset.addEventListener('input', () => {
+      state.globalSubOffset = Number(els.subOffset.value) || 0;
+      invalidate();
+      updateSubPanel();
+      renderTimeline();
+      updateSubtitleOverlay();
+    });
+
+    els.btnSubExport.addEventListener('click', async () => {
+      const subs = remapAll();
+      if (!subs.length) return toast('No subtitles to export.', 'warn');
+      const first = state.clips[0];
+      const def = pathJoin(CU.dirname(first.path), CU.stripExt(first.name) + '.synced.srt');
+      const p = await api.saveFile({ title: 'Save synced subtitles', defaultPath: def, filters: [{ name: 'SubRip', extensions: ['srt'] }] });
+      if (!p) return;
+      try {
+        await api.writeText(p, CU.serializeSrt(subs));
+        toast('Synced subtitles saved:\n' + p, 'ok', 6000);
+      } catch (err) {
+        toast('Failed to save:\n' + (err.message || err), 'error');
+      }
+    });
+
+    // timeline pointer handling
+    els.timeline.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+
+    // right-click context menu for the cut tools
+    els.timeline.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      const clip = activeClip();
+      if (!clip || state.exporting) return;
+      const cutEl = e.target.closest('.tl-cut');
+      showContextMenu(e.clientX, e.clientY, xToMs(e.clientX), cutEl ? cutEl.dataset.cutId : null);
+    });
+    window.addEventListener(
+      'pointerdown',
+      (e) => {
+        if (!els.ctxMenu.classList.contains('hidden') && !els.ctxMenu.contains(e.target)) hideContextMenu();
+      },
+      true,
+    );
+    els.timelineScroll.addEventListener('scroll', hideContextMenu);
+    window.addEventListener('blur', hideContextMenu);
+    els.tlCuts.addEventListener('dblclick', (e) => {
+      const cutEl = e.target.closest('.tl-cut');
+      if (cutEl) removeCut(cutEl.dataset.cutId);
+    });
+
+    // Double-click: markers are removed, ruler/filmstrip sets In then Out.
+    els.timeline.addEventListener('dblclick', (e) => {
+      if (e.target.closest('#tlMarkerIn')) {
+        state.inPoint = null;
+        renderOverlays();
+        updateIoReadout();
+        setStatus('In point cleared', 'info', { timeout: 2000 });
+        return;
+      }
+      if (e.target.closest('#tlMarkerOut')) {
+        state.outPoint = null;
+        renderOverlays();
+        updateIoReadout();
+        setStatus('Out point cleared', 'info', { timeout: 2000 });
+        return;
+      }
+      if (e.target.closest('.tl-cut')) return; // the cut handler removes the cut
+      if (e.target.closest('#tlRuler') || e.target.closest('#tlFilm')) applyDoubleClickMark(snapMs(xToMs(e.clientX)));
+    });
+
+    // video events
+    els.video.addEventListener('timeupdate', () => {
+      const clip = activeClip();
+      if (!clip) return;
+      const t = els.video.currentTime * 1000;
+      if (state.playMode === 'result' && program.playing) {
+        const r = program.ranges[program.idx];
+        if (!r) return;
+        if (t >= r.srcEnd - 25) {
+          if (program.idx < program.ranges.length - 1) {
+            program.idx++;
+            state.resultTime = program.ranges[program.idx].outStart;
+            state.playhead = program.ranges[program.idx].srcStart;
+            playProgramRange();
+          } else {
+            program.playing = false;
+            els.video.pause();
+            state.resultTime = r.outEnd;
+            state.playhead = r.srcEnd;
+            postTick(true);
+          }
+          return;
+        }
+        state.playhead = t;
+        state.resultTime = r.outStart + (t - r.srcStart);
+      } else {
+        state.playhead = t;
+      }
+      postTick(!els.video.paused);
+    });
+    els.video.addEventListener('play', updateTransport);
+    els.video.addEventListener('pause', updateTransport);
+    els.video.addEventListener('error', () => {
+      const clip = activeClip();
+      if (!clip) return;
+      els.playerNoticeText.textContent = `"${clip.name}" (${clip.videoCodec || 'unknown codec'}) cannot be decoded by the built-in player. You can still cut and export it — create a low-res proxy to preview.`;
+      els.playerNotice.classList.remove('hidden');
+    });
+
+    els.btnMakeProxy.addEventListener('click', async () => {
+      const clip = activeClip();
+      if (!clip) return;
+      els.playerNotice.classList.add('hidden');
+      const close = toast('Generating preview proxy… this may take a while.', 'info', 0);
+      setStatus(`Generating preview proxy for ${clip.name}…`, 'busy', { log: false });
+      try {
+        clip.proxyPath = await api.proxy(clip.path);
+        videoFile = null;
+        close();
+        const ok = await ensureVideoFor(clip);
+        if (ok) {
+          await seekVideo(state.playhead);
+          els.playerNotice.classList.add('hidden');
+          updateClipList();
+          setStatus('Preview proxy ready', 'ok', { timeout: 4000 });
+          toast('Preview proxy ready.', 'ok');
+        } else {
+          setStatus('Proxy was created but could not be played', 'error');
+          toast('Proxy was created but could not be played.', 'error');
+        }
+      } catch (err) {
+        close();
+        setStatus(`Proxy generation failed for ${clip.name}`, 'error');
+        toast('Proxy generation failed:\n' + (err.message || err), 'error', 9000);
+      }
+    });
+    els.btnDismissNotice.addEventListener('click', () => els.playerNotice.classList.add('hidden'));
+
+    // export modal
+    els.expClose.addEventListener('click', closeExportModal);
+    els.expClose2.addEventListener('click', closeExportModal);
+    els.expBrowse.addEventListener('click', async () => {
+      const container = els.expContainer.value;
+      const filters = { mp4: ['mp4'], mkv: ['mkv'], mov: ['mov'] }[container] || ['mp4'];
+      const p = await api.saveFile({ title: 'Export video as', defaultPath: els.expPath.value || defaultOutputPath(), filters: [{ name: container.toUpperCase(), extensions: filters }] });
+      if (p) {
+        els.expPath.value = p;
+        updateExportSummary();
+      }
+    });
+    ['expContainer', 'expVcodec', 'expCrf', 'expPreset', 'expRes', 'expFps', 'expAbitrate', 'expBurn', 'expSrt'].forEach((id) => {
+      els[id].addEventListener('input', () => {
+        if (id === 'expCrf') els.expCrfVal.textContent = els.expCrf.value;
+        updateExportSummary();
+      });
+    });
+    els.expContainer.addEventListener('change', () => {
+      const cur = els.expPath.value;
+      if (cur) els.expPath.value = cur.replace(/\.[^./\\]+$/, '.' + els.expContainer.value);
+      updateExportSummary();
+    });
+    els.expStart.addEventListener('click', startExport);
+    els.expCancel.addEventListener('click', async () => {
+      await api.cancelExport();
+      els.expStatus.textContent = 'Cancelling…';
+      // Cancel also stops background thumbnail/proxy ffmpeg jobs; rebuild them.
+      setTimeout(retryMissingThumbs, 600);
+    });
+
+    // settings
+    els.setClose.addEventListener('click', () => els.settingsModal.classList.add('hidden'));
+    els.setClose2.addEventListener('click', () => els.settingsModal.classList.add('hidden'));
+    els.setSave.addEventListener('click', async () => {
+      await api.setSettings({
+        ffmpegPath: els.setFfmpeg.value.trim(),
+        ffprobePath: els.setFfprobe.value.trim(),
+        loadThumbs: els.setLoadThumbs.checked,
+      });
+      await refreshInfo();
+      applyThumbSetting();
+      toast('Settings saved.', 'ok', 2500);
+    });
+    els.setDetect.addEventListener('click', () => refreshInfo());
+
+    // keyboard
+    window.addEventListener('keydown', onKeyDown);
+
+    // export progress
+    api.onExportProgress((d) => {
+      if (!state.exporting) return;
+      els.expProgressBar.style.width = d.percent.toFixed(1) + '%';
+      let eta = '';
+      const sp = parseFloat(String(d.speed || '').replace('x', ''));
+      if (sp > 0.01 && d.totalSec > d.timeSec) {
+        const secs = (d.totalSec - d.timeSec) / sp;
+        eta = ` · ETA ${CU.fmt(secs * 1000, 0)}`;
+      }
+      els.expStatus.textContent = `${d.percent.toFixed(1)}% · ${CU.fmt(d.timeSec * 1000, 1)} / ${CU.fmt(d.totalSec * 1000, 1)}${sp ? ` · ${sp.toFixed(2)}x` : ''}${eta}`;
+      setStatus(`Exporting… ${d.percent.toFixed(0)}%${eta}`, 'busy', { progress: d.percent / 100, log: false });
+    });
+
+    // keyframe snapshot progress
+    api.onThumbsProgress((d) => {
+      thumbJobs.set(d.path, Math.max(0, Math.min(99, d.percent || 0)));
+      const vals = [...thumbJobs.values()];
+      const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+      setStatus(`Loading keyframe snapshots… ${Math.round(avg)}%`, 'busy', { progress: avg / 100, log: false });
+    });
+
+    // status bar: click for history, dismiss errors/warnings
+    els.statusbar.addEventListener('click', (e) => {
+      if (e.target === els.statusClear) return;
+      toggleStatusLog();
+    });
+    els.statusClear.addEventListener('click', (e) => {
+      e.stopPropagation();
+      hideStatusLog();
+      setStatus('Ready', 'idle');
+    });
+    window.addEventListener(
+      'pointerdown',
+      (e) => {
+        if (!els.statusLog.classList.contains('hidden') && !els.statusLog.contains(e.target) && !els.statusbar.contains(e.target)) {
+          hideStatusLog();
+        }
+      },
+      true,
+    );
+    window.addEventListener('blur', hideStatusLog);
+
+    // window resize
+    let rzTimer = null;
+    window.addEventListener('resize', () => {
+      clearTimeout(rzTimer);
+      rzTimer = setTimeout(() => renderTimeline(), 120);
+    });
+
+    // Release the media pipeline before the window is destroyed. Chromium can
+    // otherwise log "ffmpeg_common.cc ... Unsupported pixel format: -1" while
+    // tearing down a still-active <video> decoder — harmless, but noisy.
+    const releaseVideo = () => {
+      try {
+        const v = els.video;
+        if (!v) return;
+        program.playing = false;
+        v.pause();
+        v.removeAttribute('src');
+        v.load();
+      } catch {
+        /* ignore */
+      }
+    };
+    window.addEventListener('beforeunload', releaseVideo);
+    window.addEventListener('pagehide', releaseVideo);
+
+    // empty-state add button is wired above
+  }
+
+  function postTick(scroll) {
+    renderOverlays();
+    updateTransport();
+    updateSubtitleOverlay();
+    if (scroll) scrollPlayheadIntoView();
+  }
+
+  function onKeyDown(e) {
+    const tag = (e.target && e.target.tagName) || '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    if (e.key === 'Escape' && !els.statusLog.classList.contains('hidden')) {
+      hideStatusLog();
+      return;
+    }
+    if (e.key === 'Escape' && !els.ctxMenu.classList.contains('hidden')) {
+      hideContextMenu();
+      return;
+    }
+    if (!els.exportModal.classList.contains('hidden')) {
+      if (e.key === 'Escape' && !state.exporting) closeExportModal();
+      return;
+    }
+    if (!els.settingsModal.classList.contains('hidden')) {
+      if (e.key === 'Escape') els.settingsModal.classList.add('hidden');
+      return;
+    }
+    if (!els.jobModal.classList.contains('hidden')) {
+      if (e.key === 'Escape') closeJobModal();
+      return;
+    }
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod && e.key.toLowerCase() === 'z') {
+      e.preventDefault();
+      if (e.shiftKey) redo();
+      else undo();
+      return;
+    }
+    if (mod && e.key.toLowerCase() === 'y') {
+      e.preventDefault();
+      redo();
+      return;
+    }
+
+    switch (e.key) {
+      case ' ':
+        e.preventDefault();
+        togglePlay();
+        break;
+      case 'ArrowLeft':
+        e.preventDefault();
+        pause();
+        seekTo(state.playhead - (e.shiftKey ? 1000 : frameMs()));
+        break;
+      case 'ArrowRight':
+        e.preventDefault();
+        pause();
+        seekTo(state.playhead + (e.shiftKey ? 1000 : frameMs()));
+        break;
+      case 'i':
+      case 'I':
+        state.inPoint = snapMs(state.playhead);
+        renderOverlays();
+        updateIoReadout();
+        break;
+      case 'o':
+      case 'O':
+        state.outPoint = snapMs(state.playhead);
+        renderOverlays();
+        updateIoReadout();
+        break;
+      case 'x':
+      case 'X':
+        cutSelection();
+        break;
+      case 'Home':
+        pause();
+        seekTo(0);
+        break;
+      case 'End': {
+        const c = activeClip();
+        if (c) {
+          pause();
+          seekTo(c.durationMs);
+        }
+        break;
+      }
+      case '+':
+      case '=':
+        els.zoomRange.value = String(Math.min(12, state.zoom + 0.5));
+        els.zoomRange.dispatchEvent(new Event('input'));
+        break;
+      case '-':
+      case '_':
+        els.zoomRange.value = String(Math.max(1, state.zoom - 0.5));
+        els.zoomRange.dispatchEvent(new Event('input'));
+        break;
+      default:
+        break;
+    }
+  }
+
+  /* ───────────────────────────── boot ───────────────────────────── */
+  async function init() {
+    cacheEls();
+    wire();
+    renderStatus();
+    await refreshInfo();
+    renderAll();
+    if (!statusState.text || statusState.text === 'Ready') setStatus('Ready — add a video to begin', 'idle');
+
+    // Debug / automation handle (also used by lib/e2e.js).
+    window.__cuciApp = {
+      state,
+      api,
+      CU,
+      addVideos,
+      addSubtitleToClip,
+      loadSubtitleFromPath,
+      keptRanges,
+      programRanges,
+      remapAll,
+      applyThumbSetting,
+      buildJob,
+      applyJob,
+      encodeShareCode,
+      decodeShareCode,
+      addCut,
+      removeCut,
+      renderAll,
+      seekTo,
+      currentSetup,
+    };
+  }
+
+  window.addEventListener('DOMContentLoaded', init);
+})();

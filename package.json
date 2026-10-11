@@ -1,0 +1,30 @@
+{
+  "name": "cuci2",
+  "productName": "CUCI2",
+  "version": "1.0.0",
+  "description": "Millisecond-precision video cut & merge studio with automatic subtitle sync.",
+  "main": "main.js",
+  "author": "CUCI2",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "test": "npm run test:export && npm run test:smoke && npm run test:e2e && npm run test:cancel",
+    "test:export": "node lib/selftest.js",
+    "test:smoke": "electron lib/smoke.js",
+    "test:e2e": "electron lib/e2e.js",
+    "test:cancel": "electron lib/test-cancel.js",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0"
+  },
+  "build": {
+    "appId": "com.cuci2.app",
+    "productName": "CUCI2",
+    "files": ["main.js", "preload.js", "lib/**/*", "src/**/*", "package.json"],
+    "win": { "target": ["nsis", "portable"] },
+    "mac": { "target": ["dmg"] },
+    "linux": { "target": ["AppImage"] }
+  }
+}

@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' media: data: blob:; media-src 'self' media: blob:; connect-src 'self' media:; object-src 'none'; base-uri 'none'"
+    />
+    <title>CUCI2 — Video Cut &amp; Merge</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo">✂</span>
+        <span class="brand-name">CUCI<span class="two">2</span></span>
+        <small>cut &amp; merge studio</small>
+      </div>
+      <div class="spacer"></div>
+      <button id="ffStatus" class="ff-status" title="ffmpeg status">checking ffmpeg…</button>
+      <button id="btnSettings" class="btn ghost icon" title="Settings">⚙</button>
+      <button id="btnJob" class="btn" title="Save / open / share the cut job">Job</button>
+      <button id="btnAddSub" class="btn">Add Subtitle</button>
+      <button id="btnAddVideo" class="btn">Add Video</button>
+      <button id="btnExport" class="btn primary">Export</button>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <section class="panel">
+          <h3>Media <span id="clipCount" class="pill">0</span></h3>
+          <div id="clipList" class="clip-list"></div>
+        </section>
+
+        <section class="panel">
+          <h3>Cuts <span id="cutCount" class="pill">0</span></h3>
+          <div class="cut-actions">
+            <button id="btnSetIn" class="btn tiny" title="Set in point (I)">Set In</button>
+            <button id="btnSetOut" class="btn tiny" title="Set out point (O)">Set Out</button>
+            <button id="btnCut" class="btn tiny danger" title="Cut the selected range (X)">Cut</button>
+            <button id="btnClearMarks" class="btn tiny ghost" title="Clear in/out points and selection">Clear marks</button>
+            <button id="btnClearCuts" class="btn tiny ghost" title="Remove all cuts">Clear cuts</button>
+          </div>
+          <div id="ioReadout" class="io-readout">In — · Out —</div>
+          <div id="cutList" class="cut-list"></div>
+        </section>
+
+        <section class="panel grow">
+          <h3>Subtitles</h3>
+          <div id="subInfo" class="sub-info">No subtitle loaded.</div>
+          <div class="row">
+            <label class="field"><span>Global offset (ms)</span><input id="subOffset" type="number" step="10" value="0" /></label>
+          </div>
+          <div class="row">
+            <button id="btnSubExport" class="btn tiny">Export synced .srt…</button>
+          </div>
+          <div id="subEventList" class="sub-event-list"></div>
+        </section>
+      </aside>
+
+      <main class="main">
+        <section class="player-wrap">
+          <video id="video" playsinline></video>
+          <div id="subtitleOverlay" class="subtitle-overlay"></div>
+          <div id="playerNotice" class="player-notice hidden">
+            <div class="notice-card">
+              <h3>Preview not supported</h3>
+              <p id="playerNoticeText">This codec/container cannot be decoded by the built-in player.</p>
+              <div class="notice-actions">
+                <button id="btnMakeProxy" class="btn primary">Create preview proxy</button>
+                <button id="btnDismissNotice" class="btn ghost">Dismiss</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="transport">
+          <div class="transport-left">
+            <button id="btnStop" class="btn icon" title="Stop">■</button>
+            <button id="btnPrevSec" class="btn icon" title="Back 1s">«</button>
+            <button id="btnPrevFrame" class="btn icon" title="Previous frame (←)">‹</button>
+            <button id="btnPlay" class="btn icon play" title="Play / pause (Space)">▶</button>
+            <button id="btnNextFrame" class="btn icon" title="Next frame (→)">›</button>
+            <button id="btnNextSec" class="btn icon" title="Forward 1s">»</button>
+          </div>
+          <div class="timecodes">
+            <span id="timecode" class="tc">0:00.000</span>
+            <span class="tc-sep">/</span>
+            <span id="timeTotal" class="tc muted">0:00.000</span>
+            <span id="resultTc" class="tc result hidden"></span>
+          </div>
+          <div class="seek-wrap">
+            <input id="seekRange" class="seek" type="range" min="0" max="10000" step="1" value="0" aria-label="Seek" />
+          </div>
+          <div class="transport-right">
+            <div class="seg-toggle">
+              <button id="modeSource" class="seg active" title="Preview the untouched source">Source</button>
+              <button id="modeResult" class="seg" title="Preview the cut result">Result</button>
+            </div>
+            <label class="snap" title="Snap edits to whole frames"><input id="chkSnap" type="checkbox" checked /> <span>Snap frame</span></label>
+            <label class="zoom"><span>Zoom</span><input id="zoomRange" type="range" min="1" max="12" step="0.1" value="1" /></label>
+          </div>
+        </section>
+
+        <section class="timeline-wrap">
+          <div id="timelineScroll" class="timeline-scroll">
+            <div id="timeline" class="timeline">
+              <div class="tl-base">
+                <div id="tlRuler" class="tl-ruler"></div>
+                <div id="tlFilm" class="tl-film"></div>
+                <div id="tlCuts" class="tl-cuts"></div>
+                <div id="tlSubs" class="tl-subs"></div>
+              </div>
+              <div class="tl-overlay">
+                <div id="tlSelection" class="tl-selection hidden"></div>
+                <div id="tlMarkerIn" class="tl-marker in hidden" title="In point — double-click to remove"></div>
+                <div id="tlMarkerOut" class="tl-marker out hidden" title="Out point — double-click to remove"></div>
+                <div id="tlPlayhead" class="tl-playhead"></div>
+              </div>
+            </div>
+          </div>
+
+          <div id="emptyState" class="empty-state">
+            <div class="empty-card">
+              <div class="empty-icon">🎬</div>
+              <h2>No media yet</h2>
+              <p>Add a video to start cutting with millisecond precision, frame snapping and automatic subtitle sync.</p>
+              <button id="btnAddVideo2" class="btn primary">Add Video</button>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <footer id="statusbar" class="statusbar idle" title="Click to see recent messages">
+      <span id="statusIcon" class="status-icon">●</span>
+      <span id="statusSpinner" class="status-spinner hidden"></span>
+      <span id="statusText" class="status-text">Ready</span>
+      <span id="statusInfo" class="status-info"></span>
+      <button id="statusClear" class="status-clear hidden" title="Dismiss">✕</button>
+      <div id="statusProgress" class="status-progress hidden"><div id="statusProgressBar" class="status-progress-bar"></div></div>
+    </footer>
+
+    <!-- ───────────────────────── Export modal ───────────────────────── -->
+    <div id="exportModal" class="modal hidden">
+      <div class="modal-card wide">
+        <div class="modal-head">
+          <h2>Export</h2>
+          <button id="expClose" class="btn ghost icon">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="grid2">
+            <label class="field wide">
+              <span>Output file</span>
+              <div class="input-row">
+                <input id="expPath" type="text" placeholder="Choose an output file…" spellcheck="false" />
+                <button id="expBrowse" class="btn">Browse…</button>
+              </div>
+            </label>
+
+            <label class="field">
+              <span>Container</span>
+              <select id="expContainer">
+                <option value="mp4">MP4</option>
+                <option value="mkv">MKV</option>
+                <option value="mov">MOV</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Video codec</span>
+              <select id="expVcodec">
+                <option value="libx264">H.264 · x264 (CPU)</option>
+                <option value="h264_nvenc">H.264 · NVENC (GPU)</option>
+                <option value="libx265">H.265 · x265 (CPU)</option>
+                <option value="hevc_nvenc">H.265 · NVENC (GPU)</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>Quality (CRF / CQ) <b id="expCrfVal">20</b></span>
+              <input id="expCrf" type="range" min="12" max="34" step="1" value="20" />
+            </label>
+            <label class="field">
+              <span>Preset</span>
+              <select id="expPreset">
+                <option>ultrafast</option>
+                <option>veryfast</option>
+                <option>faster</option>
+                <option selected>medium</option>
+                <option>slow</option>
+                <option>slower</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>Resolution</span>
+              <select id="expRes">
+                <option value="source">Source</option>
+                <option value="2160">2160p (4K)</option>
+                <option value="1440">1440p</option>
+                <option value="1080">1080p</option>
+                <option value="720">720p</option>
+                <option value="480">480p</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Frame rate</span>
+              <select id="expFps">
+                <option value="source">Source</option>
+                <option value="60">60 fps</option>
+                <option value="30">30 fps</option>
+                <option value="24">24 fps</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Audio bitrate</span>
+              <select id="expAbitrate">
+                <option>128k</option>
+                <option selected>192k</option>
+                <option>256k</option>
+                <option>320k</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="check-row">
+            <label class="check"><input id="expBurn" type="checkbox" /> <span>Burn synced subtitles into the video</span></label>
+            <label class="check"><input id="expSrt" type="checkbox" checked /> <span>Also write a synced <code>.srt</code> next to the output</span></label>
+          </div>
+
+          <div id="expSummary" class="summary"></div>
+
+          <div class="progress-wrap hidden" id="expProgressWrap">
+            <div class="progress"><div id="expProgressBar" class="progress-bar"></div></div>
+            <div id="expStatus" class="progress-status"></div>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button id="expCancel" class="btn danger hidden">Cancel export</button>
+          <div class="spacer"></div>
+          <button id="expClose2" class="btn ghost">Close</button>
+          <button id="expStart" class="btn primary">Start export</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─────────────────────── Settings modal ─────────────────────── -->
+    <div id="settingsModal" class="modal hidden">
+      <div class="modal-card">
+        <div class="modal-head">
+          <h2>Settings</h2>
+          <button id="setClose" class="btn ghost icon">✕</button>
+        </div>
+        <div class="modal-body">
+          <p class="hint">CUCI2 uses ffmpeg for probing, thumbnails and encoding. It is detected from your <code>PATH</code> by default.</p>
+          <label class="field wide">
+            <span>ffmpeg path (leave empty to use PATH)</span>
+            <div class="input-row">
+              <input id="setFfmpeg" type="text" spellcheck="false" placeholder="ffmpeg" />
+              <button id="setDetect" class="btn">Re-detect</button>
+            </div>
+          </label>
+          <label class="field wide">
+            <span>ffprobe path (leave empty to auto-derive)</span>
+            <input id="setFfprobe" type="text" spellcheck="false" placeholder="ffprobe" />
+          </label>
+
+          <div class="job-sep"></div>
+
+          <label class="check">
+            <input id="setLoadThumbs" type="checkbox" />
+            <span>Load keyframe snapshots into the timeline (filmstrip)</span>
+          </label>
+          <p class="hint sub">
+            Off by default. When enabled, CUCI² samples frames with ffmpeg to draw the filmstrip — on long videos this
+            decodes the whole file, so it can take a while.
+          </p>
+
+          <div id="setStatus" class="summary"></div>
+        </div>
+        <div class="modal-foot">
+          <div class="spacer"></div>
+          <button id="setClose2" class="btn ghost">Close</button>
+          <button id="setSave" class="btn primary">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ───────────────────────── Job modal ───────────────────────── -->
+    <div id="jobModal" class="modal hidden">
+      <div class="modal-card wide">
+        <div class="modal-head">
+          <h2>Cut job</h2>
+          <button id="jobClose" class="btn ghost icon">✕</button>
+        </div>
+        <div class="modal-body">
+          <p class="hint">
+            A job stores your cut list, subtitle offset and export settings. Save it as a file to reopen later,
+            or copy the share code to send it over chat / email / social media.
+          </p>
+
+          <label class="field wide">
+            <span>Description — what is this cut job for?</span>
+            <textarea
+              id="jobDesc"
+              class="desc"
+              rows="2"
+              maxlength="200"
+              placeholder="e.g. Remove the intro and the sponsor break; keep the interview."
+            ></textarea>
+          </label>
+          <div class="job-row tight">
+            <span id="jobDescCount" class="job-info">0 / 200</span>
+          </div>
+
+          <div class="job-row">
+            <button id="jobSave" class="btn">Save job file…</button>
+            <button id="jobOpen" class="btn">Open job file…</button>
+          </div>
+
+          <div class="job-sep"></div>
+
+          <label class="check">
+            <input id="jobIncludeSubs" type="checkbox" />
+            <span>Include subtitle text in the share code (larger, but fully self-contained)</span>
+          </label>
+          <label class="field wide">
+            <span>Share code — copy &amp; paste anywhere</span>
+            <textarea id="jobCode" class="code" rows="5" readonly spellcheck="false"></textarea>
+          </label>
+          <div class="job-row">
+            <button id="jobCopy" class="btn">Copy code</button>
+            <button id="jobRefresh" class="btn ghost">Refresh</button>
+            <span id="jobCodeInfo" class="job-info"></span>
+          </div>
+
+          <div class="job-sep"></div>
+
+          <label class="field wide">
+            <span>Import a share code</span>
+            <textarea id="jobPaste" class="code" rows="3" placeholder="Paste a CUCI2-1… code here" spellcheck="false"></textarea>
+          </label>
+          <div class="job-row">
+            <button id="jobImport" class="btn primary">Import code</button>
+            <button id="jobPasteClip" class="btn">Paste from clipboard</button>
+          </div>
+
+          <div id="jobStatus" class="summary hidden"></div>
+        </div>
+        <div class="modal-foot">
+          <div class="spacer"></div>
+          <button id="jobClose2" class="btn ghost">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="statusLog" class="status-log hidden"></div>
+    <div id="ctxMenu" class="ctx-menu hidden"></div>
+    <div id="toasts" class="toasts"></div>
+
+    <script src="util.js"></script>
+    <script src="srt.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,18 @@
+# Normalise line endings in the repo; check out with the platform default.
+* text=auto
+
+# Explicit text types
+*.js   text
+*.json text
+*.md   text
+*.css  text
+*.html text
+*.srt  text
+
+# Binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.mp4 binary
+*.zip binary
