@@ -55,13 +55,13 @@ src/
   util.js               window.CUCI: time formatting + small helpers
   srt.js                window.CUCI: subtitle parse / serialise / remap
   app.js                renderer application logic (the bulk of the UI)
-Sample/                 scratch media for manual testing (media files gitignored)
+Sample/                 local scratch media for manual testing (entirely gitignored)
 docs/DEVELOPMENT.md     this file
 ```
 
-`Sample/bbb.srt` is a small dummy subtitle fixture kept in the repo for manual testing.
-The matching video (`bbb.mp4`, Big Buck Bunny) is **not** committed — see
-[Sample media](#sample-media).
+`Sample/` is a **local-only** folder for manual testing (source videos, dummy subtitles,
+scratch images). It is fully gitignored — nothing in it is committed. See
+[Sample media](#sample-media) for how to set it up.
 
 ---
 
@@ -429,15 +429,22 @@ Notes:
 
 ### Sample media
 
-`Sample/bbb.mp4` and the zip are **gitignored**. To recreate the manual fixture:
+The `Sample/` folder is **entirely gitignored** — it exists only on your machine for manual
+testing. Nothing in it (videos, subtitles, scratch images, generated jobs) is committed.
 
-```bash
-# Any ~10 minute 1080p clip works; Big Buck Bunny (CC-BY, Blender Foundation):
-#   https://download.blender.org/peach/bigbuckbunny_movies/
+The automated tests do **not** use it: `lib/e2e.js` generates its own short clip with
+ffmpeg into a temp dir, so `npm test` works on a fresh clone with no fixtures.
+
+To recreate a manual fixture, drop any ~10 minute 1080p clip in as `Sample/bbb.mp4` — e.g.
+Big Buck Bunny (CC-BY, Blender Foundation):
+
+```
+https://download.blender.org/peach/bigbuckbunny_movies/
 ```
 
-`Sample/bbb.srt` is a small dummy track (22 events, deliberately including events inside
-cuts and one spanning a cut boundary) used for manual subtitle-sync testing.
+Then create `Sample/bbb.srt` with a dummy track (a handful of events, ideally including
+some inside the ranges you plan to cut and one spanning a cut boundary) to exercise
+subtitle remapping by hand.
 
 ---
 

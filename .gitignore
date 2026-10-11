@@ -10,15 +10,8 @@ out/
 .DS_Store
 Thumbs.db
 
-# large sample media — not committed (see docs/DEVELOPMENT.md for how to fetch)
-Sample/*.mp4
-Sample/*.m4v
-Sample/*.mkv
-Sample/*.mov
-Sample/*.webm
-Sample/*.zip
-Sample/*.cuci2.json
-Sample/_*
+# local sample media / scratch folder — never committed (see docs/DEVELOPMENT.md)
+Sample/
 
 # temp / scratch
 *.tmp
