@@ -46,9 +46,9 @@ subtitles** to the new length. Everything is powered by `ffmpeg`.
   `.cuci2.json` file, or as a compact one-line code you can paste into chat/email/social.
 - **Status bar** — live progress (*analyzing*, *loading keyframe snapshots*, *exporting*),
   sticky errors/warnings, active-clip info, and a click-to-open message history.
-- **Auto-detect NSFW scenes** — scan the active clip with an on-device image classifier and
-  turn flagged scenes into cuts in one click. Everything runs locally; no frames are
-  uploaded.
+- **Auto-detect NSFW / violence scenes** — two buttons (**Scan NSFW**, **Scan Violence**) run
+  an on-device image classifier over the active clip and turn flagged scenes into cuts.
+  Everything runs locally; no frames are uploaded.
 - **Preview proxy** — if Chromium can't decode a container/codec (e.g. MKV/HEVC), generate a
   low-res H.264 proxy for previewing; exports still use the original files.
 - **Sensible encode presets** — x264 / x265 / NVENC, CRF quality, resolution/fps
@@ -186,27 +186,34 @@ file(s).
 
 ---
 
-## Auto-detect NSFW scenes
+## Auto-detect NSFW / violence scenes
 
-The **Scan NSFW** button extracts frames from the active clip at a configurable interval
-(default: one every 2 seconds), classifies each one, and turns consecutive flagged samples
-into cut ranges you review before applying.
+The **Scan NSFW** and **Scan Violence** buttons extract frames from the active clip at a
+configurable interval (default: one every 2 seconds), classify each one, and turn consecutive
+flagged samples into cut ranges you review before applying.
 
 A shorter interval catches shorter scenes at a proportional time cost — the modal shows the
 frame count and an estimate before you start.
 
-- **Model** — `AdamCodd/vit-base-nsfw-detector`, a ViT-base binary `sfw`/`nsfw` classifier.
-  This is the closest ONNX equivalent of `Falconsai/nsfw_image_detection`; the Falconsai repo
-  only publishes PyTorch/safetensors weights, which a JS/Electron app can't execute, so a
-  model with the same architecture and task is used instead.
+| | NSFW | Violence |
+| --- | --- | --- |
+| Model | `AdamCodd/vit-base-nsfw-detector` | `onnx-community/vit-base-violence-detection-ONNX` |
+| Classes | `sfw` / `nsfw` | `violence` / `non-violence` |
+| Input | 384×384 | 224×224 |
+| Download | ~84 MB (int8) | ~83 MB (int8) |
+| Default sensitivity | `0.30` | `0.50` |
+| Default min cut | 5 s | 5 s |
+
+- The NSFW model is the ONNX equivalent of `Falconsai/nsfw_image_detection`, and the violence
+  model is the official ONNX conversion of `jaranohaal/vit-base-violence-detection`. Both
+  upstream repos publish **only** PyTorch/safetensors weights, which a JS/Electron app cannot
+  execute, hence the ONNX conversions.
+- **Gore is not covered** — there is currently no ONNX gore classifier on Hugging Face, so
+  only NSFW and violence are offered. Graphic content is often caught by the NSFW model.
 - **Local only** — inference runs through `onnxruntime-node`; no frames leave your machine.
-  The ~84 MB model is downloaded once from Hugging Face and cached in your user-data folder.
-  If `vendor/nsfw/` already contains it (as in a dev checkout), that copy is used and nothing
-  is downloaded.
-- **Controls** — *Sensitivity* (default `0.30`, the most aggressive; raise it to reduce false
-  positives), *Sample every* (`0.25`–`60` seconds, default 2) and *Minimum cut length*
-  (default 5 s). The modal shows how many frames that means and a rough processing estimate.
-  Expect roughly 5 frames/second of analysis on a typical CPU.
+  Each model is downloaded once from Hugging Face and cached in your user-data folder. If
+  `vendor/nsfw/` or `vendor/violence/` already contains it (as in a dev checkout), that copy
+  is used and nothing is downloaded.
 - **Fresh frames, not the filmstrip** — the scanner extracts new frames at the chosen interval
   (`fps=1/<interval>` in ffmpeg). It does **not** reuse the timeline keyframe snapshots, which
   are far too small (64 px tall) and too sparse to classify reliably.
@@ -239,9 +246,10 @@ resolutions/fps/audio). Choose a CRF you're happy with.
   off *Burn subtitles* (or use a full ffmpeg build).
 - **Preview shows a black frame / refuses to play** — the codec isn't decodable by Chromium;
   use *Create preview proxy*.
-- **NSFW scan fails to start** — the model needs a one-time ~84 MB download; if you are
-  offline, place `model_quantized.onnx` in `vendor/nsfw/` (or set `CUCI2_NSFW_MODEL_DIR` to a
-  folder containing it) and it will be used directly.
+- **A content scan fails to start** — each model needs a one-time ~84 MB download; if you
+  are offline, place `model_quantized.onnx` in `vendor/nsfw/` or `vendor/violence/` (or point
+  `CUCI2_NSFW_MODEL_DIR` / `CUCI2_VIOLENCE_MODEL_DIR` at a folder containing it) and it will
+  be used directly.
 - **Nothing was cut out of the export** — open Export and check the `removed` line; if it is
   `0:00.000` the cut list is empty and Export will ask you to confirm.
 

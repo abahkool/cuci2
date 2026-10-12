@@ -22,6 +22,7 @@
       <button id="btnSettings" class="btn ghost icon" title="Settings">⚙</button>
       <button id="btnJob" class="btn" title="Save / open / share the cut job">Job</button>
       <button id="btnNsfw" class="btn" title="Auto-detect NSFW scenes and mark them as cuts">Scan NSFW</button>
+      <button id="btnViolence" class="btn" title="Auto-detect violent scenes and mark them as cuts">Scan Violence</button>
       <button id="btnAddSub" class="btn">Add Subtitle</button>
       <button id="btnAddVideo" class="btn">Add Video</button>
       <button id="btnExport" class="btn primary">Export</button>
@@ -370,12 +371,12 @@
       </div>
     </div>
 
-    <!-- ───────────────────────── NSFW scan modal ───────────────────────── -->
-    <div id="nsfwModal" class="modal hidden">
+    <!-- ─────────────────── content scan modal (NSFW / violence) ─────────────────── -->
+    <div id="detectModal" class="modal hidden">
       <div class="modal-card wide">
         <div class="modal-head">
-          <h2>Auto-detect NSFW scenes</h2>
-          <button id="nsfwClose" class="btn ghost icon">✕</button>
+          <h2 id="detectTitle">Auto-detect scenes</h2>
+          <button id="detectClose" class="btn ghost icon">✕</button>
         </div>
         <div class="modal-body">
           <p class="hint">
@@ -387,11 +388,11 @@
           <div class="grid2">
             <label class="field">
               <span>Sample every (seconds)</span>
-              <input id="nsfwInterval" type="number" min="0.25" max="60" step="0.25" value="2" />
+              <input id="detectInterval" type="number" min="0.25" max="60" step="0.25" value="2" />
             </label>
             <label class="field">
               <span>Minimum cut length</span>
-              <select id="nsfwMinDur">
+              <select id="detectMinDur">
                 <option value="0">any</option>
                 <option value="1000">1 second</option>
                 <option value="2000">2 seconds</option>
@@ -401,34 +402,34 @@
             </label>
           </div>
 
-          <div id="nsfwEstimate" class="job-info"></div>
+          <div id="detectEstimate" class="job-info"></div>
           <p class="hint sub">
             Frames are extracted fresh at this interval — the filmstrip snapshots are not reused.
             Smaller intervals catch shorter scenes but take proportionally longer.
           </p>
 
           <label class="field wide">
-            <span>Sensitivity — lower flags more aggressively <b id="nsfwThresholdVal">0.30</b></span>
-            <input id="nsfwThreshold" type="range" min="0.3" max="0.98" step="0.01" value="0.3" />
+            <span>Sensitivity — lower flags more aggressively <b id="detectThresholdVal">0.30</b></span>
+            <input id="detectThreshold" type="range" min="0.3" max="0.98" step="0.01" value="0.3" />
           </label>
 
           <div class="job-sep"></div>
 
-          <div id="nsfwModelInfo" class="summary"></div>
+          <div id="detectModelInfo" class="summary"></div>
 
-          <div class="progress-wrap hidden" id="nsfwProgressWrap">
-            <div class="progress"><div id="nsfwProgressBar" class="progress-bar"></div></div>
-            <div id="nsfwStatus" class="progress-status"></div>
+          <div class="progress-wrap hidden" id="detectProgressWrap">
+            <div class="progress"><div id="detectProgressBar" class="progress-bar"></div></div>
+            <div id="detectStatus" class="progress-status"></div>
           </div>
 
-          <div id="nsfwResults" class="nsfw-results"></div>
+          <div id="detectResults" class="nsfw-results"></div>
         </div>
         <div class="modal-foot">
-          <button id="nsfwCancel" class="btn danger hidden">Cancel scan</button>
+          <button id="detectCancel" class="btn danger hidden">Cancel scan</button>
           <div class="spacer"></div>
-          <button id="nsfwClose2" class="btn ghost">Close</button>
-          <button id="nsfwApply" class="btn" disabled>Apply as cuts</button>
-          <button id="nsfwStart" class="btn primary">Scan</button>
+          <button id="detectClose2" class="btn ghost">Close</button>
+          <button id="detectApply" class="btn" disabled>Apply as cuts</button>
+          <button id="detectStart" class="btn primary">Scan</button>
         </div>
       </div>
     </div>
