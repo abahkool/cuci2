@@ -203,10 +203,10 @@ frame count and an estimate before you start.
   The ~84 MB model is downloaded once from Hugging Face and cached in your user-data folder.
   If `vendor/nsfw/` already contains it (as in a dev checkout), that copy is used and nothing
   is downloaded.
-- **Controls** — *Sensitivity* (default `0.75`; lower flags more aggressively), *Sample every*
-  (`0.25`–`60` seconds, default 2) and *Minimum cut length* (default 2 s). The modal shows how
-  many frames that means and a rough processing estimate. Expect roughly 5 frames/second of
-  analysis on a typical CPU.
+- **Controls** — *Sensitivity* (default `0.30`, the most aggressive; raise it to reduce false
+  positives), *Sample every* (`0.25`–`60` seconds, default 2) and *Minimum cut length*
+  (default 5 s). The modal shows how many frames that means and a rough processing estimate.
+  Expect roughly 5 frames/second of analysis on a typical CPU.
 - **Fresh frames, not the filmstrip** — the scanner extracts new frames at the chosen interval
   (`fps=1/<interval>` in ffmpeg). It does **not** reuse the timeline keyframe snapshots, which
   are far too small (64 px tall) and too sparse to classify reliably.

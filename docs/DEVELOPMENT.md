@@ -448,12 +448,16 @@ single clip). An event spanning a boundary produces one output event per overlap
 ```json
 {
   "ffmpegPath": "", "ffprobePath": "", "loadThumbs": false, "preferBundled": false,
-  "nsfwThreshold": 0.75, "nsfwIntervalMs": 2000, "nsfwMinDurationMs": 2000
+  "nsfwThreshold": 0.3, "nsfwIntervalMs": 2000, "nsfwMinDurationMs": 5000
 }
 ```
 
 Empty paths mean "auto-detect" (system, then bundled). `loadThumbs` and `preferBundled`
 default to `false`; the `nsfw*` keys remember the last scan settings.
+
+NSFW defaults are deliberately aggressive — sensitivity `0.3` (the slider minimum) and a
+5 s minimum cut length — so brief scenes are not missed. Raise the threshold if the first
+pass produces too many false positives.
 
 ### Cut job — verbose (`.cuci2.json`)
 

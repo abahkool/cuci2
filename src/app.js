@@ -1724,9 +1724,9 @@
     if (!clip) return toast('Add a video first.', 'warn');
     if (state.nsfwScanning) return;
     els.nsfwInterval.value = String(((state.settings.nsfwIntervalMs || 2000) / 1000).toFixed(2).replace(/\.?0+$/, ''));
-    els.nsfwMinDur.value = String(state.settings.nsfwMinDurationMs != null ? state.settings.nsfwMinDurationMs : 2000);
+    els.nsfwMinDur.value = String(state.settings.nsfwMinDurationMs != null ? state.settings.nsfwMinDurationMs : 5000);
     updateNsfwEstimate();
-    els.nsfwThreshold.value = String(state.settings.nsfwThreshold != null ? state.settings.nsfwThreshold : 0.75);
+    els.nsfwThreshold.value = String(state.settings.nsfwThreshold != null ? state.settings.nsfwThreshold : 0.3);
     els.nsfwThresholdVal.textContent = Number(els.nsfwThreshold.value).toFixed(2);
     els.nsfwResults.innerHTML = '';
     els.nsfwProgressWrap.classList.add('hidden');
@@ -1750,7 +1750,7 @@
     const intervalMs = Math.round(nsfwIntervalSeconds() * 1000);
     els.nsfwInterval.value = String(nsfwIntervalSeconds());
     const minDurationMs = Number(els.nsfwMinDur.value) || 0;
-    const threshold = Number(els.nsfwThreshold.value) || 0.75;
+    const threshold = Number(els.nsfwThreshold.value) || 0.3;
 
     // remember the choice for next time
     api.setSettings({ nsfwIntervalMs: intervalMs, nsfwMinDurationMs: minDurationMs, nsfwThreshold: threshold });
