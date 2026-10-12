@@ -188,9 +188,12 @@ file(s).
 
 ## Auto-detect NSFW scenes
 
-The **Scan NSFW** button samples frames from the active clip (default: one every 2 seconds),
-classifies each one, and turns consecutive flagged samples into cut ranges you review before
-applying.
+The **Scan NSFW** button extracts frames from the active clip at a configurable interval
+(default: one every 2 seconds), classifies each one, and turns consecutive flagged samples
+into cut ranges you review before applying.
+
+A shorter interval catches shorter scenes at a proportional time cost — the modal shows the
+frame count and an estimate before you start.
 
 - **Model** — `AdamCodd/vit-base-nsfw-detector`, a ViT-base binary `sfw`/`nsfw` classifier.
   This is the closest ONNX equivalent of `Falconsai/nsfw_image_detection`; the Falconsai repo
@@ -201,8 +204,12 @@ applying.
   If `vendor/nsfw/` already contains it (as in a dev checkout), that copy is used and nothing
   is downloaded.
 - **Controls** — *Sensitivity* (default `0.75`; lower flags more aggressively), *Sample every*
-  (default 2 s) and *Minimum cut length* (default 2 s). Expect roughly 5 frames/second of
+  (`0.25`–`60` seconds, default 2) and *Minimum cut length* (default 2 s). The modal shows how
+  many frames that means and a rough processing estimate. Expect roughly 5 frames/second of
   analysis on a typical CPU.
+- **Fresh frames, not the filmstrip** — the scanner extracts new frames at the chosen interval
+  (`fps=1/<interval>` in ffmpeg). It does **not** reuse the timeline keyframe snapshots, which
+  are far too small (64 px tall) and too sparse to classify reliably.
 - **Review first** — detected ranges are listed with their peak score; **Apply as cuts** adds
   them (undo with `Ctrl`+`Z`). Nothing is marked automatically until you confirm.
 

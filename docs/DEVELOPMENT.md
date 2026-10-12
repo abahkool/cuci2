@@ -331,6 +331,12 @@ Model lookup order: `CUCI2_NSFW_MODEL_DIR` → `vendor/nsfw/` → `<userData>/mo
    -f rawvideo -` — so there is **no image-decoding dependency** (no sharp/canvas). The 384²×3
    byte frames arrive on stdout and are classified one by one as they stream in (natural
    backpressure via `for await` on the child stream).
+
+   The sampling is purely interval-based (`fps=1/<interval>`): **the timeline keyframe
+   snapshots are never reused** — they are 64 px tall and only sampled ~170 times across the
+   whole clip, which is far too sparse/low-res for classification. Interval is configurable
+   from 0.25 s to 60 s (`nsfwIntervalMs`), clamped in the renderer (`nsfwIntervalSeconds()`)
+   and again in `settings:set`. Frame counts scale exactly with the interval.
 2. `frameToTensor()` converts each RGB frame to planar, normalised CHW `Float32Array`.
 3. `classifyFrame()` runs the session and softmaxes the logits; the `nsfw` probability is the
    score.

@@ -56,7 +56,7 @@
       'btnJob', 'jobModal', 'jobClose', 'jobClose2', 'jobSave', 'jobOpen', 'jobDesc', 'jobDescCount', 'jobIncludeSubs', 'jobCode',
       'jobCopy', 'jobRefresh', 'jobCodeInfo', 'jobPaste', 'jobImport', 'jobPasteClip', 'jobStatus',
       'statusbar', 'statusIcon', 'statusSpinner', 'statusText', 'statusInfo', 'statusClear', 'statusProgress', 'statusProgressBar', 'statusLog',
-      'btnNsfw', 'nsfwModal', 'nsfwClose', 'nsfwClose2', 'nsfwInterval', 'nsfwMinDur', 'nsfwThreshold',
+      'btnNsfw', 'nsfwModal', 'nsfwClose', 'nsfwClose2', 'nsfwInterval', 'nsfwMinDur', 'nsfwEstimate', 'nsfwThreshold',
       'nsfwThresholdVal', 'nsfwModelInfo', 'nsfwProgressWrap', 'nsfwProgressBar', 'nsfwStatus', 'nsfwResults',
       'nsfwCancel', 'nsfwApply', 'nsfwStart',
       'ctxMenu', 'toasts',
@@ -1681,6 +1681,28 @@
   }
 
   /* ─────────────────── NSFW scene detection ─────────────────── */
+  const NSFW_MIN_INTERVAL_S = 0.25;
+  const NSFW_MAX_INTERVAL_S = 60;
+  const NSFW_SEC_PER_FRAME = 0.2; // ~5 frames/second of inference on a typical CPU
+
+  function nsfwIntervalSeconds() {
+    const raw = Number(els.nsfwInterval.value);
+    const v = Number.isFinite(raw) && raw > 0 ? raw : 2;
+    return Math.min(NSFW_MAX_INTERVAL_S, Math.max(NSFW_MIN_INTERVAL_S, v));
+  }
+
+  function updateNsfwEstimate() {
+    const clip = activeClip();
+    if (!clip) {
+      els.nsfwEstimate.textContent = '';
+      return;
+    }
+    const sec = nsfwIntervalSeconds();
+    const frames = Math.max(1, Math.round(clip.durationMs / (sec * 1000)));
+    const est = CU.fmt(frames * NSFW_SEC_PER_FRAME * 1000, 0);
+    els.nsfwEstimate.textContent = `≈ ${frames.toLocaleString()} frames to analyze · roughly ${est} of processing`;
+  }
+
   async function refreshNsfwModelInfo() {
     try {
       const s = await api.nsfwStatus();
@@ -1701,8 +1723,9 @@
     const clip = activeClip();
     if (!clip) return toast('Add a video first.', 'warn');
     if (state.nsfwScanning) return;
-    els.nsfwInterval.value = String(state.settings.nsfwIntervalMs || 2000);
+    els.nsfwInterval.value = String(((state.settings.nsfwIntervalMs || 2000) / 1000).toFixed(2).replace(/\.?0+$/, ''));
     els.nsfwMinDur.value = String(state.settings.nsfwMinDurationMs != null ? state.settings.nsfwMinDurationMs : 2000);
+    updateNsfwEstimate();
     els.nsfwThreshold.value = String(state.settings.nsfwThreshold != null ? state.settings.nsfwThreshold : 0.75);
     els.nsfwThresholdVal.textContent = Number(els.nsfwThreshold.value).toFixed(2);
     els.nsfwResults.innerHTML = '';
@@ -1724,7 +1747,8 @@
     const clip = activeClip();
     if (!clip) return toast('Add a video first.', 'warn');
 
-    const intervalMs = Number(els.nsfwInterval.value) || 2000;
+    const intervalMs = Math.round(nsfwIntervalSeconds() * 1000);
+    els.nsfwInterval.value = String(nsfwIntervalSeconds());
     const minDurationMs = Number(els.nsfwMinDur.value) || 0;
     const threshold = Number(els.nsfwThreshold.value) || 0.75;
 
@@ -2065,6 +2089,11 @@
     });
     els.nsfwThreshold.addEventListener('input', () => {
       els.nsfwThresholdVal.textContent = Number(els.nsfwThreshold.value).toFixed(2);
+    });
+    els.nsfwInterval.addEventListener('input', updateNsfwEstimate);
+    els.nsfwInterval.addEventListener('change', () => {
+      els.nsfwInterval.value = String(nsfwIntervalSeconds());
+      updateNsfwEstimate();
     });
     els.jobClose.addEventListener('click', closeJobModal);
     els.jobClose2.addEventListener('click', closeJobModal);
