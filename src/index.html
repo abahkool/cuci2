@@ -21,6 +21,7 @@
       <button id="ffStatus" class="ff-status" title="ffmpeg status">checking ffmpeg…</button>
       <button id="btnSettings" class="btn ghost icon" title="Settings">⚙</button>
       <button id="btnJob" class="btn" title="Save / open / share the cut job">Job</button>
+      <button id="btnNsfw" class="btn" title="Auto-detect NSFW scenes and mark them as cuts">Scan NSFW</button>
       <button id="btnAddSub" class="btn">Add Subtitle</button>
       <button id="btnAddVideo" class="btn">Add Video</button>
       <button id="btnExport" class="btn primary">Export</button>
@@ -365,6 +366,69 @@
         <div class="modal-foot">
           <div class="spacer"></div>
           <button id="jobClose2" class="btn ghost">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ───────────────────────── NSFW scan modal ───────────────────────── -->
+    <div id="nsfwModal" class="modal hidden">
+      <div class="modal-card wide">
+        <div class="modal-head">
+          <h2>Auto-detect NSFW scenes</h2>
+          <button id="nsfwClose" class="btn ghost icon">✕</button>
+        </div>
+        <div class="modal-body">
+          <p class="hint">
+            Samples frames from the active clip and classifies each one with an on-device
+            image model, then marks flagged scenes as cuts. Everything runs locally — no
+            frames are uploaded.
+          </p>
+
+          <div class="grid2">
+            <label class="field">
+              <span>Sample every</span>
+              <select id="nsfwInterval">
+                <option value="1000">1 second</option>
+                <option value="2000" selected>2 seconds</option>
+                <option value="3000">3 seconds</option>
+                <option value="5000">5 seconds</option>
+                <option value="10000">10 seconds</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Minimum cut length</span>
+              <select id="nsfwMinDur">
+                <option value="0">any</option>
+                <option value="1000">1 second</option>
+                <option value="2000" selected>2 seconds</option>
+                <option value="3000">3 seconds</option>
+                <option value="5000">5 seconds</option>
+              </select>
+            </label>
+          </div>
+
+          <label class="field wide">
+            <span>Sensitivity — lower flags more aggressively <b id="nsfwThresholdVal">0.75</b></span>
+            <input id="nsfwThreshold" type="range" min="0.3" max="0.98" step="0.01" value="0.75" />
+          </label>
+
+          <div class="job-sep"></div>
+
+          <div id="nsfwModelInfo" class="summary"></div>
+
+          <div class="progress-wrap hidden" id="nsfwProgressWrap">
+            <div class="progress"><div id="nsfwProgressBar" class="progress-bar"></div></div>
+            <div id="nsfwStatus" class="progress-status"></div>
+          </div>
+
+          <div id="nsfwResults" class="nsfw-results"></div>
+        </div>
+        <div class="modal-foot">
+          <button id="nsfwCancel" class="btn danger hidden">Cancel scan</button>
+          <div class="spacer"></div>
+          <button id="nsfwClose2" class="btn ghost">Close</button>
+          <button id="nsfwApply" class="btn" disabled>Apply as cuts</button>
+          <button id="nsfwStart" class="btn primary">Scan</button>
         </div>
       </div>
     </div>

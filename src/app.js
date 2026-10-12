@@ -19,6 +19,8 @@
     pxPerMs: 0,
     globalSubOffset: 0,
     settings: { loadThumbs: false },
+    nsfwScanning: false,
+    nsfwSegments: [],
     jobDescription: '',
     pendingJob: null,
     scrubbing: false,
@@ -54,6 +56,9 @@
       'btnJob', 'jobModal', 'jobClose', 'jobClose2', 'jobSave', 'jobOpen', 'jobDesc', 'jobDescCount', 'jobIncludeSubs', 'jobCode',
       'jobCopy', 'jobRefresh', 'jobCodeInfo', 'jobPaste', 'jobImport', 'jobPasteClip', 'jobStatus',
       'statusbar', 'statusIcon', 'statusSpinner', 'statusText', 'statusInfo', 'statusClear', 'statusProgress', 'statusProgressBar', 'statusLog',
+      'btnNsfw', 'nsfwModal', 'nsfwClose', 'nsfwClose2', 'nsfwInterval', 'nsfwMinDur', 'nsfwThreshold',
+      'nsfwThresholdVal', 'nsfwModelInfo', 'nsfwProgressWrap', 'nsfwProgressBar', 'nsfwStatus', 'nsfwResults',
+      'nsfwCancel', 'nsfwApply', 'nsfwStart',
       'ctxMenu', 'toasts',
     ].forEach((id) => (els[id] = $(id)));
   }
@@ -1675,6 +1680,150 @@
     els.jobModal.classList.add('hidden');
   }
 
+  /* ─────────────────── NSFW scene detection ─────────────────── */
+  async function refreshNsfwModelInfo() {
+    try {
+      const s = await api.nsfwStatus();
+      const mb = (s.approxBytes / 1048576).toFixed(0);
+      els.nsfwModelInfo.innerHTML = CU.escapeHtml(
+        [
+          `model   : ${s.repo}`,
+          `input   : ${s.inputSize}×${s.inputSize} · labels: ${(s.labels || []).join(' / ')}`,
+          `status  : ${s.installed ? 'installed' + (s.vendored ? ' (bundled)' : '') : `will download on first scan (~${mb} MB)`}`,
+        ].join('\n'),
+      );
+    } catch (err) {
+      els.nsfwModelInfo.textContent = 'Model status unavailable: ' + (err.message || err);
+    }
+  }
+
+  async function openNsfwModal() {
+    const clip = activeClip();
+    if (!clip) return toast('Add a video first.', 'warn');
+    if (state.nsfwScanning) return;
+    els.nsfwInterval.value = String(state.settings.nsfwIntervalMs || 2000);
+    els.nsfwMinDur.value = String(state.settings.nsfwMinDurationMs != null ? state.settings.nsfwMinDurationMs : 2000);
+    els.nsfwThreshold.value = String(state.settings.nsfwThreshold != null ? state.settings.nsfwThreshold : 0.75);
+    els.nsfwThresholdVal.textContent = Number(els.nsfwThreshold.value).toFixed(2);
+    els.nsfwResults.innerHTML = '';
+    els.nsfwProgressWrap.classList.add('hidden');
+    els.nsfwApply.disabled = true;
+    els.nsfwApply.textContent = 'Apply as cuts';
+    state.nsfwSegments = [];
+    els.nsfwModal.classList.remove('hidden');
+    await refreshNsfwModelInfo();
+  }
+
+  function closeNsfwModal() {
+    if (state.nsfwScanning) return;
+    els.nsfwModal.classList.add('hidden');
+  }
+
+  async function startNsfwScan() {
+    if (state.nsfwScanning) return;
+    const clip = activeClip();
+    if (!clip) return toast('Add a video first.', 'warn');
+
+    const intervalMs = Number(els.nsfwInterval.value) || 2000;
+    const minDurationMs = Number(els.nsfwMinDur.value) || 0;
+    const threshold = Number(els.nsfwThreshold.value) || 0.75;
+
+    // remember the choice for next time
+    api.setSettings({ nsfwIntervalMs: intervalMs, nsfwMinDurationMs: minDurationMs, nsfwThreshold: threshold });
+    state.settings.nsfwIntervalMs = intervalMs;
+    state.settings.nsfwMinDurationMs = minDurationMs;
+    state.settings.nsfwThreshold = threshold;
+
+    state.nsfwScanning = true;
+    els.nsfwStart.disabled = true;
+    els.nsfwApply.disabled = true;
+    els.nsfwCancel.classList.remove('hidden');
+    els.nsfwClose.disabled = true;
+    els.nsfwResults.innerHTML = '';
+    els.nsfwProgressWrap.classList.remove('hidden');
+    els.nsfwProgressBar.style.width = '0%';
+    els.nsfwStatus.textContent = 'Starting…';
+    setStatus('Scanning for NSFW scenes…', 'busy', { progress: 0, log: false });
+
+    const res = await api.nsfwScan({ videoPath: clip.path, durationMs: clip.durationMs, intervalMs, threshold, minDurationMs });
+
+    state.nsfwScanning = false;
+    els.nsfwStart.disabled = false;
+    els.nsfwCancel.classList.add('hidden');
+    els.nsfwClose.disabled = false;
+
+    if (!res.ok) {
+      els.nsfwStatus.textContent = 'Failed.';
+      setStatus('NSFW scan failed', 'error');
+      toast('NSFW scan failed:\n' + (res.error || 'unknown error'), 'error', 10000);
+      return;
+    }
+    state.nsfwSegments = res.segments || [];
+    renderNsfwResults(res);
+    if (res.cancelled) setStatus('NSFW scan cancelled', 'warn');
+    else if (state.nsfwSegments.length) setStatus(`${state.nsfwSegments.length} NSFW scene(s) detected`, 'warn');
+    else setStatus('No NSFW scenes detected', 'ok', { timeout: 4000 });
+  }
+
+  function renderNsfwResults(res) {
+    els.nsfwProgressBar.style.width = '100%';
+    const clip = activeClip();
+    els.nsfwStatus.textContent = `Analyzed ${res.scannedFrames} frame(s) · ${res.positives} above threshold`;
+    els.nsfwResults.innerHTML = '';
+
+    if (!state.nsfwSegments.length) {
+      els.nsfwResults.innerHTML = `<div class="nsfw-none">No scenes scored above ${Number(res.threshold).toFixed(2)}. Try a lower sensitivity.</div>`;
+      return;
+    }
+
+    const total = state.nsfwSegments.reduce((a, s) => a + (s.end - s.start), 0);
+    const pct = clip ? ((total / clip.durationMs) * 100).toFixed(2) : '0';
+    const head = document.createElement('div');
+    head.className = 'job-info';
+    head.textContent = `${state.nsfwSegments.length} scene(s) · ${CU.fmt(total, 3)} of ${CU.fmt(clip ? clip.durationMs : 0, 3)} (${pct}%)`;
+    els.nsfwResults.appendChild(head);
+
+    for (const seg of state.nsfwSegments) {
+      const row = document.createElement('div');
+      row.className = 'nsfw-hit';
+      row.innerHTML =
+        `<span class="hit-time">${CU.fmt(seg.start, 3)} → ${CU.fmt(seg.end, 3)}</span>` +
+        `<span>${CU.fmt(seg.end - seg.start, 3)}</span>` +
+        `<span class="hit-score">${(seg.maxScore * 100).toFixed(1)}%</span>`;
+      els.nsfwResults.appendChild(row);
+    }
+    els.nsfwApply.disabled = false;
+    els.nsfwApply.textContent = `Apply ${state.nsfwSegments.length} cut(s)`;
+  }
+
+  /** Add the given ranges as cuts on the active clip. Returns how many were added. */
+  function applyNsfwSegments(segments) {
+    const clip = activeClip();
+    if (!clip || !Array.isArray(segments) || !segments.length) return 0;
+    pushUndo();
+    let added = 0;
+    for (const seg of segments) {
+      const s = CU.clamp(Number(seg.start) || 0, 0, clip.durationMs);
+      const e = CU.clamp(Number(seg.end) || 0, 0, clip.durationMs);
+      if (e - s < 1) continue;
+      clip.cuts.push({ id: CU.uid('cut'), start: s, end: e });
+      added += 1;
+    }
+    normalizeCuts(clip);
+    state.selection = null;
+    invalidate();
+    renderAll();
+    return added;
+  }
+
+  function applyNsfwCuts() {
+    const n = applyNsfwSegments(state.nsfwSegments);
+    if (!n) return toast('No detected scenes to apply.', 'warn');
+    setStatus(`Marked ${n} NSFW scene(s) as cuts`, 'ok', { timeout: 4500 });
+    toast(`Marked ${n} NSFW scene(s) as cuts.`, 'ok');
+    closeNsfwModal();
+  }
+
   /* ───────────────────────────── export ───────────────────────────── */
   function currentSetup() {
     const { ranges, total } = programRanges();
@@ -1905,6 +2054,18 @@
     els.btnExport.addEventListener('click', openExportModal);
     els.btnSettings.addEventListener('click', openSettings);
     els.btnJob.addEventListener('click', openJobModal);
+    els.btnNsfw.addEventListener('click', openNsfwModal);
+    els.nsfwClose.addEventListener('click', closeNsfwModal);
+    els.nsfwClose2.addEventListener('click', closeNsfwModal);
+    els.nsfwStart.addEventListener('click', startNsfwScan);
+    els.nsfwApply.addEventListener('click', applyNsfwCuts);
+    els.nsfwCancel.addEventListener('click', async () => {
+      await api.nsfwCancel();
+      els.nsfwStatus.textContent = 'Cancelling…';
+    });
+    els.nsfwThreshold.addEventListener('input', () => {
+      els.nsfwThresholdVal.textContent = Number(els.nsfwThreshold.value).toFixed(2);
+    });
     els.jobClose.addEventListener('click', closeJobModal);
     els.jobClose2.addEventListener('click', closeJobModal);
     els.jobSave.addEventListener('click', saveJobFile);
@@ -2227,6 +2388,15 @@
       setStatus(`Exporting… ${d.percent.toFixed(0)}%${eta}`, 'busy', { progress: d.percent / 100, log: false });
     });
 
+    // NSFW scan progress
+    api.onNsfwProgress((p) => {
+      if (!state.nsfwScanning) return;
+      const pct = p.percent != null ? p.percent : 0;
+      els.nsfwProgressBar.style.width = pct.toFixed(1) + '%';
+      els.nsfwStatus.textContent = p.message || p.phase;
+      setStatus(p.phase === 'download' ? p.message : 'Scanning for NSFW scenes…', 'busy', { progress: pct / 100, log: false });
+    });
+
     // keyframe snapshot progress
     api.onThumbsProgress((d) => {
       thumbJobs.set(d.path, Math.max(0, Math.min(99, d.percent || 0)));
@@ -2312,6 +2482,10 @@
     }
     if (!els.jobModal.classList.contains('hidden')) {
       if (e.key === 'Escape') closeJobModal();
+      return;
+    }
+    if (!els.nsfwModal.classList.contains('hidden')) {
+      if (e.key === 'Escape') closeNsfwModal();
       return;
     }
     const mod = e.ctrlKey || e.metaKey;
@@ -2406,6 +2580,7 @@
       programRanges,
       remapAll,
       applyThumbSetting,
+      applyNsfwSegments,
       buildJob,
       applyJob,
       encodeShareCode,

@@ -30,6 +30,7 @@ Technical guide for working on CUCI². For the user-facing guide see
 | Shell | Electron (pinned in `devDependencies`, currently `^33`) |
 | Renderer | Vanilla HTML/CSS/JS (classic scripts, no bundler, no framework) |
 | Media | system `ffmpeg` / `ffprobe` (CLI) + Chromium's built-in `<video>` for preview |
+| Inference | `onnxruntime-node` (NSFW scene detection) |
 | Tests | custom Electron harnesses in `lib/` (no test runner dependency) |
 
 There is **no build step**. `main.js` loads `src/index.html` straight from disk.
@@ -45,9 +46,11 @@ lib/
   ipc.js                all ipcMain handlers, settings, export orchestration
   exporter.js           pure ffmpeg filtergraph/encoder builders  ← unit-testable
   ffmpeg-locate.js      resolves custom/env/system/bundled ffmpeg+ffprobe
+  nsfw.js               ONNX NSFW scene detection (sampling + inference + grouping)
   media-protocol.js     seekable media:// handler (HTTP range support)
   selftest.js           export-pipeline test against real ffmpeg   (node)
   test-locate.js        verifies the tool resolution chain         (node)
+  test-nsfw.js          NSFW tensor/grouping unit tests + live scan (node)
   smoke.js              boots the real renderer, fails on console errors
   e2e.js                full UI flow test (load → subtitle → cut → seek → export → job)
   test-cancel.js        verifies cancel kills ffmpeg + removes residue
@@ -178,6 +181,9 @@ are `webContents.send` pushes. Channels live in `lib/ipc.js`; the renderer reach
 | `media:probe` | `path` | `{ name, size, durationMs, fps, width, height, hasVideo, hasAudio, videoCodec, audioCodec, rotation }` |
 | `media:thumbs` | `path, { durationMs, height, maxCount }` | `{ dir, files[], stepMs }` |
 | `media:proxy` | `path` | proxy file path (movie) |
+| `nsfw:status` | — | `{ installed, path, repo, file, approxBytes, inputSize, labels }` |
+| `nsfw:scan` | `{ videoPath, durationMs, intervalMs?, threshold?, minDurationMs?, padMs? }` | `{ ok, segments, scannedFrames, positives, cancelled, … }` |
+| `nsfw:cancel` | — | `true` |
 | `export:start` | `ExportRequest` (below) | `{ ok, outputPath, srtPath }` \| `{ ok:false, error }` \| `{ ok:false, cancelled:true }` |
 | `export:cancel` | — | `boolean` |
 
@@ -188,6 +194,7 @@ are `webContents.send` pushes. Channels live in `lib/ipc.js`; the renderer reach
 | `export:progress` | `{ percent, timeSec, totalSec, speed, fps }` |
 | `thumbs:progress` | `{ path, percent, frame, count }` |
 | `proxy:log` | ffmpeg stderr chunk |
+| `nsfw:progress` | `{ phase: 'model'\|'download'\|'loading'\|'scan', percent, message, index, expected, score, flag }` |
 
 ### `ExportRequest`
 
@@ -295,6 +302,49 @@ real `ffmpeg.exe` as a child, so `child.kill()` only kills the shim. Cancellatio
 
 ---
 
+## NSFW scene detection (`lib/nsfw.js`)
+
+`Scan NSFW` samples the active clip's source and turns flagged frames into cut ranges. It is
+entirely local — inference runs in the main process via `onnxruntime-node`.
+
+### Model choice
+
+The task named `Falconsai/nsfw_image_detection`, but that repo publishes **only PyTorch /
+safetensors weights** and no ONNX export, so Transformers.js / onnxruntime cannot load it. A
+Hugging Face search for ONNX NSFW classifiers returns exactly two models; CUCI² uses
+`AdamCodd/vit-base-nsfw-detector` (ViT-base, binary `{0: sfw, 1: nsfw}`, ~790k downloads).
+
+| | |
+| --- | --- |
+| file | `onnx/model_quantized.onnx` (int8, ~84 MB) |
+| input | `pixel_values` `float32[1,3,384,384]` (note: **384**, not 224) |
+| output | `logits` `float32[1,2]` |
+| norm | mean/std `[0.5,0.5,0.5]`, scale `1/255` |
+
+Model lookup order: `CUCI2_NSFW_MODEL_DIR` → `vendor/nsfw/` → `<userData>/models/nsfw/`
+(downloaded there on first use, resumable via `curl -C -` with a `fetch` fallback).
+
+### Pipeline
+
+1. ffmpeg emits raw frames directly at the model's input size —
+   `-vf fps=1/<interval>,scale=384:384:force_original_aspect_ratio=decrease,pad=…,format=rgb24
+   -f rawvideo -` — so there is **no image-decoding dependency** (no sharp/canvas). The 384²×3
+   byte frames arrive on stdout and are classified one by one as they stream in (natural
+   backpressure via `for await` on the child stream).
+2. `frameToTensor()` converts each RGB frame to planar, normalised CHW `Float32Array`.
+3. `classifyFrame()` runs the session and softmaxes the logits; the `nsfw` probability is the
+   score.
+4. `groupDetections(samples, intervalMs, durationMs, { threshold, minDurationMs, padMs })`
+   merges **consecutive** above-threshold samples into ranges. A sample at index `i` covers
+   `[i*interval, i*interval + interval)`; ranges are padded, clamped to the duration, and
+   filtered by minimum length. This function is pure and unit-tested.
+
+The scan is cancellable (`nsfw:cancel` sets a flag; the ffmpeg child is killed) and streams
+`nsfw:progress` for the status bar and the modal's progress bar.
+
+The renderer only *reviews* results: `applyNsfwSegments(ranges)` pushes an undo entry, adds the
+cuts, normalises/merges them and re-renders.
+
 ## Renderer architecture
 
 `src/app.js` is one IIFE with three layers:
@@ -390,11 +440,14 @@ single clip). An event spanning a boundary produces one output event per overlap
 ### Settings (`<userData>/settings.json`)
 
 ```json
-{ "ffmpegPath": "", "ffprobePath": "", "loadThumbs": false, "preferBundled": false }
+{
+  "ffmpegPath": "", "ffprobePath": "", "loadThumbs": false, "preferBundled": false,
+  "nsfwThreshold": 0.75, "nsfwIntervalMs": 2000, "nsfwMinDurationMs": 2000
+}
 ```
 
 Empty paths mean "auto-detect" (system, then bundled). `loadThumbs` and `preferBundled`
-default to `false`.
+default to `false`; the `nsfw*` keys remember the last scan settings.
 
 ### Cut job — verbose (`.cuci2.json`)
 
@@ -481,6 +534,7 @@ npm run test:cancel # electron lib/test-cancel.js
 | Suite | What it covers |
 | --- | --- |
 | `test:locate` | the ffmpeg resolution chain: default finds *something*, a bogus custom path falls through, `preferBundled` selects the vendored build and it reports `libass` |
+| `test:nsfw` | tensor normalisation, softmax and range grouping (always); plus a real scan of a generated clip when the ONNX model is present |
 | `selftest` | builds sample clips (mixed resolution, one silent), joins them with the production filtergraph, asserts output duration (~6 s) and streams |
 | `smoke` | loads the real `src/index.html` in a hidden window; fails on any renderer console error |
 | `e2e` | loads a generated video, checks snapshots are **off** by default then enables them, verifies filmstrip, double-click In/Out, subtitles + cut remap, seek/step, context menu, job codec round-trip, status bar, export guard, and a burn-in export (`5.000 s`) |

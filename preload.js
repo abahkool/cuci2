@@ -40,6 +40,15 @@ contextBridge.exposeInMainWorld('api', {
     return () => ipcRenderer.removeListener('thumbs:progress', handler);
   },
 
+  nsfwStatus: () => ipcRenderer.invoke('nsfw:status'),
+  nsfwScan: (req) => ipcRenderer.invoke('nsfw:scan', req),
+  nsfwCancel: () => ipcRenderer.invoke('nsfw:cancel'),
+  onNsfwProgress: (cb) => {
+    const handler = (_e, data) => cb(data);
+    ipcRenderer.on('nsfw:progress', handler);
+    return () => ipcRenderer.removeListener('nsfw:progress', handler);
+  },
+
   onProxyLog: (cb) => {
     const handler = (_e, data) => cb(data);
     ipcRenderer.on('proxy:log', handler);

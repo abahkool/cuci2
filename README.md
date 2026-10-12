@@ -46,6 +46,9 @@ subtitles** to the new length. Everything is powered by `ffmpeg`.
   `.cuci2.json` file, or as a compact one-line code you can paste into chat/email/social.
 - **Status bar** — live progress (*analyzing*, *loading keyframe snapshots*, *exporting*),
   sticky errors/warnings, active-clip info, and a click-to-open message history.
+- **Auto-detect NSFW scenes** — scan the active clip with an on-device image classifier and
+  turn flagged scenes into cuts in one click. Everything runs locally; no frames are
+  uploaded.
 - **Preview proxy** — if Chromium can't decode a container/codec (e.g. MKV/HEVC), generate a
   low-res H.264 proxy for previewing; exports still use the original files.
 - **Sensible encode presets** — x264 / x265 / NVENC, CRF quality, resolution/fps
@@ -183,6 +186,29 @@ file(s).
 
 ---
 
+## Auto-detect NSFW scenes
+
+The **Scan NSFW** button samples frames from the active clip (default: one every 2 seconds),
+classifies each one, and turns consecutive flagged samples into cut ranges you review before
+applying.
+
+- **Model** — `AdamCodd/vit-base-nsfw-detector`, a ViT-base binary `sfw`/`nsfw` classifier.
+  This is the closest ONNX equivalent of `Falconsai/nsfw_image_detection`; the Falconsai repo
+  only publishes PyTorch/safetensors weights, which a JS/Electron app can't execute, so a
+  model with the same architecture and task is used instead.
+- **Local only** — inference runs through `onnxruntime-node`; no frames leave your machine.
+  The ~84 MB model is downloaded once from Hugging Face and cached in your user-data folder.
+  If `vendor/nsfw/` already contains it (as in a dev checkout), that copy is used and nothing
+  is downloaded.
+- **Controls** — *Sensitivity* (default `0.75`; lower flags more aggressively), *Sample every*
+  (default 2 s) and *Minimum cut length* (default 2 s). Expect roughly 5 frames/second of
+  analysis on a typical CPU.
+- **Review first** — detected ranges are listed with their peak score; **Apply as cuts** adds
+  them (undo with `Ctrl`+`Z`). Nothing is marked automatically until you confirm.
+
+> Detection quality depends entirely on the model. Treat the result as a first pass and
+> review the timeline before exporting.
+
 ## Preview codecs & proxies
 
 The built-in player only decodes what Chromium supports (typically H.264/VP8/VP9/AV1 with
@@ -206,6 +232,9 @@ resolutions/fps/audio). Choose a CRF you're happy with.
   off *Burn subtitles* (or use a full ffmpeg build).
 - **Preview shows a black frame / refuses to play** — the codec isn't decodable by Chromium;
   use *Create preview proxy*.
+- **NSFW scan fails to start** — the model needs a one-time ~84 MB download; if you are
+  offline, place `model_quantized.onnx` in `vendor/nsfw/` (or set `CUCI2_NSFW_MODEL_DIR` to a
+  folder containing it) and it will be used directly.
 - **Nothing was cut out of the export** — open Export and check the `removed` line; if it is
   `0:00.000` the cut list is empty and Export will ask you to confirm.
 

@@ -11,8 +11,9 @@
     "dev": "electron . --dev",
     "postinstall": "node scripts/fetch-ffmpeg.mjs",
     "fetch:ffmpeg": "node scripts/fetch-ffmpeg.mjs --force",
-    "test": "npm run test:locate && npm run test:export && npm run test:smoke && npm run test:e2e && npm run test:cancel",
+    "test": "npm run test:locate && npm run test:nsfw && npm run test:export && npm run test:smoke && npm run test:e2e && npm run test:cancel",
     "test:locate": "node lib/test-locate.js",
+    "test:nsfw": "node lib/test-nsfw.js",
     "test:export": "node lib/selftest.js",
     "test:smoke": "electron lib/smoke.js",
     "test:e2e": "electron lib/e2e.js",
@@ -37,8 +38,13 @@
       {
         "from": "vendor/ffmpeg",
         "to": "ffmpeg",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
+    ],
+    "asarUnpack": [
+      "**/node_modules/onnxruntime-node/**"
     ],
     "win": {
       "target": [
@@ -56,5 +62,8 @@
         "AppImage"
       ]
     }
+  },
+  "dependencies": {
+    "onnxruntime-node": "^1.30.0"
   }
 }
