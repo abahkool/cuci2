@@ -19,10 +19,8 @@
     pxPerMs: 0,
     globalSubOffset: 0,
     settings: { loadThumbs: false },
-    detectKey: 'nsfw',
-    detectScanning: false,
-    detectSegments: [],
-    detectors: null,
+    nsfwScanning: false,
+    nsfwSegments: [],
     jobDescription: '',
     pendingJob: null,
     scrubbing: false,
@@ -58,9 +56,9 @@
       'btnJob', 'jobModal', 'jobClose', 'jobClose2', 'jobSave', 'jobOpen', 'jobDesc', 'jobDescCount', 'jobIncludeSubs', 'jobCode',
       'jobCopy', 'jobRefresh', 'jobCodeInfo', 'jobPaste', 'jobImport', 'jobPasteClip', 'jobStatus',
       'statusbar', 'statusIcon', 'statusSpinner', 'statusText', 'statusInfo', 'statusClear', 'statusProgress', 'statusProgressBar', 'statusLog',
-      'btnNsfw', 'btnViolence', 'detectModal', 'detectTitle', 'detectClose', 'detectClose2', 'detectInterval',
-      'detectMinDur', 'detectEstimate', 'detectThreshold', 'detectThresholdVal', 'detectModelInfo',
-      'detectProgressWrap', 'detectProgressBar', 'detectStatus', 'detectResults', 'detectCancel', 'detectApply', 'detectStart',
+      'btnNsfw', 'nsfwModal', 'nsfwClose', 'nsfwClose2', 'nsfwInterval', 'nsfwMinDur', 'nsfwEstimate', 'nsfwThreshold',
+      'nsfwThresholdVal', 'nsfwModelInfo', 'nsfwProgressWrap', 'nsfwProgressBar', 'nsfwStatus', 'nsfwResults',
+      'nsfwCancel', 'nsfwApply', 'nsfwStart',
       'ctxMenu', 'toasts',
     ].forEach((id) => (els[id] = $(id)));
   }
@@ -1682,181 +1680,148 @@
     els.jobModal.classList.add('hidden');
   }
 
-  /* ─────────────────── content scanning (NSFW / violence) ─────────────────── */
-  const DETECT_MIN_INTERVAL_S = 0.25;
-  const DETECT_MAX_INTERVAL_S = 60;
-  const DETECT_SEC_PER_FRAME = 0.2; // ~5 frames/second of inference on a typical CPU
+  /* ─────────────────── NSFW scene detection ─────────────────── */
+  const NSFW_MIN_INTERVAL_S = 0.25;
+  const NSFW_MAX_INTERVAL_S = 60;
+  const NSFW_SEC_PER_FRAME = 0.2; // ~5 frames/second of inference on a typical CPU
 
-  function currentDetector() {
-    return (
-      (state.detectors || []).find((d) => d.key === state.detectKey) || {
-        key: state.detectKey,
-        label: state.detectKey === 'violence' ? 'Violence' : 'NSFW',
-        positiveLabel: state.detectKey === 'violence' ? 'violence' : 'nsfw',
-        defaultThreshold: 0.3,
-        defaultMinDurationMs: 5000,
-      }
-    );
-  }
-
-  function detectIntervalSeconds() {
-    const raw = Number(els.detectInterval.value);
+  function nsfwIntervalSeconds() {
+    const raw = Number(els.nsfwInterval.value);
     const v = Number.isFinite(raw) && raw > 0 ? raw : 2;
-    return Math.min(DETECT_MAX_INTERVAL_S, Math.max(DETECT_MIN_INTERVAL_S, v));
+    return Math.min(NSFW_MAX_INTERVAL_S, Math.max(NSFW_MIN_INTERVAL_S, v));
   }
 
-  function updateDetectEstimate() {
+  function updateNsfwEstimate() {
     const clip = activeClip();
     if (!clip) {
-      els.detectEstimate.textContent = '';
+      els.nsfwEstimate.textContent = '';
       return;
     }
-    const sec = detectIntervalSeconds();
+    const sec = nsfwIntervalSeconds();
     const frames = Math.max(1, Math.round(clip.durationMs / (sec * 1000)));
-    const est = CU.fmt(frames * DETECT_SEC_PER_FRAME * 1000, 0);
-    els.detectEstimate.textContent = `≈ ${frames.toLocaleString()} frames to analyze · roughly ${est} of processing`;
+    const est = CU.fmt(frames * NSFW_SEC_PER_FRAME * 1000, 0);
+    els.nsfwEstimate.textContent = `≈ ${frames.toLocaleString()} frames to analyze · roughly ${est} of processing`;
   }
 
-  async function refreshDetectModelInfo() {
+  async function refreshNsfwModelInfo() {
     try {
-      if (!state.detectors || !state.detectors.length) state.detectors = await api.detectStatus();
-      const d = currentDetector();
-      const mb = ((d.approxBytes || 0) / 1048576).toFixed(0);
-      els.detectModelInfo.innerHTML = CU.escapeHtml(
+      const s = await api.nsfwStatus();
+      const mb = (s.approxBytes / 1048576).toFixed(0);
+      els.nsfwModelInfo.innerHTML = CU.escapeHtml(
         [
-          `detector: ${d.label} — flags "${d.positiveLabel}"`,
-          `model   : ${d.repo}`,
-          `input   : ${d.inputSize}×${d.inputSize} · labels: ${(d.labels || []).join(' / ')}`,
-          `status  : ${d.installed ? 'installed' + (d.vendored ? ' (bundled)' : '') : `will download on first scan (~${mb} MB)`}`,
+          `model   : ${s.repo}`,
+          `input   : ${s.inputSize}×${s.inputSize} · labels: ${(s.labels || []).join(' / ')}`,
+          `status  : ${s.installed ? 'installed' + (s.vendored ? ' (bundled)' : '') : `will download on first scan (~${mb} MB)`}`,
         ].join('\n'),
       );
     } catch (err) {
-      els.detectModelInfo.textContent = 'Model status unavailable: ' + (err.message || err);
+      els.nsfwModelInfo.textContent = 'Model status unavailable: ' + (err.message || err);
     }
   }
 
-  async function openDetectModal(key) {
+  async function openNsfwModal() {
     const clip = activeClip();
     if (!clip) return toast('Add a video first.', 'warn');
-    if (state.detectScanning) return;
-    state.detectKey = key;
-    state.detectors = await api.detectStatus();
-    const d = currentDetector();
-    els.detectTitle.textContent = `Auto-detect ${d.label} scenes`;
-    els.detectInterval.value = String(((state.settings.detectIntervalMs || 2000) / 1000).toFixed(2).replace(/\.?0+$/, ''));
-    const minDur = state.settings[`${key}MinDurationMs`];
-    els.detectMinDur.value = String(minDur != null ? minDur : d.defaultMinDurationMs);
-    const thr = state.settings[`${key}Threshold`];
-    els.detectThreshold.value = String(thr != null ? thr : d.defaultThreshold);
-    els.detectThresholdVal.textContent = Number(els.detectThreshold.value).toFixed(2);
-    els.detectResults.innerHTML = '';
-    els.detectProgressWrap.classList.add('hidden');
-    els.detectApply.disabled = true;
-    els.detectApply.textContent = 'Apply as cuts';
-    state.detectSegments = [];
-    updateDetectEstimate();
-    els.detectModal.classList.remove('hidden');
-    refreshDetectModelInfo();
+    if (state.nsfwScanning) return;
+    els.nsfwInterval.value = String(((state.settings.nsfwIntervalMs || 2000) / 1000).toFixed(2).replace(/\.?0+$/, ''));
+    els.nsfwMinDur.value = String(state.settings.nsfwMinDurationMs != null ? state.settings.nsfwMinDurationMs : 5000);
+    updateNsfwEstimate();
+    els.nsfwThreshold.value = String(state.settings.nsfwThreshold != null ? state.settings.nsfwThreshold : 0.3);
+    els.nsfwThresholdVal.textContent = Number(els.nsfwThreshold.value).toFixed(2);
+    els.nsfwResults.innerHTML = '';
+    els.nsfwProgressWrap.classList.add('hidden');
+    els.nsfwApply.disabled = true;
+    els.nsfwApply.textContent = 'Apply as cuts';
+    state.nsfwSegments = [];
+    els.nsfwModal.classList.remove('hidden');
+    await refreshNsfwModelInfo();
   }
 
-  function closeDetectModal() {
-    if (state.detectScanning) return;
-    els.detectModal.classList.add('hidden');
+  function closeNsfwModal() {
+    if (state.nsfwScanning) return;
+    els.nsfwModal.classList.add('hidden');
   }
 
-  async function startDetectScan() {
-    if (state.detectScanning) return;
+  async function startNsfwScan() {
+    if (state.nsfwScanning) return;
     const clip = activeClip();
     if (!clip) return toast('Add a video first.', 'warn');
-    const key = state.detectKey;
-    const d = currentDetector();
 
-    const intervalMs = Math.round(detectIntervalSeconds() * 1000);
-    els.detectInterval.value = String(detectIntervalSeconds());
-    const minDurationMs = Number(els.detectMinDur.value) || 0;
-    const threshold = Number(els.detectThreshold.value) || d.defaultThreshold;
+    const intervalMs = Math.round(nsfwIntervalSeconds() * 1000);
+    els.nsfwInterval.value = String(nsfwIntervalSeconds());
+    const minDurationMs = Number(els.nsfwMinDur.value) || 0;
+    const threshold = Number(els.nsfwThreshold.value) || 0.3;
 
-    api.setSettings({ detectIntervalMs: intervalMs, [`${key}MinDurationMs`]: minDurationMs, [`${key}Threshold`]: threshold });
-    state.settings.detectIntervalMs = intervalMs;
-    state.settings[`${key}MinDurationMs`] = minDurationMs;
-    state.settings[`${key}Threshold`] = threshold;
+    // remember the choice for next time
+    api.setSettings({ nsfwIntervalMs: intervalMs, nsfwMinDurationMs: minDurationMs, nsfwThreshold: threshold });
+    state.settings.nsfwIntervalMs = intervalMs;
+    state.settings.nsfwMinDurationMs = minDurationMs;
+    state.settings.nsfwThreshold = threshold;
 
-    state.detectScanning = true;
-    els.detectStart.disabled = true;
-    els.detectApply.disabled = true;
-    els.detectCancel.classList.remove('hidden');
-    els.detectClose.disabled = true;
-    els.detectResults.innerHTML = '';
-    els.detectProgressWrap.classList.remove('hidden');
-    els.detectProgressBar.style.width = '0%';
-    els.detectStatus.textContent = 'Starting…';
-    setStatus(`Scanning for ${d.label} scenes…`, 'busy', { progress: 0, log: false });
+    state.nsfwScanning = true;
+    els.nsfwStart.disabled = true;
+    els.nsfwApply.disabled = true;
+    els.nsfwCancel.classList.remove('hidden');
+    els.nsfwClose.disabled = true;
+    els.nsfwResults.innerHTML = '';
+    els.nsfwProgressWrap.classList.remove('hidden');
+    els.nsfwProgressBar.style.width = '0%';
+    els.nsfwStatus.textContent = 'Starting…';
+    setStatus('Scanning for NSFW scenes…', 'busy', { progress: 0, log: false });
 
-    const res = await api.detectScan({
-      detector: key,
-      videoPath: clip.path,
-      durationMs: clip.durationMs,
-      intervalMs,
-      threshold,
-      minDurationMs,
-    });
+    const res = await api.nsfwScan({ videoPath: clip.path, durationMs: clip.durationMs, intervalMs, threshold, minDurationMs });
 
-    state.detectScanning = false;
-    els.detectStart.disabled = false;
-    els.detectCancel.classList.add('hidden');
-    els.detectClose.disabled = false;
+    state.nsfwScanning = false;
+    els.nsfwStart.disabled = false;
+    els.nsfwCancel.classList.add('hidden');
+    els.nsfwClose.disabled = false;
 
     if (!res.ok) {
-      els.detectStatus.textContent = 'Failed.';
-      setStatus(`${d.label} scan failed`, 'error');
-      toast(`${d.label} scan failed:\n` + (res.error || 'unknown error'), 'error', 10000);
+      els.nsfwStatus.textContent = 'Failed.';
+      setStatus('NSFW scan failed', 'error');
+      toast('NSFW scan failed:\n' + (res.error || 'unknown error'), 'error', 10000);
       return;
     }
-    state.detectSegments = res.segments || [];
-    renderDetectResults(res);
-    if (res.cancelled) setStatus('Scan cancelled', 'warn');
-    else if (state.detectSegments.length) setStatus(`${state.detectSegments.length} ${d.label} scene(s) detected`, 'warn');
-    else setStatus(`No ${d.label} scenes detected`, 'ok', { timeout: 4000 });
+    state.nsfwSegments = res.segments || [];
+    renderNsfwResults(res);
+    if (res.cancelled) setStatus('NSFW scan cancelled', 'warn');
+    else if (state.nsfwSegments.length) setStatus(`${state.nsfwSegments.length} NSFW scene(s) detected`, 'warn');
+    else setStatus('No NSFW scenes detected', 'ok', { timeout: 4000 });
   }
 
-  function renderDetectResults(res) {
+  function renderNsfwResults(res) {
+    els.nsfwProgressBar.style.width = '100%';
     const clip = activeClip();
-    const d = currentDetector();
-    els.detectProgressBar.style.width = '100%';
-    els.detectStatus.textContent = `Analyzed ${res.scannedFrames} frame(s) · ${res.positives} above ${Number(res.threshold).toFixed(2)}`;
-    els.detectResults.innerHTML = '';
+    els.nsfwStatus.textContent = `Analyzed ${res.scannedFrames} frame(s) · ${res.positives} above threshold`;
+    els.nsfwResults.innerHTML = '';
 
-    if (!state.detectSegments.length) {
-      els.detectResults.innerHTML =
-        `<div class="nsfw-none">No scenes scored above ` +
-        `${Number(res.threshold).toFixed(2)} as "${CU.escapeHtml(d.positiveLabel || 'flagged')}". Try a lower sensitivity.</div>`;
+    if (!state.nsfwSegments.length) {
+      els.nsfwResults.innerHTML = `<div class="nsfw-none">No scenes scored above ${Number(res.threshold).toFixed(2)}. Try a lower sensitivity.</div>`;
       return;
     }
 
-    const total = state.detectSegments.reduce((a, s) => a + (s.end - s.start), 0);
+    const total = state.nsfwSegments.reduce((a, s) => a + (s.end - s.start), 0);
     const pct = clip ? ((total / clip.durationMs) * 100).toFixed(2) : '0';
     const head = document.createElement('div');
     head.className = 'job-info';
-    head.textContent =
-      `${state.detectSegments.length} scene(s) · ${CU.fmt(total, 3)} of ` +
-      `${CU.fmt(clip ? clip.durationMs : 0, 3)} (${pct}%)`;
-    els.detectResults.appendChild(head);
+    head.textContent = `${state.nsfwSegments.length} scene(s) · ${CU.fmt(total, 3)} of ${CU.fmt(clip ? clip.durationMs : 0, 3)} (${pct}%)`;
+    els.nsfwResults.appendChild(head);
 
-    for (const seg of state.detectSegments) {
+    for (const seg of state.nsfwSegments) {
       const row = document.createElement('div');
       row.className = 'nsfw-hit';
       row.innerHTML =
         `<span class="hit-time">${CU.fmt(seg.start, 3)} → ${CU.fmt(seg.end, 3)}</span>` +
         `<span>${CU.fmt(seg.end - seg.start, 3)}</span>` +
         `<span class="hit-score">${(seg.maxScore * 100).toFixed(1)}%</span>`;
-      els.detectResults.appendChild(row);
+      els.nsfwResults.appendChild(row);
     }
-    els.detectApply.disabled = false;
-    els.detectApply.textContent = `Apply ${state.detectSegments.length} cut(s)`;
+    els.nsfwApply.disabled = false;
+    els.nsfwApply.textContent = `Apply ${state.nsfwSegments.length} cut(s)`;
   }
 
   /** Add the given ranges as cuts on the active clip. Returns how many were added. */
-  function applyDetectSegments(segments) {
+  function applyNsfwSegments(segments) {
     const clip = activeClip();
     if (!clip || !Array.isArray(segments) || !segments.length) return 0;
     pushUndo();
@@ -1875,13 +1840,12 @@
     return added;
   }
 
-  function applyDetectCuts() {
-    const d = currentDetector();
-    const n = applyDetectSegments(state.detectSegments);
+  function applyNsfwCuts() {
+    const n = applyNsfwSegments(state.nsfwSegments);
     if (!n) return toast('No detected scenes to apply.', 'warn');
-    setStatus(`Marked ${n} ${d.label} scene(s) as cuts`, 'ok', { timeout: 4500 });
-    toast(`Marked ${n} ${d.label} scene(s) as cuts.`, 'ok');
-    closeDetectModal();
+    setStatus(`Marked ${n} NSFW scene(s) as cuts`, 'ok', { timeout: 4500 });
+    toast(`Marked ${n} NSFW scene(s) as cuts.`, 'ok');
+    closeNsfwModal();
   }
 
   /* ───────────────────────────── export ───────────────────────────── */
@@ -2114,23 +2078,22 @@
     els.btnExport.addEventListener('click', openExportModal);
     els.btnSettings.addEventListener('click', openSettings);
     els.btnJob.addEventListener('click', openJobModal);
-    els.btnNsfw.addEventListener('click', () => openDetectModal('nsfw'));
-    els.btnViolence.addEventListener('click', () => openDetectModal('violence'));
-    els.detectClose.addEventListener('click', closeDetectModal);
-    els.detectClose2.addEventListener('click', closeDetectModal);
-    els.detectStart.addEventListener('click', startDetectScan);
-    els.detectApply.addEventListener('click', applyDetectCuts);
-    els.detectCancel.addEventListener('click', async () => {
-      await api.detectCancel();
-      els.detectStatus.textContent = 'Cancelling…';
+    els.btnNsfw.addEventListener('click', openNsfwModal);
+    els.nsfwClose.addEventListener('click', closeNsfwModal);
+    els.nsfwClose2.addEventListener('click', closeNsfwModal);
+    els.nsfwStart.addEventListener('click', startNsfwScan);
+    els.nsfwApply.addEventListener('click', applyNsfwCuts);
+    els.nsfwCancel.addEventListener('click', async () => {
+      await api.nsfwCancel();
+      els.nsfwStatus.textContent = 'Cancelling…';
     });
-    els.detectThreshold.addEventListener('input', () => {
-      els.detectThresholdVal.textContent = Number(els.detectThreshold.value).toFixed(2);
+    els.nsfwThreshold.addEventListener('input', () => {
+      els.nsfwThresholdVal.textContent = Number(els.nsfwThreshold.value).toFixed(2);
     });
-    els.detectInterval.addEventListener('input', updateDetectEstimate);
-    els.detectInterval.addEventListener('change', () => {
-      els.detectInterval.value = String(detectIntervalSeconds());
-      updateDetectEstimate();
+    els.nsfwInterval.addEventListener('input', updateNsfwEstimate);
+    els.nsfwInterval.addEventListener('change', () => {
+      els.nsfwInterval.value = String(nsfwIntervalSeconds());
+      updateNsfwEstimate();
     });
     els.jobClose.addEventListener('click', closeJobModal);
     els.jobClose2.addEventListener('click', closeJobModal);
@@ -2454,14 +2417,13 @@
       setStatus(`Exporting… ${d.percent.toFixed(0)}%${eta}`, 'busy', { progress: d.percent / 100, log: false });
     });
 
-    // content scan progress
-    api.onDetectProgress((p) => {
-      if (!state.detectScanning) return;
+    // NSFW scan progress
+    api.onNsfwProgress((p) => {
+      if (!state.nsfwScanning) return;
       const pct = p.percent != null ? p.percent : 0;
-      const label = currentDetector().label;
-      els.detectProgressBar.style.width = pct.toFixed(1) + '%';
-      els.detectStatus.textContent = p.message || p.phase;
-      setStatus(p.phase === 'download' ? p.message : `Scanning for ${label} scenes…`, 'busy', { progress: pct / 100, log: false });
+      els.nsfwProgressBar.style.width = pct.toFixed(1) + '%';
+      els.nsfwStatus.textContent = p.message || p.phase;
+      setStatus(p.phase === 'download' ? p.message : 'Scanning for NSFW scenes…', 'busy', { progress: pct / 100, log: false });
     });
 
     // keyframe snapshot progress
@@ -2551,8 +2513,8 @@
       if (e.key === 'Escape') closeJobModal();
       return;
     }
-    if (!els.detectModal.classList.contains('hidden')) {
-      if (e.key === 'Escape') closeDetectModal();
+    if (!els.nsfwModal.classList.contains('hidden')) {
+      if (e.key === 'Escape') closeNsfwModal();
       return;
     }
     const mod = e.ctrlKey || e.metaKey;
@@ -2647,7 +2609,7 @@
       programRanges,
       remapAll,
       applyThumbSetting,
-      applyDetectSegments,
+      applyNsfwSegments,
       buildJob,
       applyJob,
       encodeShareCode,
