@@ -1,0 +1,10 @@
+{
+  "_comment": "Copy to store/identity.json and fill in from Partner Center → your app → Product identity. store/identity.json is gitignored.",
+  "identityName": "12345AbahKool.CUCI2",
+  "publisher": "CN=00000000-0000-0000-0000-000000000000",
+  "publisherDisplayName": "AbahKool",
+  "displayName": "CUCI2 Video Cut Studio",
+  "shortName": "CUCI2",
+  "description": "Millisecond-precision video cut, merge and subtitle sync. On-device.",
+  "architecture": "x64"
+}

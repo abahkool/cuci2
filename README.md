@@ -19,6 +19,9 @@ subtitles** to the new length. Everything is powered by `ffmpeg`.
 └───────────────────────────────────────────────────────────────────────┘
 ```
 
+> **Packaging for the Microsoft Store?** See **[docs/STORE-SUBMISSION.md](docs/STORE-SUBMISSION.md)**
+> — MSIX packaging, the WACK/manual test plan, and ready-to-paste listing copy.
+>
 > **Development / contributing?** See **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)** for the
 > architecture, IPC reference, data formats and test guide.
 
@@ -246,6 +249,25 @@ resolutions/fps/audio). Choose a CRF you're happy with.
   `0:00.000` the cut list is empty and Export will ask you to confirm.
 
 ---
+
+## Packaging
+
+Desktop installers (Windows NSIS + portable, macOS dmg, Linux AppImage):
+
+```bash
+npm run dist
+```
+
+Microsoft Store (MSIX):
+
+```bash
+cp store/identity.example.json store/identity.json   # fill in from Partner Center
+npm run store:assets                                 # placeholder artwork (replace with branding)
+npm run store:package                                # -> dist/CUCI2_<version>_x64.msix
+```
+
+Full walkthrough — identity, WACK, test plan, listing copy, age rating — is in
+[docs/STORE-SUBMISSION.md](docs/STORE-SUBMISSION.md).
 
 ## License
 

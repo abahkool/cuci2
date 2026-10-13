@@ -19,10 +19,14 @@
     "test:e2e": "electron lib/e2e.js",
     "test:cancel": "electron lib/test-cancel.js",
     "predist": "node scripts/fetch-ffmpeg.mjs --strict",
-    "dist": "electron-builder"
+    "dist": "electron-builder",
+    "store:assets": "node scripts/make-store-assets.mjs",
+    "store:stage": "node scripts/build-msix.mjs --stage-only",
+    "store:package": "node scripts/build-msix.mjs"
   },
   "devDependencies": {
-    "electron": "^33.2.0"
+    "electron": "^33.2.0",
+    "electron-builder": "^26.15.3"
   },
   "build": {
     "appId": "com.cuci2.app",
@@ -43,10 +47,14 @@
         ]
       }
     ],
+    "electronLanguages": [
+      "en-US"
+    ],
     "asarUnpack": [
       "**/node_modules/onnxruntime-node/**"
     ],
     "win": {
+      "icon": "build/icon.ico",
       "target": [
         "nsis",
         "portable"

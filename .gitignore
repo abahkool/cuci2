@@ -17,5 +17,8 @@ Sample/
 # (recreate with: npm run fetch:ffmpeg)
 vendor/
 
+# your Partner Center identity for MSIX builds
+store/identity.json
+
 # temp / scratch
 *.tmp

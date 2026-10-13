@@ -10,6 +10,13 @@ const isDev = process.argv.includes('--dev');
 // Register the seekable media:// scheme before the app is ready.
 protocol.registerSchemesAsPrivileged(MEDIA_PRIVILEGES);
 
+// On Windows, taskbar grouping / notifications key off the AppUserModelID.
+// Packaged (MSIX / Store) builds get it from the package identity, so only set
+// it for unpackaged builds or it would mismatch the Store identity.
+if (process.platform === 'win32' && !process.windowsStore) {
+  app.setAppUserModelId('com.cuci2.app');
+}
+
 let mainWindow = null;
 
 function createWindow() {
