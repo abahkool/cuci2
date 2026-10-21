@@ -329,12 +329,36 @@ body {
 /* ─────────────── transport ─────────────── */
 .transport {
   display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 9px 12px;
+  flex-direction: column;
+  gap: 7px;
+  padding: 8px 12px 9px;
   background: var(--panel);
   border-top: 1px solid var(--border);
+}
+.transport-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
   flex-wrap: wrap;
+  min-width: 0;
+}
+.transport-cuts {
+  gap: 6px;
+  padding-top: 7px;
+  border-top: 1px solid var(--border-soft);
+}
+.cut-toolbar-label {
+  font: 10px/1 var(--mono);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted-2);
+  padding-right: 2px;
+}
+.cut-toolbar-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--border);
+  margin: 0 3px;
 }
 .transport-left {
   display: flex;
@@ -821,20 +845,15 @@ input[type="range"]::-webkit-slider-thumb {
   font-size: 11px;
 }
 
-.cut-actions {
-  display: flex;
-  gap: 5px;
-  flex-wrap: wrap;
-  margin-bottom: 8px;
-}
 .io-readout {
   font: 11px/1.4 var(--mono);
   color: var(--muted);
   background: var(--panel-2);
   border: 1px dashed var(--border);
   border-radius: var(--radius-sm);
-  padding: 6px 8px;
-  margin-bottom: 8px;
+  padding: 5px 9px;
+  margin: 0 0 0 auto;
+  white-space: nowrap;
 }
 .cut-item {
   display: flex;

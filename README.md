@@ -113,6 +113,9 @@ terminal — handy when developing.
    - **right-click the timeline** for a context menu: *Set In here*, *Set Out here*,
      *Cut In → Out*, *Cut from In to here*, *Cut from here to Out*, *Remove this cut*,
      *Clear marks*, *Clear cuts*.
+   The cut tools (**Set In**, **Set Out**, **Cut**, **Clear marks**, **Clear cuts**) sit in the
+   toolbar directly under the player, with the current In/Out values on the right. The sidebar
+   *Cuts* panel lists only the ranges you've removed.
    Removed ranges show as red striped blocks — drag their edges to fine-tune.
 3. **Merge** — use ↑ / ↓ on each clip card to set output order. Each card shows the trimmed
    duration.

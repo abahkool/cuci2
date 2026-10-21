@@ -747,7 +747,7 @@
     if (!clip) {
       els.cutList.innerHTML = '<div class="sub-info">Select a clip first.</div>';
     } else if (!cuts.length) {
-      els.cutList.innerHTML = '<div class="sub-info">No cuts. Drag on the filmstrip or set In/Out then press <b>Cut</b>.</div>';
+      els.cutList.innerHTML = '<div class="sub-info">No cuts yet. Drag on the filmstrip, or use the cut tools below the player.</div>';
     }
     cuts.forEach((c) => {
       const el = document.createElement('div');
