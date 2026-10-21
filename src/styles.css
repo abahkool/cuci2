@@ -198,6 +198,13 @@ body {
   border-color: #4f68c9;
   color: #0a0c12;
 }
+.btn.glyph {
+  min-width: 27px;
+  padding: 3px 7px;
+  font-size: 14px;
+  line-height: 1.15;
+  text-align: center;
+}
 
 /* ─────────────── layout ─────────────── */
 .layout {
@@ -328,12 +335,42 @@ body {
 
 /* ─────────────── transport ─────────────── */
 .transport {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 7px;
   padding: 8px 12px 9px;
   background: var(--panel);
   border-top: 1px solid var(--border);
+}
+
+/* drag handle that resizes the player / timeline split */
+.player-splitter {
+  position: absolute;
+  top: -5px;
+  left: 0;
+  right: 0;
+  height: 10px;
+  cursor: row-resize;
+  z-index: 20;
+  touch-action: none;
+}
+.player-splitter::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 4px;
+  width: 56px;
+  height: 3px;
+  transform: translateX(-50%);
+  border-radius: 2px;
+  background: #3a435a;
+  transition: background 0.12s;
+}
+.player-splitter:hover::after,
+.player-splitter.dragging::after {
+  background: var(--accent);
+  box-shadow: 0 0 8px rgba(108, 140, 255, 0.55);
 }
 .transport-row {
   display: flex;
@@ -466,8 +503,8 @@ input[type="range"]::-webkit-slider-thumb {
   position: relative;
   background: #0a0c11;
   border-top: 1px solid var(--border);
-  height: 260px;
-  min-height: 200px;
+  height: var(--timeline-h, 260px);
+  min-height: 0;
 }
 .timeline-scroll {
   position: absolute;
@@ -522,9 +559,9 @@ input[type="range"]::-webkit-slider-thumb {
 .tl-film {
   position: absolute;
   top: 26px;
+  bottom: calc(var(--subs-h, 62px) + 4px);
   left: 0;
   right: 0;
-  height: 138px;
   background: repeating-linear-gradient(45deg, #101319, #101319 6px, #0d1015 6px, #0d1015 12px);
   overflow: hidden;
 }
@@ -554,9 +591,9 @@ input[type="range"]::-webkit-slider-thumb {
 .tl-cuts {
   position: absolute;
   top: 26px;
+  bottom: calc(var(--subs-h, 62px) + 4px);
   left: 0;
   right: 0;
-  height: 138px;
   pointer-events: none;
 }
 .tl-cut {
@@ -619,10 +656,10 @@ input[type="range"]::-webkit-slider-thumb {
 
 .tl-subs {
   position: absolute;
-  top: 168px;
+  bottom: 0;
   left: 0;
   right: 0;
-  height: 62px;
+  height: var(--subs-h, 62px);
   background: rgba(12, 15, 21, 0.85);
   border-top: 1px solid var(--border);
   overflow: hidden;
@@ -664,7 +701,7 @@ input[type="range"]::-webkit-slider-thumb {
 .tl-selection {
   position: absolute;
   top: 26px;
-  height: 138px;
+  bottom: calc(var(--subs-h, 62px) + 4px);
   background: rgba(108, 140, 255, 0.22);
   border-left: 1px solid var(--accent);
   border-right: 1px solid var(--accent);
@@ -673,7 +710,7 @@ input[type="range"]::-webkit-slider-thumb {
 .tl-marker {
   position: absolute;
   top: 26px;
-  bottom: 26px;
+  bottom: calc(var(--subs-h, 62px) + 4px);
   width: 2px;
   pointer-events: auto;
   cursor: pointer;

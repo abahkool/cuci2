@@ -304,8 +304,9 @@ real `ffmpeg.exe` as a child, so `child.kill()` only kills the shim. Cancellatio
 
 ## NSFW scene detection (`lib/nsfw.js`)
 
-`Scan NSFW` samples the active clip's source and turns flagged frames into cut ranges. It is
-entirely local — inference runs in the main process via `onnxruntime-node`.
+The **Parental AI** button (NSFW detector) samples the active clip's source and turns flagged
+frames into cut ranges. It is entirely local — inference runs in the main process via
+`onnxruntime-node`.
 
 ### Model choice
 
@@ -377,6 +378,19 @@ state = {
 Derived helpers: `keptRanges(clip)` (duration minus cuts), `programRanges()` (all clips in
 order → flat list of `{clipId, srcStart, srcEnd, outStart, outEnd}`), `remapAll()` (cached
 merged subtitle list).
+
+### Layout: player / timeline splitter
+
+`.timeline-wrap` height comes from the `--timeline-h` CSS variable (default 260px). The thin
+handle at the top of the transport (`#playerSplitter`) drags it: dragging **down** grows the
+player and shrinks the timeline, and vice versa. The transport bar's empty background works
+as a handle too. The value is clamped so the player keeps at least 120px, persisted in
+`localStorage["cuci2.timelineHeight"]`, re-clamped on window resize, and reset to 260 on
+double-click.
+
+The timeline's internal bands are height-relative: the filmstrip runs from the 26px ruler to
+`calc(var(--subs-h) + 4px)` above the bottom, and the subtitle lane is pinned to the bottom
+(62px). Nothing inside needs re-rendering when the split changes.
 
 ### Rendering
 

@@ -217,7 +217,7 @@ Run on a clean Windows 10/11 x64 machine (no dev tools installed).
 
 **Content scan**
 
-- [ ] `Scan NSFW` on a short clip: model downloads once, progress shows, results listed
+- [ ] `Parental AI` on a short clip: model downloads once, progress shows, results listed
 - [ ] "Apply as cuts" adds undoable cuts
 - [ ] Cancel mid-scan stops promptly
 - [ ] Offline: scan fails with a clear message rather than hanging

@@ -49,8 +49,8 @@ subtitles** to the new length. Everything is powered by `ffmpeg`.
   `.cuci2.json` file, or as a compact one-line code you can paste into chat/email/social.
 - **Status bar** — live progress (*analyzing*, *loading keyframe snapshots*, *exporting*),
   sticky errors/warnings, active-clip info, and a click-to-open message history.
-- **Auto-detect NSFW scenes** — scan the active clip with an on-device image classifier and
-  turn flagged scenes into cuts in one click. Everything runs locally; no frames are
+- **Parental AI** — scan the active clip with an on-device image classifier and turn flagged
+  (non-child-friendly) scenes into cuts in one click. Everything runs locally; no frames are
   uploaded.
 - **Preview proxy** — if Chromium can't decode a container/codec (e.g. MKV/HEVC), generate a
   low-res H.264 proxy for previewing; exports still use the original files.
@@ -113,9 +113,11 @@ terminal — handy when developing.
    - **right-click the timeline** for a context menu: *Set In here*, *Set Out here*,
      *Cut In → Out*, *Cut from In to here*, *Cut from here to Out*, *Remove this cut*,
      *Clear marks*, *Clear cuts*.
-   The cut tools (**Set In**, **Set Out**, **Cut**, **Clear marks**, **Clear cuts**) sit in the
-   toolbar directly under the player, with the current In/Out values on the right. The sidebar
-   *Cuts* panel lists only the ranges you've removed.
+   The cut tools sit in the toolbar directly under the player: **⇤** In, **⇥** Out, **✂** Cut,
+   **⌫** Clear marks, **✕** Clear cuts (hover for tooltips), with the current In/Out values on
+   the right. The sidebar *Cuts* panel lists only the ranges you've removed.
+   Drag the thin grip between the player and the toolbar to resize the player/timeline split
+   (double-click it to reset).
    Removed ranges show as red striped blocks — drag their edges to fine-tune.
 3. **Merge** — use ↑ / ↓ on each clip card to set output order. Each card shows the trimmed
    duration.
@@ -192,9 +194,9 @@ file(s).
 
 ---
 
-## Auto-detect NSFW scenes
+## Parental AI (NSFW detection)
 
-The **Scan NSFW** button extracts frames from the active clip at a configurable interval
+The **Parental AI** button extracts frames from the active clip at a configurable interval
 (default: one every 2 seconds), classifies each one, and turns consecutive flagged samples
 into cut ranges you review before applying.
 

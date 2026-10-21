@@ -46,6 +46,7 @@
       'subInfo', 'subOffset', 'btnSubExport', 'subEventList',
       'btnPlay', 'btnStop', 'btnPrevFrame', 'btnNextFrame', 'btnPrevSec', 'btnNextSec',
       'timecode', 'timeTotal', 'resultTc', 'seekRange', 'modeSource', 'modeResult', 'chkSnap', 'zoomRange',
+      'mainPane', 'transportBar', 'timelineWrap', 'playerSplitter',
       'timelineScroll', 'timeline', 'tlRuler', 'tlFilm', 'tlCuts', 'tlSubs',
       'tlSelection', 'tlMarkerIn', 'tlMarkerOut', 'tlPlayhead', 'emptyState',
       'exportModal', 'expPath', 'expBrowse', 'expContainer', 'expVcodec', 'expCrf', 'expCrfVal',
@@ -2065,6 +2066,69 @@
   }
 
   /* ───────────────────────────── wiring ───────────────────────────── */
+  /* ─────────────────── player / timeline splitter ─────────────────── */
+  let timelineHeight = 260;
+
+  function applyTimelineHeight(persist) {
+    if (!els.mainPane || !els.transportBar) return;
+    const transportH = els.transportBar.getBoundingClientRect().height || 90;
+    const min = 140;
+    const playerMin = 120;
+    const max = Math.max(min, els.mainPane.clientHeight - transportH - playerMin);
+    const h = Math.round(Math.max(min, Math.min(max, timelineHeight)));
+    document.documentElement.style.setProperty('--timeline-h', h + 'px');
+    if (persist) {
+      try {
+        localStorage.setItem('cuci2.timelineHeight', String(h));
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
+  function wireSplitter() {
+    const handle = els.playerSplitter;
+    if (!handle) return;
+    let splitDrag = null;
+
+    const start = (e) => {
+      if (e.button !== 0) return;
+      splitDrag = { startY: e.clientY, startH: els.timelineWrap.getBoundingClientRect().height };
+      handle.classList.add('dragging');
+      document.body.style.cursor = 'row-resize';
+      e.preventDefault();
+    };
+    const move = (e) => {
+      if (!splitDrag) return;
+      // Dragging down grows the player and shrinks the timeline (and vice versa).
+      timelineHeight = splitDrag.startH - (e.clientY - splitDrag.startY);
+      applyTimelineHeight(false);
+    };
+    const end = () => {
+      if (!splitDrag) return;
+      splitDrag = null;
+      handle.classList.remove('dragging');
+      document.body.style.cursor = '';
+      applyTimelineHeight(true);
+    };
+
+    handle.addEventListener('pointerdown', start);
+    // The bar's empty background doubles as a drag handle.
+    els.transportBar.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('button, input, select, label, .player-splitter, .io-readout')) return;
+      start(e);
+    });
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', end);
+
+    // Double-click the splitter to restore the default height.
+    handle.addEventListener('dblclick', () => {
+      timelineHeight = 260;
+      applyTimelineHeight(true);
+    });
+  }
+
   function wire() {
     els.btnAddVideo.addEventListener('click', async () => addVideos(await api.openVideos()));
     els.btnAddVideo2.addEventListener('click', async () => addVideos(await api.openVideos()));
@@ -2459,7 +2523,10 @@
     let rzTimer = null;
     window.addEventListener('resize', () => {
       clearTimeout(rzTimer);
-      rzTimer = setTimeout(() => renderTimeline(), 120);
+      rzTimer = setTimeout(() => {
+        renderTimeline();
+        applyTimelineHeight(false);
+      }, 120);
     });
 
     // Release the media pipeline before the window is destroyed. Chromium can
@@ -2591,10 +2658,18 @@
   /* ───────────────────────────── boot ───────────────────────────── */
   async function init() {
     cacheEls();
+    try {
+      const saved = Number(localStorage.getItem('cuci2.timelineHeight'));
+      if (Number.isFinite(saved) && saved >= 140) timelineHeight = saved;
+    } catch {
+      /* ignore */
+    }
     wire();
+    wireSplitter();
     renderStatus();
     await refreshInfo();
     renderAll();
+    requestAnimationFrame(() => applyTimelineHeight(false));
     if (!statusState.text || statusState.text === 'Ready') setStatus('Ready — add a video to begin', 'idle');
 
     // Debug / automation handle (also used by lib/e2e.js).

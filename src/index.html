@@ -21,7 +21,7 @@
       <button id="ffStatus" class="ff-status" title="ffmpeg status">checking ffmpeg…</button>
       <button id="btnSettings" class="btn ghost icon" title="Settings">⚙</button>
       <button id="btnJob" class="btn" title="Save / open / share the cut job">Job</button>
-      <button id="btnNsfw" class="btn" title="Auto-detect NSFW scenes and mark them as cuts">Scan NSFW</button>
+      <button id="btnNsfw" class="btn" title="Parental AI — AI technology that automatically detects non-child-friendly scenes">Parental AI</button>
       <button id="btnAddSub" class="btn">Add Subtitle</button>
       <button id="btnAddVideo" class="btn">Add Video</button>
       <button id="btnExport" class="btn primary">Export</button>
@@ -52,7 +52,7 @@
         </section>
       </aside>
 
-      <main class="main">
+      <main class="main" id="mainPane">
         <section class="player-wrap">
           <video id="video" playsinline></video>
           <div id="subtitleOverlay" class="subtitle-overlay"></div>
@@ -68,7 +68,8 @@
           </div>
         </section>
 
-        <section class="transport">
+        <section class="transport" id="transportBar">
+          <div id="playerSplitter" class="player-splitter" title="Drag to resize the player and timeline"></div>
           <div class="transport-row transport-main">
             <div class="transport-left">
               <button id="btnStop" class="btn icon" title="Stop">■</button>
@@ -99,17 +100,17 @@
 
           <div class="transport-row transport-cuts">
             <span class="cut-toolbar-label">Cuts</span>
-            <button id="btnSetIn" class="btn tiny" title="Set in point (I)">Set In</button>
-            <button id="btnSetOut" class="btn tiny" title="Set out point (O)">Set Out</button>
-            <button id="btnCut" class="btn tiny danger" title="Cut the selected range (X)">Cut</button>
+            <button id="btnSetIn" class="btn tiny glyph" title="Set In point at the playhead (I)" aria-label="Set In point">⇤</button>
+            <button id="btnSetOut" class="btn tiny glyph" title="Set Out point at the playhead (O)" aria-label="Set Out point">⇥</button>
+            <button id="btnCut" class="btn tiny glyph danger" title="Cut the selected range / In→Out (X)" aria-label="Cut">✂</button>
             <span class="cut-toolbar-sep"></span>
-            <button id="btnClearMarks" class="btn tiny ghost" title="Clear in/out points and selection">Clear marks</button>
-            <button id="btnClearCuts" class="btn tiny ghost" title="Remove all cuts">Clear cuts</button>
+            <button id="btnClearMarks" class="btn tiny glyph ghost" title="Clear In/Out points and selection" aria-label="Clear marks">⌫</button>
+            <button id="btnClearCuts" class="btn tiny glyph ghost" title="Remove all cuts" aria-label="Clear cuts">✕</button>
             <div id="ioReadout" class="io-readout">In — · Out —</div>
           </div>
         </section>
 
-        <section class="timeline-wrap">
+        <section class="timeline-wrap" id="timelineWrap">
           <div id="timelineScroll" class="timeline-scroll">
             <div id="timeline" class="timeline">
               <div class="tl-base">
