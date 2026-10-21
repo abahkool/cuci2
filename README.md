@@ -168,11 +168,18 @@ Settings are stored in your Electron user-data folder (`settings.json`).
 
 ## Cut jobs (save / reopen / share)
 
-The **Job** button opens the cut-job panel:
+The **Job** button opens a two-tab panel:
+
+**Export**
 
 - **Save job file…** writes a readable `<name>.cuci2.json` you can reopen later.
+- **Copy code** copies the compact share code.
+- Add an optional **description** and, if you like, embed the subtitle text.
+
+**Import**
+
 - **Open job file…** loads a job file, or a `.txt` that just contains a share code.
-- **Copy code / Import code** move the job as one compact text line.
+- **Import code / Paste from clipboard** applies a share code someone sent you.
 
 A job stores the cut list, subtitle offset, export settings, an optional **description**
 (up to 200 characters) written by the creator, and a source fingerprint (file name + byte

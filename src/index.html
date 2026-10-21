@@ -126,12 +126,11 @@
 
             <span class="cut-toolbar-sep"></span>
 
-            <!-- Clear marks: eraser (wipe the In/Out marks + selection) -->
-            <button id="btnClearMarks" class="btn tiny glyph ghost" title="Clear In/Out points and selection" aria-label="Clear In/Out marks">
+            <!-- Clear marks: undo arrow (back to before the marks were set) -->
+            <button id="btnClearMarks" class="btn tiny glyph ghost" title="Clear In/Out points and selection (undo the marks)" aria-label="Clear In/Out marks">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M13 3.5l7.5 7.5-8.8 8.8H6l-2.5-2.5L13 3.5z" />
-                <path d="M9 7.5l7.5 7.5" />
-                <path d="M3.5 21h17" />
+                <path d="M9 14 4 9l5-5" />
+                <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
               </svg>
             </button>
 
@@ -354,55 +353,74 @@
           <button id="jobClose" class="btn ghost icon">✕</button>
         </div>
         <div class="modal-body">
-          <p class="hint">
-            A job stores your cut list, subtitle offset and export settings. Save it as a file to reopen later,
-            or copy the share code to send it over chat / email / social media.
-          </p>
-
-          <label class="field wide">
-            <span>Description — what is this cut job for?</span>
-            <textarea
-              id="jobDesc"
-              class="desc"
-              rows="2"
-              maxlength="200"
-              placeholder="e.g. Remove the intro and the sponsor break; keep the interview."
-            ></textarea>
-          </label>
-          <div class="job-row tight">
-            <span id="jobDescCount" class="job-info">0 / 200</span>
+          <div class="tabs" role="tablist">
+            <button id="jobTabExport" class="tab active" role="tab" aria-selected="true" aria-controls="jobPanelExport">Export</button>
+            <button id="jobTabImport" class="tab" role="tab" aria-selected="false" aria-controls="jobPanelImport">Import</button>
           </div>
 
-          <div class="job-row">
-            <button id="jobSave" class="btn">Save job file…</button>
-            <button id="jobOpen" class="btn">Open job file…</button>
+          <!-- Export -->
+          <div id="jobPanelExport" class="tab-panel" role="tabpanel">
+            <p class="hint">
+              Save the cut list to a file to reopen later, or copy a share code to send over chat / email /
+              social media.
+            </p>
+
+            <label class="field wide">
+              <span>Description — what is this cut job for?</span>
+              <textarea
+                id="jobDesc"
+                class="desc"
+                rows="2"
+                maxlength="200"
+                placeholder="e.g. Remove the intro and the sponsor break; keep the interview."
+              ></textarea>
+            </label>
+            <div class="job-row tight">
+              <span id="jobDescCount" class="job-info">0 / 200</span>
+            </div>
+
+            <div class="job-row">
+              <button id="jobSave" class="btn">Save job file…</button>
+            </div>
+
+            <div class="job-sep"></div>
+
+            <label class="check">
+              <input id="jobIncludeSubs" type="checkbox" />
+              <span>Include subtitle text in the share code (larger, but fully self-contained)</span>
+            </label>
+            <label class="field wide">
+              <span>Share code — copy &amp; paste anywhere</span>
+              <textarea id="jobCode" class="code" rows="5" readonly spellcheck="false"></textarea>
+            </label>
+            <div class="job-row">
+              <button id="jobCopy" class="btn">Copy code</button>
+              <button id="jobRefresh" class="btn ghost">Refresh</button>
+              <span id="jobCodeInfo" class="job-info"></span>
+            </div>
           </div>
 
-          <div class="job-sep"></div>
+          <!-- Import -->
+          <div id="jobPanelImport" class="tab-panel hidden" role="tabpanel">
+            <p class="hint">
+              Open a job file, or paste a share code someone sent you. The cuts are applied to matching
+              clips; missing videos are requested when the job is applied.
+            </p>
 
-          <label class="check">
-            <input id="jobIncludeSubs" type="checkbox" />
-            <span>Include subtitle text in the share code (larger, but fully self-contained)</span>
-          </label>
-          <label class="field wide">
-            <span>Share code — copy &amp; paste anywhere</span>
-            <textarea id="jobCode" class="code" rows="5" readonly spellcheck="false"></textarea>
-          </label>
-          <div class="job-row">
-            <button id="jobCopy" class="btn">Copy code</button>
-            <button id="jobRefresh" class="btn ghost">Refresh</button>
-            <span id="jobCodeInfo" class="job-info"></span>
-          </div>
+            <div class="job-row">
+              <button id="jobOpen" class="btn">Open job file…</button>
+            </div>
 
-          <div class="job-sep"></div>
+            <div class="job-sep"></div>
 
-          <label class="field wide">
-            <span>Import a share code</span>
-            <textarea id="jobPaste" class="code" rows="3" placeholder="Paste a CUCI2-1… code here" spellcheck="false"></textarea>
-          </label>
-          <div class="job-row">
-            <button id="jobImport" class="btn primary">Import code</button>
-            <button id="jobPasteClip" class="btn">Paste from clipboard</button>
+            <label class="field wide">
+              <span>Import a share code</span>
+              <textarea id="jobPaste" class="code" rows="4" placeholder="Paste a CUCI2-1… code here" spellcheck="false"></textarea>
+            </label>
+            <div class="job-row">
+              <button id="jobImport" class="btn primary">Import code</button>
+              <button id="jobPasteClip" class="btn">Paste from clipboard</button>
+            </div>
           </div>
 
           <div id="jobStatus" class="summary hidden"></div>

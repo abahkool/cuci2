@@ -54,7 +54,8 @@
       'expProgressWrap', 'expProgressBar', 'expStatus', 'expStart', 'expCancel', 'expClose', 'expClose2',
       'settingsModal', 'setFfmpeg', 'setFfprobe', 'setFfmpegBrowse', 'setFfprobeBrowse', 'setPreferBundled', 'setUseBundled',
       'setLoadThumbs', 'setDetect', 'setSave', 'setClose', 'setClose2', 'setStatus',
-      'btnJob', 'jobModal', 'jobClose', 'jobClose2', 'jobSave', 'jobOpen', 'jobDesc', 'jobDescCount', 'jobIncludeSubs', 'jobCode',
+      'btnJob', 'jobModal', 'jobClose', 'jobClose2', 'jobTabExport', 'jobTabImport', 'jobPanelExport', 'jobPanelImport',
+      'jobSave', 'jobOpen', 'jobDesc', 'jobDescCount', 'jobIncludeSubs', 'jobCode',
       'jobCopy', 'jobRefresh', 'jobCodeInfo', 'jobPaste', 'jobImport', 'jobPasteClip', 'jobStatus',
       'statusbar', 'statusIcon', 'statusSpinner', 'statusText', 'statusInfo', 'statusClear', 'statusProgress', 'statusProgressBar', 'statusLog',
       'btnNsfw', 'nsfwModal', 'nsfwClose', 'nsfwClose2', 'nsfwInterval', 'nsfwMinDur', 'nsfwEstimate', 'nsfwThreshold',
@@ -1668,11 +1669,23 @@
     }
   }
 
+  /** Switch the cut-job modal between its Export and Import tabs. */
+  function selectJobTab(which) {
+    const isExport = which !== 'import';
+    els.jobTabExport.classList.toggle('active', isExport);
+    els.jobTabImport.classList.toggle('active', !isExport);
+    els.jobTabExport.setAttribute('aria-selected', String(isExport));
+    els.jobTabImport.setAttribute('aria-selected', String(!isExport));
+    els.jobPanelExport.classList.toggle('hidden', !isExport);
+    els.jobPanelImport.classList.toggle('hidden', isExport);
+  }
+
   function openJobModal() {
     setJobStatus('');
     els.jobStatus.classList.add('hidden');
     if (els.jobDesc) els.jobDesc.value = state.jobDescription || '';
     updateJobDescCount();
+    selectJobTab('export');
     refreshShareCode();
     els.jobModal.classList.remove('hidden');
   }
@@ -2142,6 +2155,8 @@
     els.btnExport.addEventListener('click', openExportModal);
     els.btnSettings.addEventListener('click', openSettings);
     els.btnJob.addEventListener('click', openJobModal);
+    els.jobTabExport.addEventListener('click', () => selectJobTab('export'));
+    els.jobTabImport.addEventListener('click', () => selectJobTab('import'));
     els.btnNsfw.addEventListener('click', openNsfwModal);
     els.nsfwClose.addEventListener('click', closeNsfwModal);
     els.nsfwClose2.addEventListener('click', closeNsfwModal);

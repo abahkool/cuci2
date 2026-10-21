@@ -1130,6 +1130,46 @@ input[type="range"]::-webkit-slider-thumb {
   font-size: 11px;
   color: var(--muted-2);
 }
+.tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border-soft);
+  margin-bottom: 14px;
+}
+.tab {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 600;
+  padding: 8px 16px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.12s, border-color 0.12s;
+}
+.tab:hover {
+  color: var(--text);
+}
+.tab.active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+.tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.tab-panel {
+  animation: tabIn 0.15s ease;
+}
+@keyframes tabIn {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+}
+
 .job-row {
   display: flex;
   align-items: center;
