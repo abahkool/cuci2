@@ -204,6 +204,14 @@ body {
   font-size: 14px;
   line-height: 1.15;
   text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn.glyph svg {
+  width: 15px;
+  height: 15px;
+  display: block;
 }
 
 /* ─────────────── layout ─────────────── */

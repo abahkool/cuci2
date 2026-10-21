@@ -113,9 +113,10 @@ terminal — handy when developing.
    - **right-click the timeline** for a context menu: *Set In here*, *Set Out here*,
      *Cut In → Out*, *Cut from In to here*, *Cut from here to Out*, *Remove this cut*,
      *Clear marks*, *Clear cuts*.
-   The cut tools sit in the toolbar directly under the player: **⇤** In, **⇥** Out, **✂** Cut,
-   **⌫** Clear marks, **✕** Clear cuts (hover for tooltips), with the current In/Out values on
-   the right. The sidebar *Cuts* panel lists only the ranges you've removed.
+   The cut tools sit in the toolbar directly under the player — **`[`** set In, **`]`** set Out,
+   **`✂`** cut, **eraser** clear marks, **trash** clear cuts (hover for tooltips) — with the
+   current In/Out values on the right. The sidebar *Cuts* panel lists only the ranges you've
+   removed.
    Drag the thin grip between the player and the toolbar to resize the player/timeline split
    (double-click it to reset).
    Removed ranges show as red striped blocks — drag their edges to fine-tune.
