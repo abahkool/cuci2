@@ -1331,100 +1331,7 @@
   }
 
   /* ─────────────────── cut job: save / share / import ─────────────────── */
-  const SHARE_PREFIX = 'CUCI2-1';
   const round3 = (v) => Math.round((Number(v) || 0) * 1000) / 1000;
-
-  function bytesToBase64url(bytes) {
-    let bin = '';
-    const chunk = 0x8000;
-    for (let i = 0; i < bytes.length; i += chunk) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
-    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  }
-
-  function base64urlToBytes(str) {
-    let s = str.replace(/-/g, '+').replace(/_/g, '/');
-    while (s.length % 4) s += '=';
-    const bin = atob(s);
-    const out = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-    return out;
-  }
-
-  async function deflateRawBytes(bytes) {
-    const stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate-raw'));
-    return new Uint8Array(await new Response(stream).arrayBuffer());
-  }
-
-  async function inflateRawBytes(bytes) {
-    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
-    return new Uint8Array(await new Response(stream).arrayBuffer());
-  }
-
-  /** Short-key schema so a share code stays small enough for social posts. */
-  function toCompact(job) {
-    const e = job.export || {};
-    return {
-      a: 'CUCI2',
-      v: job.version || 1,
-      t: job.created,
-      D: job.description || undefined,
-      o: job.subOffsetMs || undefined,
-      e: job.export
-        ? [e.container, e.videoCodec, e.crf, e.preset, e.resolution, e.fps, e.audioBitrate, e.burnSubtitles ? 1 : 0, e.writeSrt === false ? 0 : 1]
-        : undefined,
-      c: (job.clips || []).map((c) => {
-        const o = { n: c.name, z: c.size || undefined, d: c.durationMs, f: c.fps, w: c.width, h: c.height, A: c.hasAudio ? 1 : 0, x: c.cuts || [] };
-        if (c.subtitle) o.u = { n: c.subtitle.name, f: c.subtitle.format || 'srt', v: c.subtitle.events || undefined };
-        return o;
-      }),
-    };
-  }
-
-  function fromCompact(k) {
-    if (!k || (k.a !== 'CUCI2' && k.app !== 'CUCI2')) throw new Error('Share code has an unexpected format.');
-    if (Array.isArray(k.clips)) return k; // already the verbose form
-    return {
-      app: 'CUCI2',
-      kind: 'cut-job',
-      version: k.v || 1,
-      created: k.t || '',
-      description: k.D || k.description || '',
-      subOffsetMs: k.o || 0,
-      export: k.e
-        ? { container: k.e[0], videoCodec: k.e[1], crf: k.e[2], preset: k.e[3], resolution: k.e[4], fps: k.e[5], audioBitrate: k.e[6], burnSubtitles: !!k.e[7], writeSrt: k.e[8] !== 0 }
-        : undefined,
-      clips: (k.c || []).map((c) => ({
-        name: c.n,
-        size: c.z || 0,
-        durationMs: c.d,
-        fps: c.f,
-        width: c.w,
-        height: c.h,
-        hasAudio: !!c.A,
-        cuts: c.x || [],
-        subtitle: c.u ? { name: c.u.n, format: c.u.f || 'srt', events: c.u.v || null } : null,
-      })),
-    };
-  }
-
-  /** job -> compact, paste-friendly code:  CUCI2-1z.<base64url(deflate(json))> */
-  async function encodeShareCode(job) {
-    const raw = new TextEncoder().encode(JSON.stringify(toCompact(job)));
-    try {
-      return `${SHARE_PREFIX}z.${bytesToBase64url(await deflateRawBytes(raw))}`;
-    } catch {
-      return `${SHARE_PREFIX}p.${bytesToBase64url(raw)}`;
-    }
-  }
-
-  async function decodeShareCode(text) {
-    const code = String(text).trim().replace(/\s+/g, '');
-    const m = /^CUCI2-1([zp])\.([A-Za-z0-9_-]+)$/.exec(code);
-    if (!m) throw new Error('This does not look like a CUCI2 share code.');
-    const bytes = base64urlToBytes(m[2]);
-    const raw = m[1] === 'z' ? await inflateRawBytes(bytes) : bytes;
-    return fromCompact(JSON.parse(new TextDecoder().decode(raw)));
-  }
 
   function buildJob(includeSubtitles) {
     const description = (state.jobDescription || '').trim().slice(0, 200);
@@ -1501,8 +1408,10 @@
     if (exp.writeSrt != null) els.expSrt.checked = !!exp.writeSrt;
   }
 
-  function applyJob(job, opts = {}) {
-    if (!job || job.app !== 'CUCI2' || !Array.isArray(job.clips)) throw new Error('Not a CUCI2 job.');
+  function applyJob(rawJob, opts = {}) {
+    // Jobs come from files, the clipboard or share codes — never trust them.
+    // sanitizeJob() validates/coerces everything before the app acts on it.
+    const job = CU.sanitizeJob(rawJob);
     if (!opts.silent) pushUndo();
     const usedIds = new Set();
     const matched = [];
@@ -1547,7 +1456,7 @@
       videoFile = null;
       activateClip(state.activeClipId);
     }
-    return { matched: matched.length, missing };
+    return { matched: matched.length, missing, job };
   }
 
   function finishJobApply(job, res, label) {
@@ -1602,7 +1511,7 @@
       return;
     }
     const job = buildJob(els.jobIncludeSubs.checked);
-    const code = await encodeShareCode(job);
+    const code = await CU.encodeShareCode(job);
     els.jobCode.value = code;
     const bytes = new TextEncoder().encode(code).length;
     const cuts = job.clips.reduce((a, c) => a + c.cuts.length, 0);
@@ -1634,10 +1543,10 @@
     });
     if (!p) return;
     try {
-      const text = (await api.readText(p)).trim();
-      const job = text.startsWith('{') ? fromCompact(JSON.parse(text)) : await decodeShareCode(text);
+      const text = await api.readText(p, { maxBytes: CU.JOB_LIMITS.jsonBytes });
+      const job = await CU.parseJobText(text);
       const res = applyJob(job);
-      finishJobApply(job, res, ` from ${CU.basename(p)}`);
+      finishJobApply(res.job, res, ` from ${CU.basename(p)}`);
     } catch (err) {
       toast('Could not open job:\n' + (err.message || err), 'error', 9000);
     }
@@ -1661,9 +1570,9 @@
     const text = (els.jobPaste.value || '').trim();
     if (!text) return toast('Paste a share code first.', 'warn');
     try {
-      const job = await decodeShareCode(text);
+      const job = await CU.parseJobText(text);
       const res = applyJob(job);
-      finishJobApply(job, res, ' from share code');
+      finishJobApply(res.job, res, ' from share code');
     } catch (err) {
       toast('Could not import:\n' + (err.message || err), 'error', 9000);
     }
@@ -2705,8 +2614,8 @@
       applyNsfwSegments,
       buildJob,
       applyJob,
-      encodeShareCode,
-      decodeShareCode,
+      encodeShareCode: CU.encodeShareCode,
+      decodeShareCode: CU.decodeShareCode,
       addCut,
       removeCut,
       renderAll,

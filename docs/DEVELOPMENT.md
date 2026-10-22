@@ -50,6 +50,7 @@ lib/
   media-protocol.js     seekable media:// handler (HTTP range support)
   selftest.js           export-pipeline test against real ffmpeg   (node)
   test-locate.js        verifies the tool resolution chain         (node)
+  test-job.js           cut-job trust boundary: caps, bombs, XSS, SRT injection (node)
   test-nsfw.js          NSFW tensor/grouping unit tests + live scan (node)
   smoke.js              boots the real renderer, fails on console errors
   e2e.js                full UI flow test (load → subtitle → cut → seek → export → job)
@@ -63,6 +64,7 @@ src/
   styles.css            dark theme, timeline, modals, status bar, context menu
   util.js               window.CUCI: time formatting + small helpers
   srt.js                window.CUCI: subtitle parse / serialise / remap
+  job.js                window.CUCI: cut-job codec + untrusted-input validation
   app.js                renderer application logic (the bulk of the UI)
 Sample/                 local scratch media for manual testing (entirely gitignored)
 docs/DEVELOPMENT.md     this file
@@ -352,6 +354,31 @@ The scan is cancellable (`nsfw:cancel` sets a flag; the ffmpeg child is killed) 
 The renderer only *reviews* results: `applyNsfwSegments(ranges)` pushes an undo entry, adds the
 cuts, normalises/merges them and re-renders.
 
+## Job trust boundary (`src/job.js`)
+
+Job files, share codes and clipboard payloads are **untrusted input**. `src/job.js` is the only
+code that turns them into data the app acts on, and it is deliberately paranoid:
+
+| Threat | Mitigation |
+| --- | --- |
+| Oversized input / memory exhaustion | code ≤ 1 MB · compressed ≤ 1 MB · decompressed ≤ 4 MB · `.json` files read with a 4 MB `maxBytes` cap (`fs:readText`) |
+| Decompression bomb | the deflate stream is read incrementally and cancelled the moment output exceeds 4 MB |
+| Script execution | no `eval`, `Function` or dynamic import anywhere on the path — only `JSON.parse` |
+| Prototype pollution | `JSON.parse` reviver drops `__proto__` / `constructor` / `prototype`; `fromCompact()` and `sanitizeJob()` construct fresh objects containing only known fields |
+| Type confusion / injection | every field is type-checked and coerced; numbers must be finite and are clamped; export enums (container, codec, preset, resolution, fps, bitrate) are whitelisted |
+| Resource exhaustion via UI | arrays and totals are capped: 200 clips, 5 000 cuts/clip (50 000 total), 100 000 events/clip (500 000 total) |
+| Control characters | stripped from all strings; names collapsed to one line; description ≤ 200 chars; subtitle text ≤ 2 000 chars |
+| SRT/VTT cue injection | blank lines are collapsed and `-->` is replaced with `→`, so body text can never terminate a cue or create a new one. The same cleaning runs in `serializeSrt()` / `serializeVtt()`, covering subtitle files too |
+| HTML/XSS in the UI | every job-derived string is rendered with `textContent` or `CU.escapeHtml()`; job data is never interpolated into `innerHTML` |
+
+`applyJob()` calls `sanitizeJob()` again (defence in depth), so any future caller is safe even if
+it forgets to validate first. The renderer only ever applies cuts, a subtitle offset and export
+*options* — job data cannot select a file path, spawn a process or reach the filesystem.
+
+Covered by `lib/test-job.js` (unit) and the e2e `job xss guard` step, which imports a hostile
+plain share code through the real UI and asserts no script ran, no markup was injected and no
+extra subtitle cue was created.
+
 ## Renderer architecture
 
 `src/app.js` is one IIFE with three layers:
@@ -558,6 +585,7 @@ npm run test:cancel # electron lib/test-cancel.js
 | Suite | What it covers |
 | --- | --- |
 | `test:locate` | the ffmpeg resolution chain: default finds *something*, a bogus custom path falls through, `preferBundled` selects the vendored build and it reports `libass` |
+| `test:job` | cut-job trust boundary: round-trip, size caps, zip bomb, prototype pollution, numeric clamps, array caps, text sanitising, SRT injection, export whitelist |
 | `test:nsfw` | tensor normalisation, softmax and range grouping (always); plus a real scan of a generated clip when the ONNX model is present |
 | `selftest` | builds sample clips (mixed resolution, one silent), joins them with the production filtergraph, asserts output duration (~6 s) and streams |
 | `smoke` | loads the real `src/index.html` in a hidden window; fails on any renderer console error |

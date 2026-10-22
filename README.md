@@ -181,6 +181,10 @@ The **Job** button opens a two-tab panel:
 - **Open job file…** loads a job file, or a `.txt` that just contains a share code.
 - **Import code / Paste from clipboard** applies a share code someone sent you.
 
+> Imported jobs are treated as **untrusted data**: they are size-capped, schema-validated and
+> never executed. A crafted code cannot run script, pollute prototypes, or inject extra
+> subtitle cues into an exported `.srt`.
+
 A job stores the cut list, subtitle offset, export settings, an optional **description**
 (up to 200 characters) written by the creator, and a source fingerprint (file name + byte
 size + duration). Subtitles can optionally be embedded so a share is fully self-contained.

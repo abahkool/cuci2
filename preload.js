@@ -18,7 +18,7 @@ contextBridge.exposeInMainWorld('api', {
   thumbs: (p, opts) => ipcRenderer.invoke('media:thumbs', p, opts),
   proxy: (p) => ipcRenderer.invoke('media:proxy', p),
 
-  readText: (p) => ipcRenderer.invoke('fs:readText', p),
+  readText: (p, opts) => ipcRenderer.invoke('fs:readText', p, opts),
   writeText: (p, c) => ipcRenderer.invoke('fs:writeText', p, c),
 
   exportVideo: (req) => ipcRenderer.invoke('export:start', req),

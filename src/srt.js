@@ -53,14 +53,31 @@
     return `${pad(h)}:${pad(m)}:${pad(s)}${sep}${pad(mil, 3)}`;
   };
 
+  /**
+   * Subtitle text must never be able to terminate a cue: strip control chars and
+   * collapse blank lines so a crafted value cannot inject extra SRT/VTT blocks.
+   */
+  function cleanBody(v) {
+    return String(v == null ? '' : v)
+      .replace(/\r\n?/g, '\n')
+      .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+      .replace(/\n{2,}/g, '\n')
+      .replace(/-->/g, '\u2192')
+      .trim();
+  }
+  C.cleanSubtitleBody = cleanBody;
+
   C.serializeSrt = function (events) {
     return (
       events
         .map((ev, idx) => {
           const start = Math.max(0, Math.round(ev.start));
           const end = Math.max(start + 1, Math.round(ev.end));
-          return `${idx + 1}\n${C.formatTimestamp(start, ',')} --> ${C.formatTimestamp(end, ',')}\n${ev.text}\n`;
+          const body = cleanBody(ev.text);
+          if (!body) return null;
+          return `${idx + 1}\n${C.formatTimestamp(start, ',')} --> ${C.formatTimestamp(end, ',')}\n${body}\n`;
         })
+        .filter(Boolean)
         .join('\n') + '\n'
     );
   };
@@ -68,7 +85,9 @@
   C.serializeVtt = function (events) {
     let out = 'WEBVTT\n\n';
     for (const ev of events) {
-      out += `${C.formatTimestamp(Math.max(0, ev.start), '.')} --> ${C.formatTimestamp(Math.max(0, ev.end), '.')}\n${ev.text}\n\n`;
+      const body = cleanBody(ev.text);
+      if (!body) continue;
+      out += `${C.formatTimestamp(Math.max(0, ev.start), '.')} --> ${C.formatTimestamp(Math.max(0, ev.end), '.')}\n${body}\n\n`;
     }
     return out;
   };
