@@ -2047,9 +2047,12 @@
     state.settings = { loadThumbs: false, preferBundled: false, ...(info.settings || {}) };
 
     if (info.ffmpeg.ok) {
+      // Keep the chip short ("8.0" rather than "8.0-essentials_build-www.gyan.dev");
+      // the full build string stays in the tooltip.
+      const shortVer = String(info.ffmpeg.version || '?').split(/[-_\s]/)[0];
       els.ffStatus.className = 'ff-status ok';
-      els.ffStatus.textContent = `ffmpeg ✓ ${info.ffmpeg.version || '?'} · ${SOURCE_LABEL[info.ffmpeg.source] || info.ffmpeg.source}`;
-      els.ffStatus.title = `${info.ffmpeg.path}\nsource: ${info.ffmpeg.source}\nlibass: ${info.ffmpeg.libass ? 'yes' : 'no'}`;
+      els.ffStatus.textContent = `ffmpeg ✓ ${shortVer} · ${SOURCE_LABEL[info.ffmpeg.source] || info.ffmpeg.source}`;
+      els.ffStatus.title = `${info.ffmpeg.version}\n${info.ffmpeg.path}\nsource: ${info.ffmpeg.source}\nlibass: ${info.ffmpeg.libass ? 'yes' : 'no'}`;
     } else {
       els.ffStatus.className = 'ff-status bad';
       els.ffStatus.textContent = 'ffmpeg ✗ not found';
