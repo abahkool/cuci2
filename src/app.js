@@ -1480,7 +1480,11 @@
   }
 
   function updateJobDescCount() {
-    if (els.jobDescCount) els.jobDescCount.textContent = `${(state.jobDescription || '').length} / 200`;
+    if (els.jobDescCount) {
+      const len = (state.jobDescription || '').length;
+      els.jobDescCount.textContent = `${len} / 200`;
+      els.jobDescCount.classList.toggle('at-limit', len >= 190);
+    }
     if (els.btnJob) els.btnJob.title = state.jobDescription ? `Job: ${state.jobDescription}` : 'Save / open / share the cut job';
   }
 

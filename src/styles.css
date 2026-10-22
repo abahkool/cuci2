@@ -1217,8 +1217,20 @@ input[type="range"]::-webkit-slider-thumb {
   margin: 10px 0;
   flex-wrap: wrap;
 }
-.job-row.tight {
-  margin-top: -6px;
+.field-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.field-counter {
+  flex: none;
+  font: 10px/1 var(--mono);
+  font-weight: 500;
+  color: var(--muted-2);
+}
+.field-counter.at-limit {
+  color: var(--warn);
 }
 .nsfw-results {
   margin-top: 12px;

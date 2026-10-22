@@ -366,7 +366,10 @@
             </p>
 
             <label class="field wide">
-              <span>Description — what is this cut job for?</span>
+              <span class="field-head">
+                <span>Description — what is this cut job for?</span>
+                <b id="jobDescCount" class="field-counter">0 / 200</b>
+              </span>
               <textarea
                 id="jobDesc"
                 class="desc"
@@ -375,9 +378,6 @@
                 placeholder="e.g. Remove the intro and the sponsor break; keep the interview."
               ></textarea>
             </label>
-            <div class="job-row tight">
-              <span id="jobDescCount" class="job-info">0 / 200</span>
-            </div>
 
             <div class="job-row">
               <button id="jobSave" class="btn">Save job file…</button>
