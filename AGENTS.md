@@ -33,12 +33,17 @@ Docs: `README.md` (users) · `docs/DEVELOPMENT.md` (architecture, IPC, data form
 | --- | --- | --- |
 | `main.js` | 69 | Electron bootstrap, `media://` scheme registration, window |
 | `preload.js` | 57 | `window.api` surface |
+| `panel-preload.js` | 40 | `window.panelAPI` for detached panel windows |
 | `lib/ipc.js` | 644 | all IPC handlers, settings, export orchestration, cancel, NSFW scan |
+| `lib/panels.js` | 240 | detached side panel / control center OS windows (lifecycle, bounds, relay) |
 | `lib/exporter.js` | 82 | pure ffmpeg filtergraph/encoder builders (`buildFilterGraph`, `buildEncoderArgs`) |
 | `lib/media-protocol.js` | 130 | seekable `media://` with HTTP Range (206) |
 | `lib/ffmpeg-locate.js` | 186 | custom → env → system → bundled resolution |
 | `lib/nsfw.js` | 377 | ONNX NSFW scanning (sampling, inference, `groupDetections`) |
 | `src/app.js` | 2801 | all renderer logic |
+| `src/panel.html` | 170 | detached panel window markup (side panel + control center) |
+| `src/panel.js` | 350 | thin panel view: renders snapshots, forwards commands |
+| `src/panel.css` | 80 | panel window chrome |
 | `src/job.js` | 357 | cut-job codec + **untrusted-input** validation (`sanitizeJob`) |
 | `src/srt.js` | 157 | subtitle parse/serialise/remap + SRT text cleaning |
 | `src/util.js` | 46 | time formatting helpers |
@@ -112,12 +117,16 @@ state = {
    height persists in `localStorage["cuci2.timelineHeight"]`.
 7. **Export guard**: exporting with 0 cuts requires a second click (prevents accidental
    full-length re-encodes).
-8. **Classic scripts, ordered**: `util.js`, `srt.js`, `job.js`, `app.js`. No ES modules.
-9. **Job-derived strings** are always rendered via `textContent` or `CU.escapeHtml()`.
-10. Transport uses a CSS grid with named areas; breakpoint at 1250 px moves the right-hand
+8. **Detached panels are real OS windows** (`lib/panels.js` + `src/panel.*`). The main
+   renderer is the only source of truth: panels get snapshots (`panel:state`) and reply with
+   validated commands (`panel:cmd`). They use `panel-preload.js`, never `window.api`.
+   Do not add app logic to `src/panel.js` — extend the snapshot/command maps in `src/app.js`.
+9. **Classic scripts, ordered**: `util.js`, `srt.js`, `job.js`, `app.js`. No ES modules.
+10. **Job-derived strings** are always rendered via `textContent` or `CU.escapeHtml()`.
+11. Transport uses a CSS grid with named areas; breakpoint at 1250 px moves the right-hand
     controls to their own row.
-11. Cut tools are inline SVG (no icon library).
-12. Electron-builder must be spawned via `node .../cli.js`, not the `.cmd` shim (EINVAL).
+12. Cut tools are inline SVG (no icon library).
+13. Electron-builder must be spawned via `node .../cli.js`, not the `.cmd` shim (EINVAL).
 
 ## Commands
 
@@ -140,7 +149,8 @@ Do **not** `npm install` for no reason — `postinstall` fetches ~110 MB ffmpeg 
 ## Testing notes
 
 - `lib/e2e.js` drives the real renderer with `window.__cuciApp` and prints structured JSON;
-  it uses an isolated temp `userData` (never touches real settings).
+  it uses an isolated temp `userData` (never touches real settings). It also opens the
+  detached side panel / control center as real windows and checks the state/command relay.
 - Debug handle exposes: `state`, `api`, `CU`, `addVideos`, `addSubtitleToClip`,
   `loadSubtitleFromPath`, `keptRanges`, `programRanges`, `remapAll`, `remapAllTracks`,
   `applyThumbSetting`, `applyNsfwSegments`, `buildJob`, `applyJob`, `encodeShareCode`,
@@ -158,7 +168,9 @@ right-click cut menu, cut-edge drag, undo/redo), multi-clip merge, frame-accurat
 progress + cancel, subtitle sync with **multiple tracks per clip** (enable/remove, per-track
 `.srt` export, "track to burn"), Parental AI (NSFW) scanning, cut jobs (file + compact share
 code, Export/Import tabs, description), status bar with history, player/timeline splitter,
-context menu, keyboard shortcuts, MSIX packaging scaffold.
+context menu, keyboard shortcuts, workspace layout (**hide** any pane for a full-screen
+player, **detach** the side panel / control center into their own draggable windows for a
+second monitor, timeline as a floating card), MSIX packaging scaffold.
 
 Local-only (gitignored): `vendor/ffmpeg` (ffmpeg/ffprobe 9.0.2), `vendor/nsfw/model_quantized.onnx`,
 `Sample/` (including the user's screenshots in `Sample/others/`).

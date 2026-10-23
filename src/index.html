@@ -18,6 +18,62 @@
         <small>cut &amp; merge studio</small>
       </div>
       <div class="spacer"></div>
+
+      <!-- workspace layout: hide / detach the side panel, timeline and controls -->
+      <div class="layout-bar" role="group" aria-label="Workspace layout">
+        <button id="btnFocusPlayer" class="layout-btn labeled" title="Focus player — hide the side panel, controls and timeline (F)" aria-pressed="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5" />
+          </svg>
+          <span class="layout-btn-label">Focus</span>
+        </button>
+        <span class="layout-sep"></span>
+        <div class="layout-group">
+          <span class="layout-name">Side</span>
+          <button id="btnToggleSidebar" class="layout-btn" title="Hide the side panel (Ctrl+1)" aria-pressed="false" aria-label="Hide or show the side panel">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M2.4 12S6 5.8 12 5.8 21.6 12 21.6 12 18 18.2 12 18.2 2.4 12 2.4 12Z" />
+              <circle cx="12" cy="12" r="2.6" />
+            </svg>
+          </button>
+          <button id="btnDetachSidebar" class="layout-btn" title="Detach the side panel into its own window (Ctrl+Shift+1)" aria-pressed="false" aria-label="Detach or dock the side panel">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M14 4h6v6M20 4l-7 7M10 20H4v-6M4 20l7-7" />
+            </svg>
+          </button>
+        </div>
+        <span class="layout-sep"></span>
+        <div class="layout-group">
+          <span class="layout-name">Timeline</span>
+          <button id="btnToggleTimeline" class="layout-btn" title="Hide the timeline (Ctrl+2)" aria-pressed="false" aria-label="Hide or show the timeline">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M2.4 12S6 5.8 12 5.8 21.6 12 21.6 12 18 18.2 12 18.2 2.4 12 2.4 12Z" />
+              <circle cx="12" cy="12" r="2.6" />
+            </svg>
+          </button>
+          <button id="btnDetachTimeline" class="layout-btn" title="Detach the timeline as a floating card (Ctrl+Shift+2)" aria-pressed="false" aria-label="Detach or re-dock the timeline">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M14 4h6v6M20 4l-7 7M10 20H4v-6M4 20l7-7" />
+            </svg>
+          </button>
+        </div>
+        <span class="layout-sep"></span>
+        <div class="layout-group">
+          <span class="layout-name">Controls</span>
+          <button id="btnToggleTransport" class="layout-btn" title="Hide the control center (Ctrl+3)" aria-pressed="false" aria-label="Hide or show the control center">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M2.4 12S6 5.8 12 5.8 21.6 12 21.6 12 18 18.2 12 18.2 2.4 12 2.4 12Z" />
+              <circle cx="12" cy="12" r="2.6" />
+            </svg>
+          </button>
+          <button id="btnDetachTransport" class="layout-btn" title="Detach the control center into its own window (Ctrl+Shift+3)" aria-pressed="false" aria-label="Detach or dock the control center">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M14 4h6v6M20 4l-7 7M10 20H4v-6M4 20l7-7" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
       <button id="ffStatus" class="ff-status" title="ffmpeg status">checking ffmpeg…</button>
       <button id="btnSettings" class="btn ghost icon" title="Settings">⚙</button>
       <button id="btnJob" class="btn" title="Save / open / share the cut job">Job</button>
@@ -28,7 +84,7 @@
     </header>
 
     <div class="layout">
-      <aside class="sidebar">
+      <aside id="sidebar" class="sidebar">
         <section class="panel">
           <h3>Media <span id="clipCount" class="pill">0</span></h3>
           <div id="clipList" class="clip-list"></div>

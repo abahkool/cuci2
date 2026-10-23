@@ -101,6 +101,86 @@ body {
   flex: 1;
 }
 
+/* workspace layout bar: hide / detach the side panel, timeline and controls */
+.layout-bar {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px;
+  margin-right: 4px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(11, 13, 18, 0.55);
+}
+.layout-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.layout-name {
+  font: 9px/1 var(--mono);
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--muted-2);
+  padding: 0 3px 0 6px;
+}
+.layout-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: 600 11px/1 inherit;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.layout-btn svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+.layout-btn:hover {
+  background: var(--panel-3);
+  color: var(--text);
+}
+.layout-btn[aria-pressed='true'] {
+  background: linear-gradient(180deg, #34426e, #28345a);
+  color: #d3dcff;
+  box-shadow: inset 0 0 0 1px rgba(108, 140, 255, 0.32);
+}
+.layout-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.layout-btn:disabled:hover {
+  background: transparent;
+  color: var(--muted);
+}
+.layout-sep {
+  width: 1px;
+  align-self: stretch;
+  margin: 2px 1px;
+  background: var(--border);
+}
+@media (max-width: 1400px) {
+  .layout-name {
+    display: none;
+  }
+}
+@media (max-width: 1240px) {
+  .layout-btn-label {
+    display: none;
+  }
+  .layout-btn.labeled {
+    padding: 0 5px;
+  }
+}
+
 .ff-status {
   font: 11px/1 var(--mono);
   color: var(--muted);
@@ -850,6 +930,123 @@ input[type="range"]::-webkit-slider-thumb {
 .empty-card p {
   color: var(--muted);
   margin: 0 0 16px;
+}
+
+/* ─────────────── detachable panels (hide / detach) ─────────────── */
+/*
+ * A panel is either docked (default) or hidden. The side panel and the control
+ * center can also be detached into their own OS window (src/panel.html) so they
+ * can live on another monitor; the timeline detaches as a floating card inside
+ * this window. Either way it leaves the grid, so the player takes the space.
+ * State lives in localStorage["cuci2.layout"].
+ */
+body.hide-sidebar .sidebar,
+body.hide-timeline #timelineWrap,
+body.hide-transport #transportBar {
+  display: none !important;
+}
+
+/* Detached to their own window: nothing of them stays in this window. */
+body.detach-sidebar .sidebar,
+body.detach-transport #transportBar {
+  display: none !important;
+}
+
+/* Both hidden and detached panels leave the grid, so the player takes it all. */
+body.hide-sidebar .layout,
+body.detach-sidebar .layout {
+  grid-template-columns: 1fr;
+}
+
+/* The player/timeline splitter only makes sense while the controls are docked. */
+body.hide-transport #playerSplitter,
+body.detach-transport #playerSplitter {
+  display: none !important;
+}
+
+.is-floating {
+  position: fixed;
+  z-index: 30;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.62), 0 0 0 1px rgba(108, 140, 255, 0.1);
+  overflow: hidden;
+}
+
+.float-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 4px 6px 4px 8px;
+  background: linear-gradient(180deg, #1b2130, #151a24);
+  border-bottom: 1px solid var(--border);
+  cursor: move;
+  touch-action: none;
+  user-select: none;
+}
+.float-head::before {
+  content: '';
+  width: 9px;
+  height: 12px;
+  flex: none;
+  background-image: radial-gradient(circle, var(--muted-2) 1.1px, transparent 1.4px);
+  background-size: 5px 5px;
+  opacity: 0.85;
+}
+.float-title {
+  flex: 1;
+  font: 10px/1 var(--mono);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.float-btn {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--muted);
+  border-radius: 6px;
+  height: 19px;
+  min-width: 21px;
+  padding: 0 5px;
+  font: 600 11px/1 inherit;
+  cursor: pointer;
+  transition: 0.12s;
+}
+.float-btn:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+.float-btn.danger:hover {
+  color: #ffb3b9;
+  border-color: #4a2329;
+  background: #241316;
+}
+
+/* The floating card chrome is created lazily by app.js for the timeline. */
+.is-floating > .float-head {
+  margin: 0 -12px 6px;
+}
+
+#timelineWrap.is-floating {
+  display: flex;
+  flex-direction: column;
+  resize: both;
+}
+#timelineWrap.is-floating > .float-head {
+  position: relative;
+  z-index: 6;
+}
+/* The docked timeline is positioned with an absolute scroller; detached it
+   becomes a flex child so the header can sit above it. */
+#timelineWrap.is-floating > .timeline-scroll {
+  position: relative;
+  inset: auto;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 /* ─────────────── sidebar widgets ─────────────── */

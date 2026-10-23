@@ -42,8 +42,14 @@ There is **no build step**. `main.js` loads `src/index.html` straight from disk.
 ```
 main.js                 Electron bootstrap: window, media:// scheme registration
 preload.js              contextBridge API surface (window.api)
+panel-preload.js        contextBridge for detached panel windows (window.panelAPI)
+src/
+  panel.html            detached side panel / control center window markup
+  panel.js              thin view: renders snapshots, forwards commands
+  panel.css             window chrome for the detached panels
 lib/
   ipc.js                all ipcMain handlers, settings, export orchestration
+  panels.js             detached panel windows: lifecycle, bounds, message relay
   exporter.js           pure ffmpeg filtergraph/encoder builders  ← unit-testable
   ffmpeg-locate.js      resolves custom/env/system/bundled ffmpeg+ffprobe
   nsfw.js               ONNX NSFW scene detection (sampling + inference + grouping)
@@ -188,6 +194,19 @@ are `webContents.send` pushes. Channels live in `lib/ipc.js`; the renderer reach
 | `nsfw:cancel` | — | `true` |
 | `export:start` | `ExportRequest` (below) | `{ ok, outputPath, srtPath }` \| `{ ok:false, error }` \| `{ ok:false, cancelled:true }` |
 | `export:cancel` | — | `boolean` |
+| `panel:open` | `{ name: 'sidebar' \| 'transport' }` | `{ ok, reused? }` |
+| `panel:close` | `name` | `{ ok }` |
+| `panel:info` | — | `{ name, labels }` (panel windows) |
+
+**Panel window channels** (`lib/panels.js`, `panel-preload.js`):
+
+| Channel | Direction | Payload |
+| --- | --- | --- |
+| `panel:ready` | panel → main → renderer | asks the main renderer for a first snapshot |
+| `panel:close-self` | panel → main | the panel's own Dock button |
+| `panel:state` | renderer → main → panel | `{ panel, data }` (snapshot, see `sidebarSnapshot()`/`transportSnapshot()`) |
+| `panel:cmd` | panel → main → renderer | `{ panel, action, … }` (routed by `onPanelCommand`) |
+| `panel:closed` | main → renderer | `{ panel }` — title-bar close, docks the pane back |
 
 **Push events** (subscribe via preload):
 
@@ -227,6 +246,14 @@ exportVideo, cancelExport
 showItem
 mediaUrl(path)                    // -> 'media://local/<encodeURIComponent(path)>'
 onExportProgress(cb), onThumbsProgress(cb), onProxyLog(cb)   // return unsubscribe fn
+panelOpen({name}), panelClose(name), sendPanelState({panel,data})
+onPanelReady(cb), onPanelClosed(cb), onPanelCommand(cb)
+```
+
+`window.panelAPI` (`panel-preload.js`, detached windows only):
+
+```
+info(), ready(), onState(cb), send(action, data), close()
 ```
 
 ---
@@ -434,6 +461,57 @@ The timeline's internal bands are height-relative: the filmstrip runs from the 2
 `calc(var(--subs-h) + 4px)` above the bottom, and the subtitle lane is pinned to the bottom
 (62px). Nothing inside needs re-rendering when the split changes.
 
+### Layout: hide / detach panes
+
+Each of the three panes — side panel (`#sidebar`), timeline (`#timelineWrap`) and control
+center (`#transportBar`) — is `docked`, `hidden` or `detached`, driven by the layout bar in
+the topbar (`btnToggle*/btnDetach*`), `Ctrl+1..3` (hide) / `Ctrl+Shift+1..3` (detach), and
+`F` / `btnFocusPlayer` for focus mode (hides all three in this window, remembers the rest).
+
+- `hidden` → `body.hide-<pane>` (`display: none`).
+- `detached` → `body.detach-<pane>`; either state leaves the CSS grid, so `.main`'s `1fr`
+  player row absorbs the freed space (and `body.hide-sidebar`/`detach-sidebar` collapse
+  `.layout` to a single column).
+- **Side panel and control center detach into real OS windows** (see below) so they can be
+  dragged to another monitor.
+- **The timeline detaches as an in-window floating card**: `.is-floating` sets
+  `position: fixed` with inline `left/top/width/height`, plus a lazily injected `.float-head`
+  (drag to move, dock, hide, double-click to dock). CSS `resize` gives the corner grip and a
+  `ResizeObserver` persists the dragged size.
+- Timeline state persists in `localStorage["cuci2.layout"]` as
+  `{ sidebar|timeline|transport: { hidden, detached, rect: {x,y,w,h} } }`, re-clamped to the
+  viewport on resize. Windowed panels reopen on the next launch.
+- The splitter is disabled while the control center is hidden/detached.
+
+### Detached panel windows
+
+`lib/panels.js` owns the windows; `src/panel.html` + `src/panel.js` + `src/panel.css` render
+them (same `styles.css` widgets, so they look identical to the docked panes). Each panel is a
+**thin view over the main renderer** — the main renderer stays the single source of truth
+for state, ffmpeg and export:
+
+```
+main renderer --api.sendPanelState--> panels.js --'panel:state'--> panel window
+panel window --'panel:cmd'--> panels.js --'panel:cmd'--> main renderer (onPanelCommand)
+```
+
+- The panel preload is `panel-preload.js` (exposes `window.panelAPI`: `info`, `ready`,
+  `onState`, `send`, `close`) — deliberately tiny; panels never get `api.*`.
+- `panel:ready` is the handshake: a fresh window asks for a snapshot; `app.js` answers with
+  `pushPanelState(name)`. `panel:closed` (title-bar X) docks the pane back into the main
+  window; the panel's own **Dock** button sends `panel:close-self`.
+- Snapshots: `sidebarSnapshot()` (clips, cuts, subtitle tracks/rows) and
+  `transportSnapshot()` (timecodes, seek ratio, mode, in/out). Coalesced through
+  `scheduleSidebarSync()` (40 ms) / `scheduleTransportSync()` (60 ms) and only built while
+  the matching window is open.
+- Commands (`onPanelCommand`) are validated then routed into the existing handlers:
+  `click` with an id from `PANEL_CLICK_IDS` → `els[id].click()`; plus `seek`, `zoom`, `snap`,
+  `activate`, `clip`, `cutDelete`, `cutHover`, `seekTo`, `subOffset`, `subToggle`,
+  `subActivate`, `subRemove`. Cut/track/clip ids are checked against current state first.
+- Bounds live in `settings.json` under `panels.<name>` (`panel:open` falls back to defaults
+  beside the main window; off-screen bounds are rejected so an unplugged monitor cannot hide
+  a panel). Panels are not parented, so they are free to move to another display.
+
 ### Rendering
 
 - `renderTimeline()` → `buildBase()` (ruler ticks, filmstrip `<img>`, cut blocks, subtitle
@@ -453,7 +531,8 @@ The timeline's internal bands are height-relative: the filmstrip runs from the 2
 
 `init()` exposes `window.__cuciApp = { state, api, CU, addVideos, loadSubtitleFromPath,
 keptRanges, programRanges, remapAll, applyThumbSetting, buildJob, applyJob,
-encodeShareCode, decodeShareCode, addCut, removeCut, renderAll, seekTo, currentSetup }`.
+encodeShareCode, decodeShareCode, addCut, removeCut, renderAll, seekTo, currentSetup,
+setPanelHidden, setPanelDetached, toggleFocusPlayer }`.
 Used by `lib/e2e.js` and handy in DevTools.
 
 ---

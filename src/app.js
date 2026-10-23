@@ -46,7 +46,9 @@
       'subInfo', 'subOffset', 'btnSubAdd', 'subTrackList', 'btnSubExport', 'subEventList',
       'btnPlay', 'btnStop', 'btnPrevFrame', 'btnNextFrame', 'btnPrevSec', 'btnNextSec',
       'timecode', 'timeTotal', 'resultTc', 'seekRange', 'modeSource', 'modeResult', 'chkSnap', 'zoomRange',
-      'mainPane', 'transportBar', 'timelineWrap', 'playerSplitter',
+      'mainPane', 'transportBar', 'timelineWrap', 'playerSplitter', 'sidebar',
+      'btnFocusPlayer', 'btnToggleSidebar', 'btnDetachSidebar',
+      'btnToggleTimeline', 'btnDetachTimeline', 'btnToggleTransport', 'btnDetachTransport',
       'timelineScroll', 'timeline', 'tlRuler', 'tlFilm', 'tlCuts', 'tlSubs',
       'tlSelection', 'tlMarkerIn', 'tlMarkerOut', 'tlPlayhead', 'emptyState',
       'exportModal', 'expPath', 'expBrowse', 'expContainer', 'expVcodec', 'expCrf', 'expCrfVal',
@@ -743,6 +745,7 @@
   }
 
   function updateClipList() {
+    scheduleSidebarSync();
     els.clipCount.textContent = String(state.clips.length);
     els.clipList.innerHTML = '';
     if (!state.clips.length) {
@@ -825,6 +828,7 @@
   }
 
   function updateCutList() {
+    scheduleSidebarSync();
     const clip = activeClip();
     const cuts = clip ? [...clip.cuts].sort((a, b) => a.start - b.start) : [];
     els.cutCount.textContent = String(cuts.length);
@@ -864,6 +868,7 @@
   }
 
   function updateSubPanel() {
+    scheduleSidebarSync();
     const clip = activeClip();
     if (document.activeElement !== els.subOffset) els.subOffset.value = String(state.globalSubOffset);
     els.subEventList.innerHTML = '';
@@ -950,6 +955,7 @@
   }
 
   function updateTransport() {
+    scheduleTransportSync();
     const clip = activeClip();
     const t = clip ? state.playhead : 0;
     els.timecode.textContent = CU.fmt(t, 3);
@@ -2151,6 +2157,626 @@
   }
 
   /* ───────────────────────────── wiring ───────────────────────────── */
+  /* ────────────── workspace layout: hide / detach panels ───────────── */
+  /*
+   * The side panel, the timeline and the control center can each be docked
+   * (default) or hidden. Detaching pops the side panel / control center into
+   * their own OS window (src/panel.html) so they can be dragged to another
+   * monitor; the timeline detaches as an in-window floating card instead.
+   * Either way the panel leaves the grid and the player grows.
+   *
+   * Windowed panels are thin views: this renderer stays the source of truth and
+   * pushes snapshots (`pushPanelState`) while the panels send back commands
+   * (`onPanelCommand`). See lib/panels.js for the window manager.
+   */
+  const PANEL_NAMES = ['sidebar', 'timeline', 'transport'];
+  const PANEL_LABEL = { sidebar: 'Side panel', timeline: 'Timeline', transport: 'Control center' };
+  const PANEL_EL = { sidebar: 'sidebar', timeline: 'timelineWrap', transport: 'transportBar' };
+  const WINDOWED_PANELS = new Set(['sidebar', 'transport']);
+  const openPanels = { sidebar: false, transport: false };
+  let layout = null;
+  let focusRemember = null;
+  let sidebarSyncTimer = null;
+  let transportSyncTimer = null;
+
+  function defaultLayout() {
+    const one = () => ({ hidden: false, detached: false, rect: null });
+    return { sidebar: one(), timeline: one(), transport: one() };
+  }
+
+  const panelEl = (name) => els[PANEL_EL[name]] || null;
+
+  function loadLayout() {
+    layout = defaultLayout();
+    let saved = null;
+    try {
+      saved = JSON.parse(localStorage.getItem('cuci2.layout') || 'null');
+    } catch {
+      saved = null;
+    }
+    if (!saved || typeof saved !== 'object') return;
+    for (const name of PANEL_NAMES) {
+      const s = saved[name];
+      if (!s || typeof s !== 'object') continue;
+      layout[name].hidden = s.hidden === true;
+      layout[name].detached = s.detached === true;
+      const r = s.rect;
+      if (r && [r.x, r.y, r.w].every((n) => typeof n === 'number' && Number.isFinite(n))) {
+        layout[name].rect = { x: r.x, y: r.y, w: r.w, h: typeof r.h === 'number' && Number.isFinite(r.h) ? r.h : null };
+      }
+    }
+  }
+
+  function saveLayout() {
+    try {
+      localStorage.setItem('cuci2.layout', JSON.stringify(layout));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function fallbackRect(name) {
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    if (name === 'sidebar') return { x: 16, y: 70, w: 330, h: Math.min(720, vh - 150) };
+    if (name === 'timeline') return { x: 24, y: Math.max(70, vh - 350), w: Math.min(1020, vw - 80), h: 300 };
+    return { x: Math.max(16, vw - Math.min(900, vw - 60) - 24), y: Math.max(160, vh - 160), w: Math.min(900, vw - 60), h: null };
+  }
+
+  /* Pick a card-sized spot for a freshly detached panel: try its preferred
+     corners first and keep the one that overlaps the fewest already-floating
+     panels. Stored positions (user drags) win over this. */
+  function placeRect(name, w, hEst) {
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const pad = 16;
+    const top = 70;
+    const bottom = vh - 44;
+    const others = PANEL_NAMES.filter((n) => n !== name && layout[n].detached && !layout[n].hidden && layout[n].rect).map(
+      (n) => layout[n].rect,
+    );
+    const heightOf = (r) => (r.h == null ? 120 : r.h);
+    const overlapArea = (a, b) => {
+      const ow = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+      const oh = Math.min(a.y + heightOf(a), b.y + heightOf(b)) - Math.max(a.y, b.y);
+      return ow > 0 && oh > 0 ? ow * oh : 0;
+    };
+    const xs = { left: pad, center: Math.round((vw - w) / 2), right: vw - w - pad };
+    const ys = { top, mid: Math.round((top + bottom - hEst) / 2), bottom: bottom - hEst };
+    const order = {
+      sidebar: [['left', 'top'], ['right', 'top'], ['left', 'mid'], ['right', 'mid'], ['center', 'mid']],
+      timeline: [['left', 'bottom'], ['center', 'bottom'], ['right', 'bottom'], ['left', 'mid'], ['center', 'mid'], ['right', 'mid']],
+      transport: [['center', 'bottom'], ['right', 'bottom'], ['left', 'bottom'], ['center', 'mid'], ['right', 'mid'], ['left', 'mid']],
+    }[name] || [['center', 'mid']];
+
+    let best = { x: xs.left, y: ys.top, w, h: null };
+    let bestScore = Infinity;
+    for (const [ax, ay] of order) {
+      const r = { x: xs[ax], y: ys[ay], w, h: null };
+      const score = others.reduce((sum, o) => sum + overlapArea({ ...r, h: hEst }, o), 0);
+      if (score < bestScore) {
+        bestScore = score;
+        best = r;
+        if (!score) break;
+      }
+    }
+    return clampRect(name, { ...best, h: name === 'transport' ? null : hEst });
+  }
+
+  function clampRect(name, rect) {
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const w = Math.max(200, Math.min(Math.round(rect.w), vw - 16));
+    const h = rect.h == null || name === 'transport' ? null : Math.max(110, Math.min(Math.round(rect.h), vh - 40));
+    // Always leave a grabbable slice of the panel on screen.
+    const x = Math.min(Math.max(Math.round(rect.x), -w + 120), vw - 120);
+    const y = Math.min(Math.max(Math.round(rect.y), 0), vh - 44);
+    return { x, y, w, h };
+  }
+
+  function applyFloatRect(name, rect) {
+    const el = panelEl(name);
+    if (!el) return;
+    const r = rect || clampRect(name, layout[name].rect || fallbackRect(name));
+    layout[name].rect = r;
+    el.style.left = r.x + 'px';
+    el.style.top = r.y + 'px';
+    el.style.width = r.w + 'px';
+    el.style.height = r.h == null ? '' : r.h + 'px';
+  }
+
+  function clearFloatRect(el) {
+    el.style.left = '';
+    el.style.top = '';
+    el.style.width = '';
+    el.style.height = '';
+  }
+
+  /* Floating header: drag to move, buttons to dock or hide. Built lazily so a
+     docked panel keeps exactly the markup it always had. */
+  function ensureFloatHead(name) {
+    const el = panelEl(name);
+    if (!el) return null;
+    let head = el.querySelector(':scope > .float-head');
+    if (head) return head;
+
+    head = document.createElement('div');
+    head.className = 'float-head';
+    const title = document.createElement('span');
+    title.className = 'float-title';
+    title.textContent = PANEL_LABEL[name];
+    const dock = document.createElement('button');
+    dock.type = 'button';
+    dock.className = 'float-btn';
+    dock.dataset.act = 'dock';
+    dock.title = 'Dock back into the window';
+    dock.textContent = '⇤ dock';
+    const hide = document.createElement('button');
+    hide.type = 'button';
+    hide.className = 'float-btn danger';
+    hide.dataset.act = 'hide';
+    hide.title = 'Hide this panel';
+    hide.textContent = '✕';
+    head.append(title, dock, hide);
+    el.insertBefore(head, el.firstChild);
+
+    head.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-act]');
+      if (!btn) return;
+      if (btn.dataset.act === 'dock') setPanelDetached(name, false);
+      else setPanelHidden(name, true);
+    });
+    head.addEventListener('dblclick', (e) => {
+      if (e.target.closest('button')) return;
+      setPanelDetached(name, false);
+    });
+    makePanelDraggable(name, head);
+    return head;
+  }
+
+  function makePanelDraggable(name, head) {
+    let drag = null;
+    const move = (e) => {
+      if (!drag) return;
+      const next = clampRect(name, {
+        ...drag.rect,
+        x: drag.rect.x + (e.clientX - drag.x),
+        y: drag.rect.y + (e.clientY - drag.y),
+      });
+      applyFloatRect(name, next);
+    };
+    const end = () => {
+      if (!drag) return;
+      drag = null;
+      head.classList.remove('dragging');
+      document.body.style.cursor = '';
+      saveLayout();
+    };
+    head.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0 || e.target.closest('button')) return;
+      const rect = layout[name].rect || fallbackRect(name);
+      drag = { x: e.clientX, y: e.clientY, rect: { ...rect } };
+      head.classList.add('dragging');
+      document.body.style.cursor = 'move';
+      e.preventDefault();
+    });
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', end);
+  }
+
+  /* Persist sizes the user drags out of the CSS resize grip. */
+  function watchPanelSizes() {
+    if (typeof ResizeObserver !== 'function') return;
+    for (const name of PANEL_NAMES) {
+      const el = panelEl(name);
+      if (!el) continue;
+      let raf = 0;
+      const ro = new ResizeObserver(() => {
+        if (!layout[name].detached || layout[name].hidden) return;
+        cancelAnimationFrame(raf);
+        raf = requestAnimationFrame(() => {
+          const r = el.getBoundingClientRect();
+          if (!r.width || !r.height) return;
+          const cur = layout[name].rect || fallbackRect(name);
+          const w = Math.round(r.width);
+          const h = name === 'transport' ? null : Math.round(r.height);
+          if (cur.w === w && cur.h === h) return;
+          layout[name].rect = { ...cur, w, h };
+          saveLayout();
+        });
+      });
+      ro.observe(el);
+    }
+  }
+
+  function setPressed(btn, on, title) {
+    if (!btn) return;
+    btn.setAttribute('aria-pressed', String(!!on));
+    if (title) btn.title = title;
+  }
+
+  function applyLayout() {
+    if (!layout) return;
+    for (const name of PANEL_NAMES) {
+      const st = layout[name];
+      const el = panelEl(name);
+      if (!el) continue;
+      // Only the timeline floats inside this window; the other two get a real
+      // OS window (their docked element is hidden by CSS while detached).
+      const floating = name === 'timeline' && st.detached && !st.hidden;
+      document.body.classList.toggle('hide-' + name, st.hidden);
+      document.body.classList.toggle('detach-' + name, st.detached);
+      el.classList.toggle('is-floating', floating);
+      if (floating) {
+        ensureFloatHead(name);
+        applyFloatRect(name);
+      } else {
+        clearFloatRect(el);
+      }
+    }
+    const focused = PANEL_NAMES.every((n) => layout[n].hidden);
+    setPressed(
+      els.btnFocusPlayer,
+      focused,
+      focused ? 'Exit focus mode — restore the panels (F)' : 'Focus player — hide the side panel, controls and timeline (F)',
+    );
+    setPressed(els.btnToggleSidebar, layout.sidebar.hidden, layout.sidebar.hidden ? 'Show the side panel (Ctrl+1)' : 'Hide the side panel (Ctrl+1)');
+    // A pane that lives in its own window cannot be hidden from this window.
+    els.btnToggleSidebar.disabled = layout.sidebar.detached;
+    if (layout.sidebar.detached) els.btnToggleSidebar.title = 'The side panel is in its own window';
+    setPressed(
+      els.btnDetachSidebar,
+      layout.sidebar.detached,
+      layout.sidebar.detached ? 'Bring the side panel back into this window (Ctrl+Shift+1)' : 'Detach the side panel into its own window (Ctrl+Shift+1)',
+    );
+    setPressed(els.btnToggleTimeline, layout.timeline.hidden, layout.timeline.hidden ? 'Show the timeline (Ctrl+2)' : 'Hide the timeline (Ctrl+2)');
+    setPressed(
+      els.btnDetachTimeline,
+      layout.timeline.detached,
+      layout.timeline.detached ? 'Re-dock the timeline (Ctrl+Shift+2)' : 'Detach the timeline as a floating card (Ctrl+Shift+2)',
+    );
+    setPressed(els.btnToggleTransport, layout.transport.hidden, layout.transport.hidden ? 'Show the control center (Ctrl+3)' : 'Hide the control center (Ctrl+3)');
+    els.btnToggleTransport.disabled = layout.transport.detached;
+    if (layout.transport.detached) els.btnToggleTransport.title = 'The control center is in its own window';
+    setPressed(
+      els.btnDetachTransport,
+      layout.transport.detached,
+      layout.transport.detached ? 'Bring the control center back into this window (Ctrl+Shift+3)' : 'Detach the control center into its own window (Ctrl+Shift+3)',
+    );
+  }
+
+  function afterLayoutChange() {
+    renderTimeline();
+    applyTimelineHeight(false);
+  }
+
+  function setPanelHidden(name, hidden) {
+    const st = layout[name];
+    if (!st || st.hidden === hidden) return;
+    if (hidden && WINDOWED_PANELS.has(name) && st.detached) {
+      toast(`${PANEL_LABEL[name]} is in its own window — dock it first.`, 'info', 3200);
+      return;
+    }
+    st.hidden = hidden;
+    focusRemember = null;
+    applyLayout();
+    afterLayoutChange();
+    saveLayout();
+  }
+
+  async function setPanelDetached(name, detached) {
+    const st = layout[name];
+    const el = panelEl(name);
+    if (!st || !el || st.detached === detached) return;
+    if (detached) {
+      if (WINDOWED_PANELS.has(name)) {
+        const res = await api.panelOpen({ name });
+        if (!res || !res.ok) {
+          toast((res && res.error) || 'Could not open the panel window.', 'error');
+          return;
+        }
+        openPanels[name] = true;
+        st.detached = true;
+        st.hidden = false;
+      } else {
+        st.hidden = false;
+        // A fresh float gets a card-sized spot; a remembered one keeps its place.
+        if (!st.rect) st.rect = placeRect(name, Math.min(1020, window.innerWidth - 80), 300);
+        st.detached = true;
+      }
+    } else {
+      st.detached = false;
+      st.hidden = false;
+      if (WINDOWED_PANELS.has(name) && openPanels[name]) await api.panelClose(name);
+    }
+    focusRemember = null;
+    applyLayout();
+    afterLayoutChange();
+    saveLayout();
+    pushPanelState(name);
+  }
+
+  /* ───────── panel windows: state snapshots + commands ───────── */
+  function sidebarSnapshot() {
+    const clip = activeClip();
+    const cuts = clip ? [...clip.cuts].sort((a, b) => a.start - b.start) : [];
+    const tracks = (clip && clip.subtitles) || [];
+    const active = clip ? activeSubtitleTrack(clip) : null;
+    let rows = [];
+    let eventCount = 0;
+    let dropped = 0;
+    if (active) {
+      const all = buildSubRows(active.events, keptRanges(clip), state.globalSubOffset);
+      eventCount = all.length;
+      dropped = all.reduce((n, r) => n + (r.dropped ? 1 : 0), 0);
+      rows = all.slice(0, 400).map((r) => ({
+        start: r.ev.start,
+        text: r.ev.text,
+        dropped: !!r.dropped,
+        newStarts: r.dropped ? [] : r.parts.map((p) => p.start),
+      }));
+    }
+    return {
+      clips: state.clips.map((c) => ({
+        id: c.id,
+        name: c.name,
+        path: c.path,
+        durationMs: c.durationMs,
+        width: c.width,
+        height: c.height,
+        fps: c.fps,
+        hasAudio: c.hasAudio,
+        kept: totalKept(c),
+        subCount: (c.subtitles || []).length,
+        hasProxy: !!c.proxyPath,
+        cuts: c.cuts.length,
+      })),
+      activeClipId: state.activeClipId,
+      clipName: clip ? clip.name : null,
+      cuts: cuts.map((c) => ({ id: c.id, start: c.start, end: c.end })),
+      sub: {
+        tracks: tracks.map((t) => ({
+          id: t.id,
+          name: t.name,
+          enabled: t.enabled !== false,
+          kept: remapTrack(clip, t).length,
+          total: t.events.length,
+          active: !!active && t.id === active.id,
+        })),
+        activeName: active ? active.name : null,
+        activeEnabled: active ? active.enabled !== false : false,
+        eventCount,
+        dropped,
+        rows,
+        offset: state.globalSubOffset,
+        canExport: state.clips.some((c) => (c.subtitles || []).length),
+      },
+    };
+  }
+
+  function transportSnapshot() {
+    const clip = activeClip();
+    const total = state.playMode === 'result' ? programRanges().total : clip ? clip.durationMs : 0;
+    const cur = state.playMode === 'result' ? state.resultTime : clip ? state.playhead : 0;
+    return {
+      clipName: clip ? clip.name : null,
+      hasClip: !!clip,
+      time: clip ? state.playhead : 0,
+      total: clip ? clip.durationMs : 0,
+      mode: state.playMode,
+      resultTime: state.resultTime,
+      resultTotal: programRanges().total,
+      playing: !els.video.paused && (state.playMode === 'source' || program.playing),
+      seekValue: total > 0 ? Math.round((cur / total) * 10000) : 0,
+      snap: !!state.snap,
+      zoom: state.zoom,
+      inPoint: state.inPoint,
+      outPoint: state.outPoint,
+    };
+  }
+
+  function pushPanelState(name) {
+    if (!openPanels[name]) return;
+    const data = name === 'sidebar' ? sidebarSnapshot() : transportSnapshot();
+    try {
+      api.sendPanelState({ panel: name, data });
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function scheduleSidebarSync() {
+    if (!openPanels.sidebar || sidebarSyncTimer) return;
+    sidebarSyncTimer = setTimeout(() => {
+      sidebarSyncTimer = null;
+      pushPanelState('sidebar');
+    }, 40);
+  }
+
+  function scheduleTransportSync() {
+    if (!openPanels.transport || transportSyncTimer) return;
+    transportSyncTimer = setTimeout(() => {
+      transportSyncTimer = null;
+      pushPanelState('transport');
+    }, 60);
+  }
+
+  function onPanelReady(payload) {
+    const name = payload && payload.panel;
+    if (!WINDOWED_PANELS.has(name) || !layout) return;
+    // The ready handshake can beat the panelOpen() reply in the renderer, so
+    // adopt the detached state here too.
+    openPanels[name] = true;
+    if (!layout[name].detached) {
+      layout[name].detached = true;
+      layout[name].hidden = false;
+      applyLayout();
+      afterLayoutChange();
+      saveLayout();
+    }
+    pushPanelState(name);
+  }
+
+  function onPanelClosed(payload) {
+    const name = payload && payload.panel;
+    if (!name) return;
+    openPanels[name] = false;
+    const st = layout[name];
+    if (!st || !st.detached) return;
+    // The window was closed from its title bar: dock the panel back.
+    st.detached = false;
+    st.hidden = false;
+    applyLayout();
+    afterLayoutChange();
+    saveLayout();
+    toast(`${PANEL_LABEL[name]} docked.`, 'info', 2400);
+  }
+
+  const PANEL_CLICK_IDS = new Set([
+    'btnStop', 'btnPrevSec', 'btnPrevFrame', 'btnPlay', 'btnNextFrame', 'btnNextSec',
+    'btnSetIn', 'btnSetOut', 'btnCut', 'btnClearMarks', 'btnClearCuts',
+    'modeSource', 'modeResult', 'btnSubAdd', 'btnSubExport',
+  ]);
+
+  async function onPanelCommand(msg) {
+    if (!msg || typeof msg !== 'object' || typeof msg.action !== 'string') return;
+    const action = msg.action;
+    if (action === 'click') {
+      const id = String(msg.id || '');
+      if (!PANEL_CLICK_IDS.has(id)) return;
+      const el = els[id];
+      if (el && typeof el.click === 'function') el.click();
+      return;
+    }
+    if (action === 'seek') {
+      els.seekRange.value = String(Math.max(0, Math.min(10000, Math.round(Number(msg.value) || 0))));
+      els.seekRange.dispatchEvent(new Event('input'));
+      return;
+    }
+    if (action === 'zoom') {
+      els.zoomRange.value = String(Math.max(1, Math.min(12, Number(msg.value) || 1)));
+      els.zoomRange.dispatchEvent(new Event('input'));
+      return;
+    }
+    if (action === 'snap') {
+      els.chkSnap.checked = !!msg.value;
+      els.chkSnap.dispatchEvent(new Event('change'));
+      return;
+    }
+    if (action === 'activate') {
+      const clip = state.clips.find((c) => c.id === msg.clipId);
+      if (clip) await activateClip(clip.id);
+      return;
+    }
+    if (action === 'clip') {
+      const act = String(msg.act || '');
+      if (!['up', 'down', 'sub', 'remove'].includes(act)) return;
+      if (!state.clips.some((c) => c.id === msg.clipId)) return;
+      await handleClipAction(act, msg.clipId);
+      return;
+    }
+    if (action === 'cutDelete' || action === 'cutHover') {
+      const clip = activeClip();
+      if (!clip || !clip.cuts.some((c) => c.id === msg.cutId)) return;
+      if (action === 'cutDelete') removeCut(msg.cutId);
+      else highlightCut(msg.cutId, !!msg.on);
+      return;
+    }
+    if (action === 'seekTo') {
+      seekTo(Number(msg.ms) || 0);
+      return;
+    }
+    if (action === 'subOffset') {
+      state.globalSubOffset = Number(msg.ms) || 0;
+      invalidate();
+      updateSubPanel();
+      renderTimeline();
+      updateSubtitleOverlay();
+      return;
+    }
+    if (action === 'subToggle' || action === 'subActivate' || action === 'subRemove') {
+      const clip = activeClip();
+      const track = clip && (clip.subtitles || []).find((t) => t.id === msg.trackId);
+      if (!clip || !track) return;
+      if (action === 'subToggle') {
+        track.enabled = !!msg.enabled;
+        invalidate();
+        renderAll();
+      } else if (action === 'subActivate') {
+        clip.activeSubtitleId = track.id;
+        renderAll();
+      } else {
+        pushUndo();
+        clip.subtitles = clip.subtitles.filter((t) => t.id !== track.id);
+        if (clip.activeSubtitleId === track.id) clip.activeSubtitleId = clip.subtitles[0] ? clip.subtitles[0].id : null;
+        invalidate();
+        renderAll();
+      }
+    }
+  }
+
+  /* Re-open panels that were detached to their own window last session. */
+  async function restorePanelWindows() {
+    for (const name of WINDOWED_PANELS) {
+      if (!layout[name].detached || openPanels[name]) continue;
+      const res = await api.panelOpen({ name });
+      if (res && res.ok) {
+        openPanels[name] = true;
+        pushPanelState(name);
+      } else {
+        layout[name].detached = false;
+        layout[name].hidden = false;
+        applyLayout();
+        afterLayoutChange();
+        saveLayout();
+      }
+    }
+  }
+
+  function toggleFocusPlayer() {
+    const focused = PANEL_NAMES.every((n) => layout[n].hidden);
+    if (focused) {
+      for (const name of PANEL_NAMES) {
+        const prev = (focusRemember && focusRemember[name]) || { hidden: false, detached: false };
+        layout[name].hidden = prev.hidden;
+        layout[name].detached = prev.detached;
+      }
+      focusRemember = null;
+      applyLayout();
+      afterLayoutChange();
+      saveLayout();
+      toast('Panels restored.', 'ok', 2200);
+      return;
+    }
+    focusRemember = {};
+    for (const name of PANEL_NAMES) {
+      focusRemember[name] = { hidden: layout[name].hidden, detached: layout[name].detached };
+      layout[name].hidden = true;
+    }
+    applyLayout();
+    afterLayoutChange();
+    saveLayout();
+    toast('Focus mode — the player has the screen. Press F to bring the panels back.', 'info', 4200);
+  }
+
+  function wireLayout() {
+    const bind = (btn, name, mode) => {
+      if (!btn) return;
+      btn.addEventListener('click', () => {
+        if (mode === 'hide') setPanelHidden(name, !layout[name].hidden);
+        else setPanelDetached(name, !layout[name].detached);
+      });
+    };
+    bind(els.btnToggleSidebar, 'sidebar', 'hide');
+    bind(els.btnDetachSidebar, 'sidebar', 'detach');
+    bind(els.btnToggleTimeline, 'timeline', 'hide');
+    bind(els.btnDetachTimeline, 'timeline', 'detach');
+    bind(els.btnToggleTransport, 'transport', 'hide');
+    bind(els.btnDetachTransport, 'transport', 'detach');
+    if (els.btnFocusPlayer) els.btnFocusPlayer.addEventListener('click', toggleFocusPlayer);
+  }
+
   /* ─────────────────── player / timeline splitter ─────────────────── */
   let timelineHeight = 260;
 
@@ -2178,6 +2804,7 @@
 
     const start = (e) => {
       if (e.button !== 0) return;
+      if (layout.transport.hidden || layout.transport.detached) return;
       splitDrag = { startY: e.clientY, startH: els.timelineWrap.getBoundingClientRect().height };
       handle.classList.add('dragging');
       document.body.style.cursor = 'row-resize';
@@ -2565,6 +3192,12 @@
 
     // keyboard
     window.addEventListener('keydown', onKeyDown);
+    wireLayout();
+
+    // detached panel windows (side panel / control center)
+    api.onPanelReady(onPanelReady);
+    api.onPanelClosed(onPanelClosed);
+    api.onPanelCommand(onPanelCommand);
 
     // export progress
     api.onExportProgress((d) => {
@@ -2623,6 +3256,7 @@
     window.addEventListener('resize', () => {
       clearTimeout(rzTimer);
       rzTimer = setTimeout(() => {
+        applyLayout();
         renderTimeline();
         applyTimelineHeight(false);
       }, 120);
@@ -2696,6 +3330,14 @@
       return;
     }
 
+    if (mod && /^Digit[123]$/.test(e.code)) {
+      e.preventDefault();
+      const name = { Digit1: 'sidebar', Digit2: 'timeline', Digit3: 'transport' }[e.code];
+      if (e.shiftKey) setPanelDetached(name, !layout[name].detached);
+      else setPanelHidden(name, !layout[name].hidden);
+      return;
+    }
+
     switch (e.key) {
       case ' ':
         e.preventDefault();
@@ -2727,6 +3369,10 @@
       case 'X':
         cutSelection();
         break;
+      case 'f':
+      case 'F':
+        toggleFocusPlayer();
+        break;
       case 'Home':
         pause();
         seekTo(0);
@@ -2757,6 +3403,7 @@
   /* ───────────────────────────── boot ───────────────────────────── */
   async function init() {
     cacheEls();
+    loadLayout();
     try {
       const saved = Number(localStorage.getItem('cuci2.timelineHeight'));
       if (Number.isFinite(saved) && saved >= 140) timelineHeight = saved;
@@ -2765,10 +3412,15 @@
     }
     wire();
     wireSplitter();
-    renderStatus();
-    await refreshInfo();
+    watchPanelSizes();
+    applyLayout();
+    renderStatus();    await refreshInfo();
     renderAll();
-    requestAnimationFrame(() => applyTimelineHeight(false));
+    requestAnimationFrame(() => {
+      applyLayout();
+      applyTimelineHeight(false);
+    });
+    restorePanelWindows();
     if (!statusState.text || statusState.text === 'Ready') setStatus('Ready — add a video to begin', 'idle');
 
     // Debug / automation handle (also used by lib/e2e.js).
@@ -2794,6 +3446,9 @@
       renderAll,
       seekTo,
       currentSetup,
+      setPanelHidden,
+      setPanelDetached,
+      toggleFocusPlayer,
     };
   }
 

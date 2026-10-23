@@ -54,4 +54,24 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.on('proxy:log', handler);
     return () => ipcRenderer.removeListener('proxy:log', handler);
   },
+
+  /* detachable panel windows (side panel / control center) */
+  panelOpen: (opts) => ipcRenderer.invoke('panel:open', opts),
+  panelClose: (name) => ipcRenderer.invoke('panel:close', name),
+  sendPanelState: (payload) => ipcRenderer.send('panel:state', payload),
+  onPanelReady: (cb) => {
+    const handler = (_e, data) => cb(data);
+    ipcRenderer.on('panel:ready', handler);
+    return () => ipcRenderer.removeListener('panel:ready', handler);
+  },
+  onPanelClosed: (cb) => {
+    const handler = (_e, data) => cb(data);
+    ipcRenderer.on('panel:closed', handler);
+    return () => ipcRenderer.removeListener('panel:closed', handler);
+  },
+  onPanelCommand: (cb) => {
+    const handler = (_e, data) => cb(data);
+    ipcRenderer.on('panel:cmd', handler);
+    return () => ipcRenderer.removeListener('panel:cmd', handler);
+  },
 });
