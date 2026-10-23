@@ -56,10 +56,12 @@ subtitles** to the new length. Everything is powered by `ffmpeg`.
   low-res H.264 proxy for previewing; exports still use the original files.
 - **Sensible encode presets** — x264 / x265 / NVENC, CRF quality, resolution/fps
   normalisation, AAC audio, `+faststart`, live progress with ETA, and cancellable exports.
-- **Detachable, hideable workspace** — hide the side panel, timeline or control center to
-  give the player the whole window (`F` for focus mode), or **pop the side panel and control
-  center out into their own windows** and drag them to a second monitor — they stay in sync
-  both ways. The timeline can float as a card when you want it out of the way.
+- **Pin, auto-hide, detach** — every pane has a flat pin + detach button. Pinned (default)
+  keeps it docked; unpinned hides it and hovering the player slides in a chevron to call it
+  back, so the player can own the whole window. The side panel and the control center can
+  also be **popped out into their own windows** for a second monitor — they stay in sync both
+  ways. The timeline is sticky: it follows the control center (and floats as a card while the
+  controls are in their own window).
 - Undo/redo and keyboard shortcuts throughout.
 
 ---
@@ -168,9 +170,8 @@ Settings are stored in your Electron user-data folder (`settings.json`).
 | `+` / `-` | Zoom the timeline |
 | `Ctrl` + `Z` | Undo |
 | `Ctrl` + `Shift` + `Z` / `Ctrl` + `Y` | Redo |
-| `F` | Focus mode — hide/show the panels for a full-screen player |
-| `Ctrl` + `1` / `2` / `3` | Show/hide side panel · timeline · control center |
-| `Ctrl` + `Shift` + `1` / `2` / `3` | Detach / re-dock the same pane |
+| `Ctrl` + `1` / `2` | Pin (show) or auto-hide the side panel · control center (timeline follows) |
+| `Ctrl` + `Shift` + `1` / `2` | Detach / re-dock the side panel · control center |
 | Right-click | Cut context menu at the pointer |
 | Double-click ruler / filmstrip | Set In, then Out, then start a new range |
 | Double-click In/Out marker | Remove that marker |

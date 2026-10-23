@@ -461,27 +461,32 @@ The timeline's internal bands are height-relative: the filmstrip runs from the 2
 `calc(var(--subs-h) + 4px)` above the bottom, and the subtitle lane is pinned to the bottom
 (62px). Nothing inside needs re-rendering when the split changes.
 
-### Layout: hide / detach panes
+### Layout: pin (auto-hide) / detach panes
 
-Each of the three panes — side panel (`#sidebar`), timeline (`#timelineWrap`) and control
-center (`#transportBar`) — is `docked`, `hidden` or `detached`, driven by the layout bar in
-the topbar (`btnToggle*/btnDetach*`), `Ctrl+1..3` (hide) / `Ctrl+Shift+1..3` (detach), and
-`F` / `btnFocusPlayer` for focus mode (hides all three in this window, remembers the rest).
+Each pane carries a flat `[pin][detach]` pair in its own header — side panel
+(`#btnPinSidebar`/`#btnDetachSidebar`) and control center
+(`#btnPinTransport`/`#btnDetachTransport`). There is no global layout toolbar.
 
-- `hidden` → `body.hide-<pane>` (`display: none`).
-- `detached` → `body.detach-<pane>`; either state leaves the CSS grid, so `.main`'s `1fr`
-  player row absorbs the freed space (and `body.hide-sidebar`/`detach-sidebar` collapse
-  `.layout` to a single column).
-- **Side panel and control center detach into real OS windows** (see below) so they can be
-  dragged to another monitor.
-- **The timeline detaches as an in-window floating card**: `.is-floating` sets
-  `position: fixed` with inline `left/top/width/height`, plus a lazily injected `.float-head`
-  (drag to move, dock, hide, double-click to dock). CSS `resize` gives the corner grip and a
-  `ResizeObserver` persists the dragged size.
-- Timeline state persists in `localStorage["cuci2.layout"]` as
-  `{ sidebar|timeline|transport: { hidden, detached, rect: {x,y,w,h} } }`, re-clamped to the
-  viewport on resize. Windowed panels reopen on the next launch.
-- The splitter is disabled while the control center is hidden/detached.
+- **pinned** (default) → `layout.<pane>.pinned = true`, the pane is docked and always visible.
+- **unpinned** → `body.hide-<pane>` (`display: none`). While anything is unpinned, moving the
+  pointer over `.player-wrap` fades in `.reveal-bar` chevrons (`›` on the left edge for the
+  side panel, `^` at the bottom for the controls); clicking one pins that pane back.
+- **detached** → `body.detach-<pane>`; the side panel and control center leave for their own
+  OS window (see below). Detaching pins implicitly.
+- **The timeline is sticky to the control center** (`paneState('timeline')` mirrors
+  `layout.transport`): pinned with it, hidden with it, and when the controls live in a window
+  the timeline floats over the player as a card so it stays usable.
+- **Timeline as a floating card**: `.is-floating` sets `position: fixed` with inline
+  `left/top/width/height`, plus a lazily injected `.float-head` (drag to move, dock, hide,
+  double-click to dock). CSS `resize` gives the corner grip and a `ResizeObserver` persists
+  the dragged size.
+- Hidden/detached panes leave the CSS grid, so `.main`'s `1fr` player row absorbs the space
+  (`body.hide-sidebar`/`detach-sidebar` collapse `.layout` to one column).
+- State persists in `localStorage["cuci2.layout"]` as
+  `{ sidebar|transport: { pinned, detached }, timeline: { rect } }` (`rect` = float
+  geometry); legacy `hidden` entries are still read. Windowed panes reopen on next launch.
+- Shortcuts: `Ctrl+1`/`Ctrl+2` pin-toggle sidebar/controls, `Ctrl+Shift+1`/`Ctrl+Shift+2`
+  detach-toggle them. The splitter is disabled while the controls are hidden/detached.
 
 ### Detached panel windows
 
@@ -532,7 +537,7 @@ panel window --'panel:cmd'--> panels.js --'panel:cmd'--> main renderer (onPanelC
 `init()` exposes `window.__cuciApp = { state, api, CU, addVideos, loadSubtitleFromPath,
 keptRanges, programRanges, remapAll, applyThumbSetting, buildJob, applyJob,
 encodeShareCode, decodeShareCode, addCut, removeCut, renderAll, seekTo, currentSetup,
-setPanelHidden, setPanelDetached, toggleFocusPlayer }`.
+setPanelPinned, setPanelDetached }`.
 Used by `lib/e2e.js` and handy in DevTools.
 
 ---

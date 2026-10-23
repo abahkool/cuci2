@@ -168,9 +168,10 @@ right-click cut menu, cut-edge drag, undo/redo), multi-clip merge, frame-accurat
 progress + cancel, subtitle sync with **multiple tracks per clip** (enable/remove, per-track
 `.srt` export, "track to burn"), Parental AI (NSFW) scanning, cut jobs (file + compact share
 code, Export/Import tabs, description), status bar with history, player/timeline splitter,
-context menu, keyboard shortcuts, workspace layout (**hide** any pane for a full-screen
-player, **detach** the side panel / control center into their own draggable windows for a
-second monitor, timeline as a floating card), MSIX packaging scaffold.
+context menu, keyboard shortcuts, workspace layout (per-pane **pin/auto-hide** with
+hover-to-reveal handles, **detach** the side panel / control center into their own draggable
+windows for a second monitor, timeline sticky to the control center and floating as a card
+while the controls are detached), MSIX packaging scaffold.
 
 Local-only (gitignored): `vendor/ffmpeg` (ffmpeg/ffprobe 9.0.2), `vendor/nsfw/model_quantized.onnx`,
 `Sample/` (including the user's screenshots in `Sample/others/`).
