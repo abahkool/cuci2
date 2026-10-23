@@ -41,12 +41,16 @@
 
         <section class="panel grow">
           <h3>Subtitles</h3>
+          <div class="row">
+            <button id="btnSubAdd" class="btn tiny">Add subtitle files…</button>
+          </div>
           <div id="subInfo" class="sub-info">No subtitle loaded.</div>
+          <div id="subTrackList" class="sub-track-list"></div>
           <div class="row">
             <label class="field"><span>Global offset (ms)</span><input id="subOffset" type="number" step="10" value="0" /></label>
           </div>
           <div class="row">
-            <button id="btnSubExport" class="btn tiny">Export synced .srt…</button>
+            <button id="btnSubExport" class="btn tiny">Export synced .srt files…</button>
           </div>
           <div id="subEventList" class="sub-event-list"></div>
         </section>
@@ -270,7 +274,13 @@
 
           <div class="check-row">
             <label class="check"><input id="expBurn" type="checkbox" /> <span>Burn synced subtitles into the video</span></label>
-            <label class="check"><input id="expSrt" type="checkbox" checked /> <span>Also write a synced <code>.srt</code> next to the output</span></label>
+            <label class="check"><input id="expSrt" type="checkbox" checked /> <span>Also write synced <code>.srt</code> files next to the output</span></label>
+          </div>
+          <div class="burn-track hidden">
+            <label class="field">
+              <span>Subtitle track to burn</span>
+              <select id="expBurnTrack"></select>
+            </label>
           </div>
 
           <div id="expSummary" class="summary"></div>

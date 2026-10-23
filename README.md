@@ -34,8 +34,8 @@ subtitles** to the new length. Everything is powered by `ffmpeg`.
 - **Cut & merge** — remove as many ranges as you like from each clip, reorder clips, and
   CUCI² joins the kept segments into one continuous output (sources with different
   resolutions/fps, or missing audio, are normalised automatically).
-- **Subtitle auto-sync** — load an `.srt` / `.vtt` next to a clip and CUCI² remaps every
-  event through the cut list:
+- **Subtitle auto-sync, multiple tracks** — load one or more `.srt` / `.vtt` files per clip
+  and CUCI² remaps every track through the cut list:
   - events after a cut shift earlier by exactly the removed duration,
   - events spanning a cut boundary are trimmed/split,
   - events fully inside a cut are dropped,
@@ -122,11 +122,15 @@ terminal — handy when developing.
    Removed ranges show as red striped blocks — drag their edges to fine-tune.
 3. **Merge** — use ↑ / ↓ on each clip card to set output order. Each card shows the trimmed
    duration.
-4. **Add Subtitle** — select a clip and load its `.srt`/`.vtt`. The *Subtitles* panel shows
-   each event's original time → new time, and the timeline lane colour-codes them.
+4. **Add Subtitles** — select a clip and pick **one or more** `.srt`/`.vtt` files (the dialog
+   supports multi-select). Each file becomes a track: tick it to include it in exports, click
+   it to show its events in the panel / timeline / preview, or ✕ to remove it. The *Subtitles*
+   panel shows each event's original time → new time for the selected track, and the timeline
+   lane colour-codes them.
 5. **Export** — choose the output file and options. The summary shows the output duration
    and exactly how much was **removed**; if that is 0, Export asks you to confirm, so a
-   full-length re-encode can't happen by accident.
+   full-length re-encode can't happen by accident. If you burn subtitles, pick which track to
+   burn; a synced `.srt` is written for **every enabled track** (`movie.en.srt`, `movie.id.srt`, …).
 
 ---
 
@@ -187,7 +191,8 @@ The **Job** button opens a two-tab panel:
 
 A job stores the cut list, subtitle offset, export settings, an optional **description**
 (up to 200 characters) written by the creator, and a source fingerprint (file name + byte
-size + duration). Subtitles can optionally be embedded so a share is fully self-contained.
+size + duration). Subtitle tracks can optionally be embedded so a share is fully
+self-contained.
 
 ### Share code format
 

@@ -20,6 +20,7 @@
     clips: 200,
     cutsPerClip: 5_000,
     totalCuts: 50_000,
+    subtitlesPerClip: 20,
     subtitleEventsPerClip: 100_000,
     totalSubtitleEvents: 500_000,
     textChars: 2_000,
@@ -147,8 +148,12 @@
         : undefined,
       c: job.clips.map((c) => {
         const o = { n: c.name, z: c.size || undefined, d: c.durationMs, f: c.fps, w: c.width, h: c.height, A: c.hasAudio ? 1 : 0, x: c.cuts };
-        if (c.subtitle && c.subtitle.events && c.subtitle.events.length) {
-          o.u = { n: c.subtitle.name, f: c.subtitle.format, v: c.subtitle.events };
+        const tracks = (c.subtitles || []).filter((t) => t.events && t.events.length);
+        if (tracks.length === 1) {
+          // Legacy-compatible single-track shape.
+          o.u = { n: tracks[0].name, f: tracks[0].format, v: tracks[0].events };
+        } else if (tracks.length > 1) {
+          o.u = tracks.map((t) => ({ n: t.name, f: t.format, v: t.events }));
         }
         return o;
       }),
@@ -192,7 +197,11 @@
           height: c.h,
           hasAudio: !!c.A,
           cuts: c.x,
-          subtitle: isObject(c.u) ? { name: c.u.n, format: c.u.f, events: c.u.v } : null,
+          subtitles: Array.isArray(c.u)
+          ? c.u.filter(isObject).map((u) => ({ name: u.n, format: u.f, events: u.v }))
+          : isObject(c.u)
+            ? [{ name: c.u.n, format: c.u.f, events: c.u.v }]
+            : [],
         };
       }).filter(Boolean),
     };
@@ -246,28 +255,30 @@
       if (cutTotal + cuts.length > LIMITS.totalCuts) cuts.length = Math.max(0, LIMITS.totalCuts - cutTotal);
       cutTotal += cuts.length;
 
-      // subtitle
-      let subtitle = null;
-      if (isObject(c.subtitle) && Array.isArray(c.subtitle.events)) {
+      // subtitles: plural array; the legacy singular `subtitle` is still accepted
+      const rawTracks = Array.isArray(c.subtitles) ? c.subtitles : isObject(c.subtitle) ? [c.subtitle] : [];
+      const subtitles = [];
+      for (const t of rawTracks.slice(0, LIMITS.subtitlesPerClip)) {
+        if (!isObject(t) || !Array.isArray(t.events)) continue;
         const events = [];
-        for (const ev of c.subtitle.events.slice(0, LIMITS.subtitleEventsPerClip)) {
+        for (const ev of t.events.slice(0, LIMITS.subtitleEventsPerClip)) {
           if (!Array.isArray(ev) || ev.length < 2) continue;
           const s = num(ev[0], NaN, 0, LIMITS.ms);
           const e = num(ev[1], NaN, 0, LIMITS.ms);
-          const t = sanitizeSubtitleText(ev[2]);
-          if (!Number.isFinite(s) || !Number.isFinite(e) || e <= s || !t) continue;
-          events.push([Math.round(s * 1000) / 1000, Math.round(e * 1000) / 1000, t]);
+          const body = sanitizeSubtitleText(ev[2]);
+          if (!Number.isFinite(s) || !Number.isFinite(e) || e <= s || !body) continue;
+          events.push([Math.round(s * 1000) / 1000, Math.round(e * 1000) / 1000, body]);
         }
         if (eventTotal + events.length > LIMITS.totalSubtitleEvents) {
           events.length = Math.max(0, LIMITS.totalSubtitleEvents - eventTotal);
         }
         eventTotal += events.length;
         if (events.length) {
-          subtitle = {
-            name: oneLine(c.subtitle.name, LIMITS.nameChars) || 'shared subtitles',
-            format: c.subtitle.format === 'vtt' ? 'vtt' : 'srt',
+          subtitles.push({
+            name: oneLine(t.name, LIMITS.nameChars) || 'subtitles',
+            format: t.format === 'vtt' ? 'vtt' : 'srt',
             events,
-          };
+          });
         }
       }
 
@@ -280,7 +291,7 @@
         height: Math.round(num(c.height, 0, 0, 100_000)),
         hasAudio: c.hasAudio === true,
         cuts,
-        subtitle,
+        subtitles,
       });
     }
 

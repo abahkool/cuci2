@@ -7,7 +7,7 @@ contextBridge.exposeInMainWorld('api', {
   setSettings: (patch) => ipcRenderer.invoke('settings:set', patch),
 
   openVideos: () => ipcRenderer.invoke('dialog:openVideos'),
-  openSubtitle: () => ipcRenderer.invoke('dialog:openSubtitle'),
+  openSubtitles: () => ipcRenderer.invoke('dialog:openSubtitles'),
   openFile: (opts) => ipcRenderer.invoke('dialog:openFile', opts),
   saveFile: (opts) => ipcRenderer.invoke('dialog:saveFile', opts),
 

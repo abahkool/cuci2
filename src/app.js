@@ -43,14 +43,14 @@
       'btnAddVideo', 'btnAddVideo2', 'btnAddSub', 'btnExport', 'btnSettings', 'ffStatus',
       'clipList', 'clipCount', 'cutList', 'cutCount', 'ioReadout',
       'btnSetIn', 'btnSetOut', 'btnCut', 'btnClearCuts', 'btnClearMarks',
-      'subInfo', 'subOffset', 'btnSubExport', 'subEventList',
+      'subInfo', 'subOffset', 'btnSubAdd', 'subTrackList', 'btnSubExport', 'subEventList',
       'btnPlay', 'btnStop', 'btnPrevFrame', 'btnNextFrame', 'btnPrevSec', 'btnNextSec',
       'timecode', 'timeTotal', 'resultTc', 'seekRange', 'modeSource', 'modeResult', 'chkSnap', 'zoomRange',
       'mainPane', 'transportBar', 'timelineWrap', 'playerSplitter',
       'timelineScroll', 'timeline', 'tlRuler', 'tlFilm', 'tlCuts', 'tlSubs',
       'tlSelection', 'tlMarkerIn', 'tlMarkerOut', 'tlPlayhead', 'emptyState',
       'exportModal', 'expPath', 'expBrowse', 'expContainer', 'expVcodec', 'expCrf', 'expCrfVal',
-      'expPreset', 'expRes', 'expFps', 'expAbitrate', 'expBurn', 'expSrt', 'expSummary',
+      'expPreset', 'expRes', 'expFps', 'expAbitrate', 'expBurn', 'expBurnTrack', 'expSrt', 'expSummary',
       'expProgressWrap', 'expProgressBar', 'expStatus', 'expStart', 'expCancel', 'expClose', 'expClose2',
       'settingsModal', 'setFfmpeg', 'setFfprobe', 'setFfmpegBrowse', 'setFfprobeBrowse', 'setPreferBundled', 'setUseBundled',
       'setLoadThumbs', 'setDetect', 'setSave', 'setClose', 'setClose2', 'setStatus',
@@ -111,22 +111,62 @@
     return { ranges, total: offset };
   }
 
-  function remapAll() {
-    if (remapCache) return remapCache;
-    const baseFor = new Map();
+  /** The subtitle track currently shown in the panel / timeline / preview. */
+  function activeSubtitleTrack(clip) {
+    if (!clip || !Array.isArray(clip.subtitles) || !clip.subtitles.length) return null;
+    return clip.subtitles.find((t) => t.id === clip.activeSubtitleId) || clip.subtitles[0];
+  }
+
+  function enabledSubtitleTracks(clip) {
+    return (clip.subtitles || []).filter((t) => t.enabled !== false);
+  }
+
+  /** Total kept duration of every clip before this one in the join order. */
+  function clipBaseOffset(clip) {
     let base = 0;
     for (const c of state.clips) {
-      baseFor.set(c.id, base);
+      if (c.id === clip.id) break;
       base += totalKept(c);
     }
-    let out = [];
+    return base;
+  }
+
+  /** Remap one track of one clip into output time. */
+  function remapTrack(clip, track) {
+    return CU.remapEvents(track.events, keptRanges(clip), clipBaseOffset(clip), state.globalSubOffset);
+  }
+
+  function computeRemaps() {
+    if (remapCache) return remapCache;
+    const tracks = [];
+    const all = [];
     for (const c of state.clips) {
-      if (c.subtitle) {
-        out = out.concat(CU.remapEvents(c.subtitle.events, keptRanges(c), baseFor.get(c.id), state.globalSubOffset));
+      for (const t of enabledSubtitleTracks(c)) {
+        const events = remapTrack(c, t);
+        tracks.push({ clipId: c.id, clipName: c.name, trackId: t.id, name: t.name, format: t.format, events });
+        all.push(...events);
       }
     }
-    remapCache = out;
-    return out;
+    remapCache = { tracks, all };
+    return remapCache;
+  }
+
+  /** All enabled tracks flattened (debug handle / generic uses). */
+  function remapAll() {
+    return computeRemaps().all;
+  }
+
+  /** Remapped events per track, in clip order (used by export). */
+  function remapAllTracks() {
+    return computeRemaps().tracks;
+  }
+
+  function safeFileSuffix(name) {
+    const s = CU.stripExt(name || '')
+      .replace(/[^a-z0-9_-]+/gi, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 32);
+    return s || 'sub';
   }
 
   /** Per-event source→output mapping used by the subtitle panel. */
@@ -279,7 +319,15 @@
       state.clips.map((c) => ({
         id: c.id,
         cuts: c.cuts.map((x) => ({ id: x.id, start: x.start, end: x.end })),
-        subtitle: c.subtitle ? { path: c.subtitle.path, name: c.subtitle.name, format: c.subtitle.format, events: c.subtitle.events } : null,
+        subtitles: (c.subtitles || []).map((t) => ({
+          id: t.id,
+          path: t.path,
+          name: t.name,
+          format: t.format,
+          events: t.events,
+          enabled: t.enabled !== false,
+        })),
+        activeSubtitleId: c.activeSubtitleId || null,
         order: null,
       })),
     );
@@ -297,7 +345,8 @@
       const c = byId.get(d.id);
       if (!c) continue;
       c.cuts = d.cuts || [];
-      c.subtitle = d.subtitle || null;
+      c.subtitles = (d.subtitles || []).map((t) => ({ ...t }));
+      c.activeSubtitleId = d.activeSubtitleId || (c.subtitles[0] ? c.subtitles[0].id : null);
       ordered.push(c);
     }
     for (const c of state.clips) if (!ordered.includes(c)) ordered.push(c);
@@ -340,7 +389,8 @@
           audioCodec: info.audioCodec,
           fileSize: info.size || 0,
           cuts: [],
-          subtitle: null,
+          subtitles: [],
+          activeSubtitleId: null,
           thumbs: null,
           proxyPath: null,
         };
@@ -423,30 +473,61 @@
     }
   }
 
-  async function loadSubtitleFromPath(clip, p) {
-    try {
-      const text = await api.readText(p);
-      const parsed = CU.parseSubtitles(text);
-      if (!parsed.events.length) {
-        toast(`No subtitle events were found in ${CU.basename(p)}.`, 'warn');
-        return false;
+  /** Load one or more subtitle files into a clip — one track per file. */
+  async function loadSubtitlesFromPaths(clip, paths) {
+    if (!clip || !paths || !paths.length) return 0;
+    if (!Array.isArray(clip.subtitles)) clip.subtitles = [];
+    let added = 0;
+    const problems = [];
+
+    for (const p of paths) {
+      try {
+        if (clip.subtitles.some((t) => t.path && t.path === p)) {
+          problems.push(`${CU.basename(p)}: already loaded`);
+          continue;
+        }
+        const text = await api.readText(p, { maxBytes: 64 * 1024 * 1024 });
+        const parsed = CU.parseSubtitles(text);
+        if (!parsed.events.length) {
+          problems.push(`${CU.basename(p)}: no subtitle events found`);
+          continue;
+        }
+        clip.subtitles.push({
+          id: CU.uid('sub'),
+          path: p,
+          name: CU.basename(p),
+          format: parsed.format,
+          events: parsed.events,
+          enabled: true,
+        });
+        added += 1;
+      } catch (err) {
+        problems.push(`${CU.basename(p)}: ${err.message || err}`);
       }
+    }
+
+    if (added) {
       pushUndo();
-      clip.subtitle = { path: p, name: CU.basename(p), format: parsed.format, events: parsed.events };
+      if (!clip.activeSubtitleId || !clip.subtitles.some((t) => t.id === clip.activeSubtitleId)) {
+        clip.activeSubtitleId = clip.subtitles[0].id;
+      }
       invalidate();
       renderAll();
-      toast(`Loaded ${parsed.events.length} subtitle events from ${CU.basename(p)}.`, 'ok');
-      return true;
-    } catch (err) {
-      toast('Failed to read subtitle file:\n' + (err.message || err), 'error');
-      return false;
+      setStatus(`Loaded ${added} subtitle file(s) · ${clip.subtitles.length} track(s) on ${clip.name}`, 'ok', { timeout: 3500 });
     }
+    if (problems.length) toast(problems.join('\n'), 'warn', 8000);
+    return added;
+  }
+
+  /** Compatibility wrapper used by tests: load a single subtitle file. */
+  async function loadSubtitleFromPath(clip, p) {
+    return (await loadSubtitlesFromPaths(clip, [p])) > 0;
   }
 
   async function addSubtitleToClip(clip) {
-    const p = await api.openSubtitle();
-    if (!p) return false;
-    return loadSubtitleFromPath(clip, p);
+    const paths = await api.openSubtitles();
+    if (!paths || !paths.length) return false;
+    return (await loadSubtitlesFromPaths(clip, paths)) > 0;
   }
 
   /* ───────────────────────────── video element ───────────────────────────── */
@@ -608,12 +689,13 @@
       els.tlCuts.appendChild(el);
     }
 
-    // subtitles
+    // subtitles (active track)
     els.tlSubs.innerHTML = '';
-    if (clip.subtitle) {
+    const subTrack = activeSubtitleTrack(clip);
+    if (subTrack) {
       const ranges = keptRanges(clip);
-      const dropped = new Set(CU.droppedEvents(clip.subtitle.events, ranges));
-      clip.subtitle.events.forEach((ev) => {
+      const dropped = new Set(CU.droppedEvents(subTrack.events, ranges));
+      subTrack.events.forEach((ev) => {
         const el = document.createElement('div');
         el.className = 'tl-sub' + (dropped.has(ev) ? ' dropped' : '');
         el.style.left = ev.start * ppm + 'px';
@@ -672,7 +754,8 @@
       const el = document.createElement('div');
       el.className = 'clip' + (clip.id === state.activeClipId ? ' active' : '');
       const badges = [];
-      if (clip.subtitle) badges.push(`<span class="badge sub">SUB</span>`);
+      const subCount = (clip.subtitles || []).length;
+      if (subCount) badges.push(`<span class="badge sub">SUB${subCount > 1 ? ' ' + subCount : ''}</span>`);
       if (clip.proxyPath) badges.push(`<span class="badge">PROXY</span>`);
       el.innerHTML = `
         <div class="clip-top">
@@ -690,7 +773,7 @@
         <div class="clip-actions">
           <button class="btn tiny" data-act="up" title="Move earlier">↑</button>
           <button class="btn tiny" data-act="down" title="Move later">↓</button>
-          <button class="btn tiny ghost" data-act="sub">${clip.subtitle ? 'Replace sub' : 'Add sub'}</button>
+          <button class="btn tiny ghost" data-act="sub">Add sub</button>
           <button class="btn tiny ghost" data-act="remove">Remove</button>
         </div>`;
       el.addEventListener('click', async (e) => {
@@ -784,22 +867,63 @@
     const clip = activeClip();
     if (document.activeElement !== els.subOffset) els.subOffset.value = String(state.globalSubOffset);
     els.subEventList.innerHTML = '';
-    els.btnSubExport.disabled = !state.clips.some((c) => c.subtitle);
+    els.subTrackList.innerHTML = '';
+    els.btnSubExport.disabled = !state.clips.some((c) => (c.subtitles || []).length);
+    els.btnSubAdd.disabled = !clip;
 
     if (!clip) {
       els.subInfo.textContent = 'Select a clip to manage its subtitles.';
       return;
     }
-    if (!clip.subtitle) {
-      els.subInfo.innerHTML = 'No subtitle loaded for this clip.';
+
+    const tracks = clip.subtitles || [];
+    if (!tracks.length) {
+      els.subInfo.innerHTML =
+        'No subtitles loaded for this clip. Add one or more <code>.srt</code>/<code>.vtt</code> files — each becomes its own track.';
       return;
     }
+
     const ranges = keptRanges(clip);
-    const rows = buildSubRows(clip.subtitle.events, ranges, state.globalSubOffset);
+    const active = activeSubtitleTrack(clip);
+
+    // One row per track: enable for export, pick which is shown, remove.
+    tracks.forEach((t) => {
+      const keptCount = remapTrack(clip, t).length;
+      const row = document.createElement('div');
+      row.className = 'sub-track' + (t.id === active.id ? ' active' : '') + (t.enabled === false ? ' disabled' : '');
+      row.title = 'Click to show this track in the timeline and preview';
+      row.innerHTML =
+        `<input type="checkbox" class="sub-track-toggle" ${t.enabled !== false ? 'checked' : ''} title="Include this track when exporting" />` +
+        `<span class="sub-track-name">${CU.escapeHtml(t.name)}</span>` +
+        `<span class="sub-track-meta" title="kept / total events">${keptCount}/${t.events.length}</span>` +
+        `<button class="sub-track-remove" title="Remove this subtitle track">✕</button>`;
+      row.querySelector('.sub-track-toggle').addEventListener('change', (e) => {
+        t.enabled = e.target.checked;
+        invalidate();
+        renderAll();
+      });
+      row.querySelector('.sub-track-remove').addEventListener('click', (e) => {
+        e.stopPropagation();
+        pushUndo();
+        clip.subtitles = clip.subtitles.filter((x) => x.id !== t.id);
+        if (clip.activeSubtitleId === t.id) clip.activeSubtitleId = clip.subtitles[0] ? clip.subtitles[0].id : null;
+        invalidate();
+        renderAll();
+      });
+      row.addEventListener('click', (e) => {
+        if (e.target.closest('input, button')) return;
+        clip.activeSubtitleId = t.id;
+        renderAll();
+      });
+      els.subTrackList.appendChild(row);
+    });
+
+    const rows = buildSubRows(active.events, ranges, state.globalSubOffset);
     const droppedCount = rows.filter((r) => r.dropped).length;
     const keptCount = rows.length - droppedCount;
     els.subInfo.innerHTML =
-      `<b>${CU.escapeHtml(clip.subtitle.name)}</b><br>` +
+      `<b>${tracks.length} track${tracks.length > 1 ? 's' : ''}</b> · ` +
+      `<b>${CU.escapeHtml(active.name)}</b>${active.enabled === false ? ' (excluded from export)' : ''}<br>` +
       `${rows.length} events · <span class="ok">${keptCount} kept</span>` +
       (droppedCount ? ` · <span class="warn">${droppedCount} dropped inside cuts</span>` : '');
 
@@ -855,17 +979,18 @@
 
   function updateSubtitleOverlay() {
     const clip = activeClip();
-    if (!clip || !clip.subtitle) {
+    const track = activeSubtitleTrack(clip);
+    if (!track) {
       els.subtitleOverlay.innerHTML = '';
       return;
     }
     let events;
     let time;
     if (state.playMode === 'result') {
-      events = remapAll();
+      events = remapTrack(clip, track);
       time = state.resultTime;
     } else {
-      events = clip.subtitle.events;
+      events = track.events;
       time = state.playhead;
     }
     const active = [];
@@ -1363,12 +1488,13 @@
           height: clip.height,
           hasAudio: !!clip.hasAudio,
           cuts: [...clip.cuts].sort((a, b) => a.start - b.start).map((c) => [round3(c.start), round3(c.end)]),
-          subtitle: null,
+          subtitles: [],
         };
-        if (clip.subtitle) {
-          entry.subtitle = { name: clip.subtitle.name, format: clip.subtitle.format || 'srt', events: null };
-          if (includeSubtitles) entry.subtitle.events = clip.subtitle.events.map((e) => [round3(e.start), round3(e.end), e.text]);
-        }
+        entry.subtitles = (clip.subtitles || []).map((t) => ({
+          name: t.name,
+          format: t.format || 'srt',
+          events: includeSubtitles ? t.events.map((e) => [round3(e.start), round3(e.end), e.text]) : null,
+        }));
         return entry;
       }),
     };
@@ -1428,14 +1554,18 @@
         .map((c) => ({ id: CU.uid('cut'), start: Number(c[0]) || 0, end: Number(c[1]) || 0 }))
         .filter((c) => c.end > c.start);
       normalizeCuts(clip);
-      if (entry.subtitle && Array.isArray(entry.subtitle.events) && entry.subtitle.events.length) {
-        clip.subtitle = {
+      const incomingTracks = Array.isArray(entry.subtitles) ? entry.subtitles : [];
+      clip.subtitles = incomingTracks
+        .filter((t) => t && Array.isArray(t.events) && t.events.length)
+        .map((t) => ({
+          id: CU.uid('sub'),
           path: '',
-          name: entry.subtitle.name || 'shared subtitles',
-          format: entry.subtitle.format || 'srt',
-          events: entry.subtitle.events.map((e) => ({ start: Number(e[0]) || 0, end: Number(e[1]) || 0, text: String(e[2] == null ? '' : e[2]) })),
-        };
-      }
+          name: t.name || 'shared subtitles',
+          format: t.format === 'vtt' ? 'vtt' : 'srt',
+          events: t.events.map((e) => ({ start: Number(e[0]) || 0, end: Number(e[1]) || 0, text: String(e[2] == null ? '' : e[2]) })),
+          enabled: true,
+        }));
+      clip.activeSubtitleId = clip.subtitles[0] ? clip.subtitles[0].id : null;
     }
     if (typeof job.subOffsetMs === 'number') {
       state.globalSubOffset = Math.round(job.subOffsetMs);
@@ -1519,7 +1649,7 @@
     els.jobCode.value = code;
     const bytes = new TextEncoder().encode(code).length;
     const cuts = job.clips.reduce((a, c) => a + c.cuts.length, 0);
-    const hasSubs = job.clips.some((c) => c.subtitle && c.subtitle.events);
+    const hasSubs = job.clips.some((c) => (c.subtitles || []).some((t) => t.events && t.events.length));
     const sizeHint = bytes <= 280 ? ' · tweet-sized' : '';
     els.jobCodeInfo.textContent = `${bytes.toLocaleString()} chars · ${job.clips.length} clip(s) · ${cuts} cut(s)${hasSubs ? ' · includes subtitles' : ''}${sizeHint}`;
     els.jobCodeInfo.classList.toggle('warn', bytes > 4000);
@@ -1791,7 +1921,26 @@
     height = even(height);
     const fpsSel = els.expFps.value;
     const fps = fpsSel === 'source' ? (first && first.fps) || 25 : parseFloat(fpsSel);
-    return { ranges, total, width, height, fps, subs: remapAll() };
+    const tracks = remapAllTracks().filter((t) => t.events.length);
+    const subs = tracks.reduce((acc, t) => acc.concat(t.events), []);
+    return { ranges, total, width, height, fps, tracks, subs };
+  }
+
+  function refreshBurnTrackOptions(tracks) {
+    const sel = els.expBurnTrack;
+    if (!sel) return;
+    const prev = sel.value;
+    sel.innerHTML = '';
+    for (const t of tracks) {
+      const opt = document.createElement('option');
+      opt.value = t.trackId;
+      opt.textContent = t.name;
+      sel.appendChild(opt);
+    }
+    if (prev && tracks.some((t) => t.trackId === prev)) sel.value = prev;
+    sel.disabled = !tracks.length;
+    const wrap = sel.closest('.burn-track');
+    if (wrap) wrap.classList.toggle('hidden', !els.expBurn.checked || !tracks.length);
   }
 
   // Guards against accidentally exporting the full source when the user meant
@@ -1805,7 +1954,7 @@
   }
 
   function updateExportSummary() {
-    const { ranges, total, width, height, fps, subs } = currentSetup();
+    const { ranges, total, width, height, fps, tracks, subs } = currentSetup();
     const completed = state.clips.reduce((a, c) => a + c.durationMs, 0);
     const removed = Math.max(0, completed - total);
     const noCuts = removed < 1;
@@ -1816,7 +1965,7 @@
       `output duration  : ${CU.fmt(total, 3)}`,
       `removed          : ${CU.fmt(removed, 3)}`,
       `video            : ${width}×${height} @ ${Number(fps).toFixed(3)} fps`,
-      `subtitles        : ${subs.length} events synced` + (els.expBurn.checked ? ' · burned in' : ''),
+      `subtitles        : ${tracks.length} track(s) · ${subs.length} events synced` + (els.expBurn.checked ? ' · burned in' : ''),
     ];
     let html = lines
       .map((l) => CU.escapeHtml(l).replace(/^([a-z ]+):/, '<b>$1</b>:'))
@@ -1825,6 +1974,7 @@
       html += '\n\n<b style="color:var(--warn)">⚠ No cuts applied yet — the output would be the full source length.</b>';
     }
     els.expSummary.innerHTML = html;
+    refreshBurnTrackOptions(tracks);
     els.expStart.disabled = ranges.length === 0;
     resetExportConfirm();
   }
@@ -1855,7 +2005,7 @@
     const outputPath = els.expPath.value.trim();
     if (!outputPath) return toast('Choose an output file.', 'warn');
 
-    const { ranges, total, width, height, fps, subs } = currentSetup();
+    const { ranges, total, width, height, fps, tracks, subs } = currentSetup();
     if (!ranges.length) return toast('Nothing to export — the whole timeline is cut away.', 'warn');
 
     const completed = state.clips.reduce((a, c) => a + c.durationMs, 0);
@@ -1869,15 +2019,21 @@
     }
     resetExportConfirm();
 
-    const burn = els.expBurn.checked && subs.length > 0;
-    if (els.expBurn.checked && subs.length === 0) toast('No subtitles to burn — continuing without them.', 'warn');
+    const burnTrack = tracks.find((t) => t.trackId === els.expBurnTrack.value) || tracks[0] || null;
+    const burn = els.expBurn.checked && !!burnTrack;
+    if (els.expBurn.checked && !burnTrack) toast('No subtitles to burn — continuing without them.', 'warn');
 
-    // option: also export a synced .srt
-    if (els.expSrt.checked && subs.length) {
-      const srtPath = outputPath.replace(/\.[^./\\]+$/, '') + '.srt';
+    // Write one synced .srt per enabled track next to the output.
+    if (els.expSrt.checked && tracks.length) {
+      const dir = CU.dirname(outputPath);
+      const base = CU.stripExt(CU.basename(outputPath));
+      const multi = tracks.length > 1;
       try {
-        await api.writeText(srtPath, CU.serializeSrt(subs));
-        toast('Synced subtitle written:\n' + srtPath, 'ok', 6000);
+        for (const t of tracks) {
+          const suffix = multi ? '.' + safeFileSuffix(t.name) : '';
+          await api.writeText(pathJoin(dir, base + suffix + '.srt'), CU.serializeSrt(t.events));
+        }
+        toast(`Wrote ${tracks.length} synced subtitle file(s) next to the output.`, 'ok', 6000);
       } catch (err) {
         toast('Could not write .srt:\n' + (err.message || err), 'error');
       }
@@ -1900,7 +2056,7 @@
       preset: els.expPreset.value,
       audioBitrate: els.expAbitrate.value,
       burnSubtitles: burn,
-      subtitleSrt: burn ? CU.serializeSrt(subs) : '',
+      subtitleSrt: burn && burnTrack ? CU.serializeSrt(burnTrack.events) : '',
     };
 
     state.exporting = true;
@@ -2200,16 +2356,28 @@
       updateSubtitleOverlay();
     });
 
+    els.btnSubAdd.addEventListener('click', async () => {
+      const clip = activeClip();
+      if (!clip) return toast('Add a video first.', 'warn');
+      await addSubtitleToClip(clip);
+    });
+
     els.btnSubExport.addEventListener('click', async () => {
-      const subs = remapAll();
-      if (!subs.length) return toast('No subtitles to export.', 'warn');
+      const tracks = remapAllTracks().filter((t) => t.events.length);
+      if (!tracks.length) return toast('No subtitles to export.', 'warn');
       const first = state.clips[0];
       const def = pathJoin(CU.dirname(first.path), CU.stripExt(first.name) + '.synced.srt');
       const p = await api.saveFile({ title: 'Save synced subtitles', defaultPath: def, filters: [{ name: 'SubRip', extensions: ['srt'] }] });
       if (!p) return;
       try {
-        await api.writeText(p, CU.serializeSrt(subs));
-        toast('Synced subtitles saved:\n' + p, 'ok', 6000);
+        const dir = CU.dirname(p);
+        const base = CU.stripExt(CU.basename(p));
+        const multi = tracks.length > 1;
+        for (const t of tracks) {
+          const out = multi ? pathJoin(dir, base + '.' + safeFileSuffix(t.name) + '.srt') : p;
+          await api.writeText(out, CU.serializeSrt(t.events));
+        }
+        toast(`Saved ${tracks.length} synced subtitle file(s)${multi ? ' in ' + dir : ''}.`, 'ok', 6000);
       } catch (err) {
         toast('Failed to save:\n' + (err.message || err), 'error');
       }
@@ -2614,6 +2782,7 @@
       keptRanges,
       programRanges,
       remapAll,
+      remapAllTracks,
       applyThumbSetting,
       applyNsfwSegments,
       buildJob,

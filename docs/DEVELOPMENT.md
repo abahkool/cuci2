@@ -379,6 +379,19 @@ Covered by `lib/test-job.js` (unit) and the e2e `job xss guard` step, which impo
 plain share code through the real UI and asserts no script ran, no markup was injected and no
 extra subtitle cue was created.
 
+### Multiple subtitle tracks
+
+Each clip holds `subtitles: [{id, path, name, format, events, enabled}]` and an
+`activeSubtitleId` (the track shown in the panel, timeline lane and preview). The subtitle
+dialog uses `multiSelections`, so one pick can add several files at once.
+
+- `remapTrack(clip, track)` remaps one track using that clip's base offset.
+- `computeRemaps()` (cached until `invalidate()`) produces `{ tracks, all }`; `remapAllTracks()`
+  returns one entry per **enabled** track in clip order, and `remapAll()` is the flattened list.
+- Export writes one `.srt` per enabled track (`<output>.srt` for a single track, otherwise
+  `<output>.<track-name>.srt`) and burns only the track selected in the export dialog.
+- Disabled tracks are skipped by remapping/export but keep their events for re-enabling.
+
 ## Renderer architecture
 
 `src/app.js` is one IIFE with three layers:
@@ -394,7 +407,9 @@ wire()         DOM event wiring, IPC subscriptions, keyboard shortcuts
 ```js
 state = {
   clips: [ { id, path, name, fileSize, durationMs, fps, width, height, hasAudio,
-             cuts:[{id,start,end}], subtitle:{name,format,events}|null, thumbs, proxyPath } ],
+             cuts:[{id,start,end}],
+             subtitles:[{id,path,name,format,events,enabled}], activeSubtitleId,
+             thumbs, proxyPath } ],
   activeClipId, selection:{clipId,start,end}|null, inPoint, outPoint,
   playhead, resultTime, playMode:'source'|'result', snap, zoom, pxPerMs,
   globalSubOffset, settings:{loadThumbs}, jobDescription, pendingJob,
@@ -515,10 +530,17 @@ pass produces too many false positives.
     { "name":"bbb.mp4", "size":276134947, "durationMs":634600, "fps":30,
       "width":1920, "height":1080, "hasAudio":true,
       "cuts": [[60000,154000]],
-      "subtitle": { "name":"bbb.srt", "format":"srt", "events": [[1000,4000,"Hello"]] } }
+      "subtitles": [
+        { "name":"bbb.en.srt", "format":"srt", "events": [[1000,4000,"Hello"]] },
+        { "name":"bbb.id.srt", "format":"srt", "events": [[1000,4000,"Halo"]] }
+      ] }
   ]
 }
 ```
+
+`subtitles` is an array (one entry per track). Jobs produced by older versions used a
+singular `"subtitle": {...}`; `sanitizeJob()` still accepts that and normalises it to a
+one-element array.
 
 `subtitle.events` is `null` unless the user chose to embed subtitles.
 
@@ -534,7 +556,7 @@ Short keys, used **only** inside the share code:
 | `description` | `D` |
 | `subOffsetMs` | `o` |
 | `export` | `e` = `[container, videoCodec, crf, preset, resolution, fps, audioBitrate, burn?1:0, writeSrt?1:0]` |
-| `clips` | `c` = `[{ n, z(size), d(durationMs), f(fps), w, h, A(hasAudio 1/0), x:[[s,e]], u:{n,f,v:[[s,e,text]]} }]` |
+| `clips` | `c` = `[{ n, z(size), d(durationMs), f(fps), w, h, A(hasAudio 1/0), x:[[s,e]], u }]` — `u` is `{n,f,v}` for one track (legacy-compatible) or an array of those for multiple tracks |
 
 ### Share code
 
