@@ -615,6 +615,7 @@
   }
 
   function renderTimeline() {
+    scheduleTimelineSync();
     const clip = activeClip();
     els.emptyState.classList.toggle('hidden', state.clips.length > 0 && !!clip);
     if (!clip) {
@@ -2161,17 +2162,17 @@
   /*
    * Each pane carries a flat [pin][detach] pair in its own header:
    *   pinned   → docked and always visible (the default)
-   *   unpinned → auto-hidden; hovering the player slides in a chevron handle
-   *              that calls the pane back
-   *   detached → popped out into its own OS window (src/panel.html) so it can
-   *              live on a second monitor
-   * The timeline is sticky: it follows the control center (visible with it,
-   * hidden with it, and floating over the player when the controls are in a
-   * window).
+   *   unpinned → auto-hidden; moving the pointer over the player fades in a
+   *              chevron handle that opens a temporary *peek* (a slide-over
+   *              drawer). A peek is not a pin: it closes again when the pointer
+   *              leaves, unless the user clicks the pin button.
+   *   detached → the pane moves into its own OS window (src/panel.html). The
+   *              timeline belongs to the control center, so both travel
+   *              together and the timeline is rendered inside that window.
    *
    * Windowed panels are thin views: this renderer stays the source of truth and
-   * pushes snapshots (`pushPanelState`) while the panels send back commands
-   * (`onPanelCommand`). See lib/panels.js for the window manager.
+   * pushes snapshots (`pushPanelState` / `pushPanelTimeline`) while the panels
+   * send back commands (`onPanelCommand`). See lib/panels.js.
    */
   const PANEL_NAMES = ['sidebar', 'timeline', 'transport'];
   const PANEL_LABEL = { sidebar: 'Side panel', timeline: 'Timeline', transport: 'Control center' };
@@ -2181,21 +2182,24 @@
   let layout = null;
   let sidebarSyncTimer = null;
   let transportSyncTimer = null;
+  let timelineSyncTimer = null;
   let revealTimer = null;
+  let peekHideTimer = null;
   let autoHideHintShown = false;
+  const peeking = { sidebar: false, transport: false };
 
   function defaultLayout() {
-    const one = () => ({ pinned: true, detached: false, rect: null });
+    const one = () => ({ pinned: true, detached: false });
     return { sidebar: one(), timeline: one(), transport: one() };
   }
 
   const panelEl = (name) => els[PANEL_EL[name]] || null;
 
-  /* The timeline has no controls of its own: its state mirrors the control
-     center, only the floating-card rectangle is remembered separately. */
+  /* The timeline belongs to the control center: it is pinned/hidden/detached
+     with it and rendered inside the control center window when detached. */
   function paneState(name) {
-    if (name !== 'timeline') return layout[name];
-    return { pinned: layout.transport.pinned, detached: layout.transport.detached, rect: layout.timeline.rect };
+    const src = name === 'timeline' ? layout.transport : layout[name];
+    return { pinned: src.pinned, detached: src.detached };
   }
 
   function loadLayout() {
@@ -2208,206 +2212,41 @@
     }
     if (!saved || typeof saved !== 'object') return;
     for (const name of PANEL_NAMES) {
-      const s = saved[name];
-      if (!s || typeof s !== 'object') continue;
+      const st = saved[name];
+      if (!st || typeof st !== 'object') continue;
       // `hidden` is the pre-pin field name; keep reading it for old profiles.
-      if (typeof s.pinned === 'boolean') layout[name].pinned = s.pinned;
-      else if (s.hidden === true) layout[name].pinned = false;
-      layout[name].detached = s.detached === true;
-      const r = s.rect;
-      if (r && [r.x, r.y, r.w].every((n) => typeof n === 'number' && Number.isFinite(n))) {
-        layout[name].rect = { x: r.x, y: r.y, w: r.w, h: typeof r.h === 'number' && Number.isFinite(r.h) ? r.h : null };
-      }
+      if (typeof st.pinned === 'boolean') layout[name].pinned = st.pinned;
+      else if (st.hidden === true) layout[name].pinned = false;
+      layout[name].detached = st.detached === true;
     }
-    // A windowed pane is always "shown"; the timeline's flags are derived.
     for (const name of PANEL_NAMES) if (layout[name].detached) layout[name].pinned = true;
   }
 
   function saveLayout() {
-    const data = {
-      sidebar: { pinned: layout.sidebar.pinned, detached: layout.sidebar.detached, rect: layout.sidebar.rect },
-      timeline: { rect: layout.timeline.rect },
-      transport: { pinned: layout.transport.pinned, detached: layout.transport.detached, rect: layout.transport.rect },
-    };
     try {
-      localStorage.setItem('cuci2.layout', JSON.stringify(data));
+      localStorage.setItem(
+        'cuci2.layout',
+        JSON.stringify({
+          sidebar: { pinned: layout.sidebar.pinned, detached: layout.sidebar.detached },
+          transport: { pinned: layout.transport.pinned, detached: layout.transport.detached },
+        }),
+      );
     } catch {
       /* ignore */
     }
   }
 
-  function fallbackRect(name) {
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    if (name === 'sidebar') return { x: 16, y: 70, w: 330, h: Math.min(720, vh - 150) };
-    if (name === 'timeline') return { x: 24, y: Math.max(70, vh - 350), w: Math.min(1020, vw - 80), h: 300 };
-    return { x: Math.max(16, vw - Math.min(900, vw - 60) - 24), y: Math.max(160, vh - 160), w: Math.min(900, vw - 60), h: null };
-  }
-
-  /* Pick a card-sized spot for a freshly detached panel: try its preferred
-     corners first and keep the one that overlaps the fewest already-floating
-     panels. Stored positions (user drags) win over this. */
-  function placeRect(name, w, hEst) {
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const pad = 16;
-    const top = 70;
-    const bottom = vh - 44;
-    const others = PANEL_NAMES.filter((n) => n !== name && layout[n].detached && layout[n].pinned && layout[n].rect).map(
-      (n) => layout[n].rect,
-    );
-    const heightOf = (r) => (r.h == null ? 120 : r.h);
-    const overlapArea = (a, b) => {
-      const ow = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
-      const oh = Math.min(a.y + heightOf(a), b.y + heightOf(b)) - Math.max(a.y, b.y);
-      return ow > 0 && oh > 0 ? ow * oh : 0;
-    };
-    const xs = { left: pad, center: Math.round((vw - w) / 2), right: vw - w - pad };
-    const ys = { top, mid: Math.round((top + bottom - hEst) / 2), bottom: bottom - hEst };
-    const order = {
-      sidebar: [['left', 'top'], ['right', 'top'], ['left', 'mid'], ['right', 'mid'], ['center', 'mid']],
-      timeline: [['left', 'bottom'], ['center', 'bottom'], ['right', 'bottom'], ['left', 'mid'], ['center', 'mid'], ['right', 'mid']],
-      transport: [['center', 'bottom'], ['right', 'bottom'], ['left', 'bottom'], ['center', 'mid'], ['right', 'mid'], ['left', 'mid']],
-    }[name] || [['center', 'mid']];
-
-    let best = { x: xs.left, y: ys.top, w, h: null };
-    let bestScore = Infinity;
-    for (const [ax, ay] of order) {
-      const r = { x: xs[ax], y: ys[ay], w, h: null };
-      const score = others.reduce((sum, o) => sum + overlapArea({ ...r, h: hEst }, o), 0);
-      if (score < bestScore) {
-        bestScore = score;
-        best = r;
-        if (!score) break;
-      }
-    }
-    return clampRect(name, { ...best, h: name === 'transport' ? null : hEst });
-  }
-
-  function clampRect(name, rect) {
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const w = Math.max(200, Math.min(Math.round(rect.w), vw - 16));
-    const h = rect.h == null || name === 'transport' ? null : Math.max(110, Math.min(Math.round(rect.h), vh - 40));
-    // Always leave a grabbable slice of the panel on screen.
-    const x = Math.min(Math.max(Math.round(rect.x), -w + 120), vw - 120);
-    const y = Math.min(Math.max(Math.round(rect.y), 0), vh - 44);
-    return { x, y, w, h };
-  }
-
-  function applyFloatRect(name, rect) {
-    const el = panelEl(name);
-    if (!el) return;
-    const r = rect || clampRect(name, layout[name].rect || fallbackRect(name));
-    layout[name].rect = r;
-    el.style.left = r.x + 'px';
-    el.style.top = r.y + 'px';
-    el.style.width = r.w + 'px';
-    el.style.height = r.h == null ? '' : r.h + 'px';
-  }
-
-  function clearFloatRect(el) {
-    el.style.left = '';
-    el.style.top = '';
-    el.style.width = '';
-    el.style.height = '';
-  }
-
-  /* Floating header: drag to move, buttons to dock or hide. Built lazily so a
-     docked panel keeps exactly the markup it always had. */
-  function ensureFloatHead(name) {
-    const el = panelEl(name);
-    if (!el) return null;
-    let head = el.querySelector(':scope > .float-head');
-    if (head) return head;
-
-    head = document.createElement('div');
-    head.className = 'float-head';
-    const title = document.createElement('span');
-    title.className = 'float-title';
-    title.textContent = PANEL_LABEL[name];
-    const dock = document.createElement('button');
-    dock.type = 'button';
-    dock.className = 'float-btn';
-    dock.dataset.act = 'dock';
-    dock.title = 'Dock back into the window';
-    dock.textContent = '⇤ dock';
-    const hide = document.createElement('button');
-    hide.type = 'button';
-    hide.className = 'float-btn danger';
-    hide.dataset.act = 'hide';
-    hide.title = 'Hide this panel';
-    hide.textContent = '✕';
-    head.append(title, dock, hide);
-    el.insertBefore(head, el.firstChild);
-
-    head.addEventListener('click', (e) => {
-      const btn = e.target.closest('button[data-act]');
-      if (!btn) return;
-      if (btn.dataset.act === 'dock') setPanelDetached(name, false);
-      else setPanelPinned(name, false);
-    });
-    head.addEventListener('dblclick', (e) => {
-      if (e.target.closest('button')) return;
-      setPanelDetached(name, false);
-    });
-    makePanelDraggable(name, head);
-    return head;
-  }
-
-  function makePanelDraggable(name, head) {
-    let drag = null;
-    const move = (e) => {
-      if (!drag) return;
-      const next = clampRect(name, {
-        ...drag.rect,
-        x: drag.rect.x + (e.clientX - drag.x),
-        y: drag.rect.y + (e.clientY - drag.y),
-      });
-      applyFloatRect(name, next);
-    };
-    const end = () => {
-      if (!drag) return;
-      drag = null;
-      head.classList.remove('dragging');
-      document.body.style.cursor = '';
-      saveLayout();
-    };
-    head.addEventListener('pointerdown', (e) => {
-      if (e.button !== 0 || e.target.closest('button')) return;
-      const rect = layout[name].rect || fallbackRect(name);
-      drag = { x: e.clientX, y: e.clientY, rect: { ...rect } };
-      head.classList.add('dragging');
-      document.body.style.cursor = 'move';
-      e.preventDefault();
-    });
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', end);
-    window.addEventListener('pointercancel', end);
-  }
-
-  /* Persist sizes the user drags out of the CSS resize grip. */
-  function watchPanelSizes() {
-    if (typeof ResizeObserver !== 'function') return;
-    for (const name of PANEL_NAMES) {
-      const el = panelEl(name);
-      if (!el) continue;
-      let raf = 0;
-      const ro = new ResizeObserver(() => {
-        if (!layout[name].detached || !layout[name].pinned) return;
-        cancelAnimationFrame(raf);
-        raf = requestAnimationFrame(() => {
-          const r = el.getBoundingClientRect();
-          if (!r.width || !r.height) return;
-          const cur = layout[name].rect || fallbackRect(name);
-          const w = Math.round(r.width);
-          const h = name === 'transport' ? null : Math.round(r.height);
-          if (cur.w === w && cur.h === h) return;
-          layout[name].rect = { ...cur, w, h };
-          saveLayout();
-        });
-      });
-      ro.observe(el);
+  /* Chrome measurements used by the peek drawers (they sit between the topbar
+     and the status bar and stack above each other). */
+  function measureChrome() {
+    const topbar = document.querySelector('.topbar');
+    const top = topbar ? Math.round(topbar.getBoundingClientRect().height) : 54;
+    const status = els.statusbar ? Math.round(els.statusbar.getBoundingClientRect().height) : 27;
+    document.documentElement.style.setProperty('--topbar-h', top + 'px');
+    document.documentElement.style.setProperty('--status-h', status + 'px');
+    if (peeking.transport && els.transportBar) {
+      const h = Math.round(els.transportBar.getBoundingClientRect().height) || 96;
+      document.documentElement.style.setProperty('--transport-h', h + 'px');
     }
   }
 
@@ -2417,18 +2256,10 @@
       const st = paneState(name);
       const el = panelEl(name);
       if (!el) continue;
-      // Only the timeline floats inside this window; the others get a real OS
-      // window (their docked element is hidden by CSS while detached).
-      const floating = name === 'timeline' && st.detached && st.pinned;
-      document.body.classList.toggle('hide-' + name, !st.pinned);
+      const peeked = !st.pinned && !st.detached && (name === 'timeline' ? peeking.transport : peeking[name]);
+      document.body.classList.toggle('hide-' + name, !st.pinned && !peeked);
+      document.body.classList.toggle('peek-' + name, peeked);
       document.body.classList.toggle('detach-' + name, st.detached);
-      el.classList.toggle('is-floating', floating);
-      if (floating) {
-        ensureFloatHead(name);
-        applyFloatRect(name);
-      } else {
-        clearFloatRect(el);
-      }
     }
 
     setPinButton(els.btnPinSidebar, layout.sidebar.pinned, 'side panel');
@@ -2455,22 +2286,109 @@
     if (!btn) return;
     btn.setAttribute('aria-pressed', String(!!detached));
     btn.title = detached
-      ? `Docked to its own window — click to bring the ${label} back (${keys})`
+      ? `Detached to its own window — click to bring the ${label} back (${keys})`
       : `Detach the ${label} into its own window (${keys})`;
   }
 
   function afterLayoutChange() {
+    measureChrome();
     renderTimeline();
     applyTimelineHeight(false);
   }
 
-  /* Pin = keep the pane docked and visible. Unpinning auto-hides it; the
-     control center takes the timeline with it. */
+  /* ───────────────────────── peek drawers ───────────────────────── */
+  function anyPeeked() {
+    return peeking.sidebar || peeking.transport;
+  }
+
+  function peekPane(name) {
+    if (name === 'timeline') name = 'transport';
+    const st = paneState(name);
+    if (!st || st.pinned || st.detached || peeking[name]) return;
+    peeking[name] = true;
+    applyLayout();
+    afterLayoutChange();
+    requestAnimationFrame(measureChrome);
+  }
+
+  function closePeek(name) {
+    if (name === 'timeline') name = 'transport';
+    if (!peeking[name]) return;
+    peeking[name] = false;
+    applyLayout();
+    afterLayoutChange();
+  }
+
+  function closeAllPeeks() {
+    if (!anyPeeked()) return;
+    peeking.sidebar = false;
+    peeking.transport = false;
+    applyLayout();
+    afterLayoutChange();
+  }
+
+  function pointerOverPeek(target) {
+    if (!target || typeof target.closest !== 'function') return false;
+    return !!(target.closest('#sidebar') || target.closest('#transportBar') || target.closest('#timelineWrap') || target.closest('#revealBar'));
+  }
+
+  function wirePeek() {
+    // Fade the reveal handles in while the pointer moves over the player.
+    if (els.playerWrap) {
+      els.playerWrap.addEventListener('pointermove', () => {
+        if (layout.sidebar.pinned && layout.transport.pinned) return;
+        els.revealBar.classList.add('visible');
+        clearTimeout(revealTimer);
+        revealTimer = setTimeout(() => els.revealBar.classList.remove('visible'), 2200);
+      });
+      els.playerWrap.addEventListener('pointerleave', () => {
+        clearTimeout(revealTimer);
+        els.revealBar.classList.remove('visible');
+      });
+    }
+
+    // Opening a peek: the chevrons never pin — pinning is an explicit gesture.
+    if (els.btnRevealSidebar) els.btnRevealSidebar.addEventListener('click', () => peekPane('sidebar'));
+    if (els.btnRevealTransport) els.btnRevealTransport.addEventListener('click', () => peekPane('transport'));
+
+    // A peek closes when the pointer leaves it, when the player is clicked, or
+    // on Escape. Never while a mouse button is held (drag inside the drawer).
+    let pointerDown = false;
+    let pointerOver = false;
+    const schedulePeekClose = () => {
+      clearTimeout(peekHideTimer);
+      peekHideTimer = setTimeout(() => {
+        if (pointerDown || pointerOver) return;
+        closeAllPeeks();
+      }, 260);
+    };
+    document.addEventListener('pointerdown', (e) => {
+      pointerDown = true;
+      if (!anyPeeked() || pointerOverPeek(e.target)) return;
+      closeAllPeeks();
+    }, true);
+    document.addEventListener('pointerup', (e) => {
+      pointerDown = false;
+      if (!anyPeeked()) return;
+      pointerOver = pointerOverPeek(e.target);
+      if (!pointerOver) schedulePeekClose();
+    }, true);
+    document.addEventListener('pointermove', (e) => {
+      if (!anyPeeked()) return;
+      clearTimeout(peekHideTimer);
+      pointerOver = pointerOverPeek(e.target);
+      if (!pointerOver) schedulePeekClose();
+    });
+    window.addEventListener('blur', closeAllPeeks);
+  }
+
+  /* ───────────────── pin / detach ───────────────── */
   async function setPanelPinned(name, pinned) {
     if (name === 'timeline') return setPanelPinned('transport', pinned); // sticky
     const st = layout[name];
     if (!st || st.pinned === pinned) return;
     st.pinned = pinned;
+    peeking[name] = false;
     if (!pinned && st.detached) {
       // Unpinning a windowed pane brings it back out of the window first.
       st.detached = false;
@@ -2482,7 +2400,7 @@
     pushPanelState(name);
     if (!pinned && !autoHideHintShown) {
       autoHideHintShown = true;
-      toast('Auto-hidden — move the mouse over the player to bring the pane back.', 'info', 3400);
+      toast('Auto-hidden — move the mouse over the player to peek at the pane, or use its pin button to keep it.', 'info', 3800);
     }
   }
 
@@ -2491,6 +2409,7 @@
     const st = layout[name];
     const el = panelEl(name);
     if (!st || !el || st.detached === detached) return;
+    peeking[name] = false;
     if (detached) {
       st.pinned = true; // detaching implies visible
       if (WINDOWED_PANELS.has(name)) {
@@ -2502,8 +2421,6 @@
         openPanels[name] = true;
         st.detached = true;
       } else {
-        // A fresh float gets a card-sized spot; a remembered one keeps its place.
-        if (!st.rect) st.rect = placeRect(name, Math.min(1020, window.innerWidth - 80), 300);
         st.detached = true;
       }
     } else {
@@ -2515,6 +2432,7 @@
     afterLayoutChange();
     saveLayout();
     pushPanelState(name);
+    if (name === 'transport') pushPanelTimeline();
   }
 
   /* ───────── panel windows: state snapshots + commands ───────── */
@@ -2593,14 +2511,55 @@
       zoom: state.zoom,
       inPoint: state.inPoint,
       outPoint: state.outPoint,
+      selection: state.selection && state.selection.clipId === state.activeClipId
+        ? { start: state.selection.start, end: state.selection.end }
+        : null,
+    };
+  }
+
+  /* Slower, structural payload for the timeline that lives in the control
+     center window (cuts, subtitle blocks, filmstrip). */
+  function timelineSnapshot() {
+    const clip = activeClip();
+    if (!clip) return { durationMs: 0, fps: 30, cuts: [], subs: [], thumbs: null };
+    const ranges = keptRanges(clip);
+    const track = activeSubtitleTrack(clip);
+    let subs = [];
+    if (track) {
+      const dropped = new Set(CU.droppedEvents(track.events, ranges));
+      subs = track.events.slice(0, 1500).map((ev) => ({
+        start: ev.start,
+        end: ev.end,
+        text: ev.text.replace(/\s*\n\s*/g, ' '),
+        dropped: dropped.has(ev),
+      }));
+    }
+    const thumbs =
+      clip.thumbs && clip.thumbs.files && clip.thumbs.files.length
+        ? { dir: clip.thumbs.dir, files: clip.thumbs.files, stepMs: clip.thumbs.stepMs || 1000 }
+        : null;
+    return {
+      durationMs: clip.durationMs,
+      fps: clip.fps || 30,
+      cuts: [...clip.cuts].sort((a, b) => a.start - b.start).map((c) => ({ id: c.id, start: c.start, end: c.end })),
+      subs,
+      thumbs,
     };
   }
 
   function pushPanelState(name) {
     if (!openPanels[name]) return;
-    const data = name === 'sidebar' ? sidebarSnapshot() : transportSnapshot();
     try {
-      api.sendPanelState({ panel: name, data });
+      api.sendPanelState({ panel: name, kind: 'main', data: name === 'sidebar' ? sidebarSnapshot() : transportSnapshot() });
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function pushPanelTimeline() {
+    if (!openPanels.transport) return;
+    try {
+      api.sendPanelState({ panel: 'transport', kind: 'timeline', data: timelineSnapshot() });
     } catch {
       /* ignore */
     }
@@ -2622,6 +2581,14 @@
     }, 60);
   }
 
+  function scheduleTimelineSync() {
+    if (!openPanels.transport || timelineSyncTimer) return;
+    timelineSyncTimer = setTimeout(() => {
+      timelineSyncTimer = null;
+      pushPanelTimeline();
+    }, 120);
+  }
+
   function onPanelReady(payload) {
     const name = payload && payload.panel;
     if (!WINDOWED_PANELS.has(name) || !layout) return;
@@ -2636,6 +2603,7 @@
       saveLayout();
     }
     pushPanelState(name);
+    if (name === 'transport') pushPanelTimeline();
   }
 
   function onPanelClosed(payload) {
@@ -2644,7 +2612,7 @@
     openPanels[name] = false;
     const st = layout[name];
     if (!st || !st.detached) return;
-    // The window was closed from its title bar: dock the panel back.
+    // The window was closed from its title bar: dock the panel back in.
     st.detached = false;
     st.pinned = true;
     applyLayout();
@@ -2704,7 +2672,34 @@
       return;
     }
     if (action === 'seekTo') {
+      pause();
       seekTo(Number(msg.ms) || 0);
+      return;
+    }
+    // ── timeline gestures coming from the detached control center window
+    if (action === 'select') {
+      const clip = activeClip();
+      if (!clip) return;
+      const a = Math.max(0, Math.min(clip.durationMs, Number(msg.start) || 0));
+      const b = Math.max(0, Math.min(clip.durationMs, Number(msg.end) || 0));
+      state.selection = b - a > 1 ? { clipId: clip.id, start: Math.min(a, b), end: Math.max(a, b) } : null;
+      renderOverlays();
+      updateTransport();
+      return;
+    }
+    if (action === 'mark') {
+      const clip = activeClip();
+      if (!clip) return;
+      const ms = snapMs(Number(msg.ms) || 0);
+      if (state.inPoint == null || state.outPoint != null) {
+        state.inPoint = ms;
+        state.outPoint = null;
+      } else {
+        state.outPoint = Math.max(ms, state.inPoint);
+      }
+      renderOverlays();
+      updateIoReadout();
+      updateTransport();
       return;
     }
     if (action === 'subOffset') {
@@ -2744,6 +2739,7 @@
       if (res && res.ok) {
         openPanels[name] = true;
         pushPanelState(name);
+        if (name === 'transport') pushPanelTimeline();
       } else {
         layout[name].detached = false;
         layout[name].pinned = true;
@@ -2754,7 +2750,7 @@
     }
   }
 
-  /* Flat [pin][detach] pair in each pane header + the hover reveal handles. */
+  /* Flat [pin][detach] pair in each pane header + the peek handles. */
   function wireLayout() {
     const bindPin = (btn, name) => {
       if (!btn) return;
@@ -2768,24 +2764,7 @@
     bindPin(els.btnPinTransport, 'transport');
     bindDetach(els.btnDetachSidebar, 'sidebar');
     bindDetach(els.btnDetachTransport, 'transport');
-
-    if (els.btnRevealSidebar) els.btnRevealSidebar.addEventListener('click', () => setPanelPinned('sidebar', true));
-    if (els.btnRevealTransport) els.btnRevealTransport.addEventListener('click', () => setPanelPinned('transport', true));
-
-    // Moving over the player fades the reveal handles in for a moment.
-    if (els.playerWrap) {
-      const ping = () => {
-        if (layout.sidebar.pinned && layout.transport.pinned) return;
-        els.revealBar.classList.add('visible');
-        clearTimeout(revealTimer);
-        revealTimer = setTimeout(() => els.revealBar.classList.remove('visible'), 2200);
-      };
-      els.playerWrap.addEventListener('pointermove', ping);
-      els.playerWrap.addEventListener('pointerleave', () => {
-        clearTimeout(revealTimer);
-        els.revealBar.classList.remove('visible');
-      });
-    }
+    wirePeek();
   }
 
   /* ─────────────────── player / timeline splitter ─────────────────── */
@@ -2984,6 +2963,7 @@
       const center = state.playhead / (activeClip() ? activeClip().durationMs : 1);
       renderTimeline();
       els.timelineScroll.scrollLeft = Math.max(0, center * state.pxPerMs - els.timelineScroll.clientWidth / 2);
+      scheduleTransportSync(); // the detached window re-renders its timeline at the new zoom
     });
 
     els.subOffset.addEventListener('input', () => {
@@ -3267,6 +3247,7 @@
     window.addEventListener('resize', () => {
       clearTimeout(rzTimer);
       rzTimer = setTimeout(() => {
+        measureChrome();
         applyLayout();
         renderTimeline();
         applyTimelineHeight(false);
@@ -3304,6 +3285,10 @@
   function onKeyDown(e) {
     const tag = (e.target && e.target.tagName) || '';
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    if (e.key === 'Escape' && anyPeeked()) {
+      closeAllPeeks();
+      return;
+    }
     if (e.key === 'Escape' && !els.statusLog.classList.contains('hidden')) {
       hideStatusLog();
       return;
@@ -3419,11 +3404,12 @@
     }
     wire();
     wireSplitter();
-    watchPanelSizes();
     applyLayout();
-    renderStatus();    await refreshInfo();
+    renderStatus();
+    await refreshInfo();
     renderAll();
     requestAnimationFrame(() => {
+      measureChrome();
       applyLayout();
       applyTimelineHeight(false);
     });

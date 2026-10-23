@@ -966,10 +966,15 @@ input[type="range"]::-webkit-slider-thumb {
 
 /* ─────────────── panes: pinned / auto-hidden / detached ─────────────── */
 /*
- * pinned (default) → docked and visible; unpinned → `hide-*` (auto-hidden, the
- * player takes the space, hover reveals a chevron in .reveal-bar); detached →
- * `detach-*` (side panel / control center move to their own OS window, the
- * timeline becomes a floating card). State lives in localStorage["cuci2.layout"].
+ * pinned (default) → docked and visible.
+ * unpinned        → auto-hidden; hovering the player shows a chevron handle and
+ *                   clicking it opens a temporary *peek* (overlay drawer) that
+ *                   closes again as soon as the pointer leaves, unless the user
+ *                   pins it.
+ * detached        → the side panel / control center move to their own OS window.
+ *                   The timeline belongs to the control center, so it travels
+ *                   with it (see src/panel.html).
+ * State lives in localStorage["cuci2.layout"]; a peek is never persisted.
  */
 body.hide-sidebar .sidebar,
 body.hide-timeline #timelineWrap,
@@ -979,13 +984,15 @@ body.hide-transport #transportBar {
 
 /* Detached to their own window: nothing of them stays in this window. */
 body.detach-sidebar .sidebar,
-body.detach-transport #transportBar {
+body.detach-transport #transportBar,
+body.detach-timeline #timelineWrap {
   display: none !important;
 }
 
-/* Both hidden and detached panels leave the grid, so the player takes it all. */
+/* Auto-hidden/detached/peeked panes leave the grid, so the player takes their space. */
 body.hide-sidebar .layout,
-body.detach-sidebar .layout {
+body.detach-sidebar .layout,
+body.peek-sidebar .layout {
   grid-template-columns: 1fr;
 }
 
@@ -995,89 +1002,56 @@ body.detach-transport #playerSplitter {
   display: none !important;
 }
 
-.is-floating {
+/* ── peek: the temporary slide-over used when a pane is auto-hidden ── */
+body.peek-sidebar .sidebar {
   position: fixed;
-  z-index: 30;
-  margin: 0;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--panel);
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.62), 0 0 0 1px rgba(108, 140, 255, 0.1);
-  overflow: hidden;
+  top: var(--topbar-h, 54px);
+  bottom: var(--status-h, 27px);
+  left: 0;
+  width: 300px;
+  z-index: 45;
+  display: flex !important;
+  border-right: 1px solid var(--border);
+  box-shadow: 18px 0 44px rgba(0, 0, 0, 0.6);
+  animation: peek-in-left 0.16s ease-out;
+  overflow-y: auto;
 }
 
-.float-head {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex: none;
-  padding: 4px 6px 4px 8px;
-  background: linear-gradient(180deg, #1b2130, #151a24);
-  border-bottom: 1px solid var(--border);
-  cursor: move;
-  touch-action: none;
-  user-select: none;
-}
-.float-head::before {
-  content: '';
-  width: 9px;
-  height: 12px;
-  flex: none;
-  background-image: radial-gradient(circle, var(--muted-2) 1.1px, transparent 1.4px);
-  background-size: 5px 5px;
-  opacity: 0.85;
-}
-.float-title {
-  flex: 1;
-  font: 10px/1 var(--mono);
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-.float-btn {
-  appearance: none;
-  border: 1px solid var(--border);
-  background: var(--panel-2);
-  color: var(--muted);
-  border-radius: 6px;
-  height: 19px;
-  min-width: 21px;
-  padding: 0 5px;
-  font: 600 11px/1 inherit;
-  cursor: pointer;
-  transition: 0.12s;
-}
-.float-btn:hover {
-  color: var(--text);
-  border-color: var(--accent);
-}
-.float-btn.danger:hover {
-  color: #ffb3b9;
-  border-color: #4a2329;
-  background: #241316;
+body.peek-transport #transportBar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: var(--status-h, 27px);
+  z-index: 45;
+  display: flex !important;
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -18px 44px rgba(0, 0, 0, 0.6);
+  animation: peek-in-up 0.16s ease-out;
 }
 
-/* The floating card chrome is created lazily by app.js for the timeline. */
-.is-floating > .float-head {
-  margin: 0 -12px 6px;
+body.peek-transport #timelineWrap {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--status-h, 27px) + var(--transport-h, 96px));
+  height: min(var(--timeline-h, 260px), 42vh);
+  z-index: 44;
+  display: block !important;
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -12px 36px rgba(0, 0, 0, 0.5);
 }
 
-#timelineWrap.is-floating {
-  display: flex;
-  flex-direction: column;
-  resize: both;
+@keyframes peek-in-left {
+  from {
+    transform: translateX(-14px);
+    opacity: 0.4;
+  }
 }
-#timelineWrap.is-floating > .float-head {
-  position: relative;
-  z-index: 6;
-}
-/* The docked timeline is positioned with an absolute scroller; detached it
-   becomes a flex child so the header can sit above it. */
-#timelineWrap.is-floating > .timeline-scroll {
-  position: relative;
-  inset: auto;
-  flex: 1 1 auto;
-  min-height: 0;
+@keyframes peek-in-up {
+  from {
+    transform: translateY(14px);
+    opacity: 0.4;
+  }
 }
 
 /* ─────────────── sidebar widgets ─────────────── */

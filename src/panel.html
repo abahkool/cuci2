@@ -13,12 +13,18 @@
   </head>
   <body class="panel-shell" data-panel="">
     <header class="panel-head">
+      <button id="btnDock" class="pane-btn dock-btn" title="Dock this pane back into the main window" aria-label="Dock back into the main window">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M20 12H5" />
+          <path d="M10 6l-6 6 6 6" />
+          <path d="M20 4v16" />
+        </svg>
+      </button>
       <span class="panel-logo">✂</span>
       <span class="panel-title" id="panelTitle">CUCI²</span>
       <span class="panel-sub" id="panelSub"></span>
       <span class="spacer"></span>
       <span class="panel-status" id="panelStatus"></span>
-      <button id="btnDock" class="btn tiny ghost" title="Dock this panel back into the main window">⇤ Dock</button>
     </header>
 
     <!-- ───────────── side panel (media / cuts / subtitles) ───────────── -->
@@ -120,6 +126,25 @@
             </svg>
           </button>
           <div id="ioReadout" class="io-readout">In — · Out —</div>
+        </div>
+      </section>
+
+      <section class="panel-timeline" id="panelTimelineWrap" title="Drag on the filmstrip to select, double-click to set In/Out">
+        <div class="timeline-scroll" id="ptlScroll">
+          <div class="timeline" id="ptlTimeline">
+            <div class="tl-base">
+              <div id="ptlRuler" class="tl-ruler"></div>
+              <div id="ptlFilm" class="tl-film"></div>
+              <div id="ptlCuts" class="tl-cuts"></div>
+              <div id="ptlSubs" class="tl-subs"></div>
+            </div>
+            <div class="tl-overlay">
+              <div id="ptlSelection" class="tl-selection hidden"></div>
+              <div id="ptlMarkerIn" class="tl-marker in hidden" title="In point"></div>
+              <div id="ptlMarkerOut" class="tl-marker out hidden" title="Out point"></div>
+              <div id="ptlPlayhead" class="tl-playhead"></div>
+            </div>
+          </div>
         </div>
       </section>
     </div>

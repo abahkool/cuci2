@@ -231,6 +231,266 @@
     $('panelStatus').textContent = s.clipName ? `${s.clipName} · ${s.cuts.length} cut${s.cuts.length === 1 ? '' : 's'}` : 'No clip selected';
   }
 
+  /* ─────────────────── timeline (belongs to this pane) ─────────────────── */
+  const tl = {
+    durationMs: 0,
+    fps: 30,
+    zoom: 1,
+    pxPerMs: 0,
+    cuts: [],
+    subs: [],
+    thumbs: null,
+    time: 0,
+    playing: false,
+    selection: null,
+    inPoint: null,
+    outPoint: null,
+  };
+
+  function tlWidth() {
+    const scroll = $('ptlScroll');
+    return (scroll && scroll.clientWidth) || 0;
+  }
+
+  function renderTimelineBase() {
+    const scroll = $('ptlScroll');
+    const root = $('ptlTimeline');
+    if (!scroll || !root) return;
+    const duration = tl.durationMs;
+    if (!duration) {
+      tl.pxPerMs = 0;
+      root.style.width = '100%';
+      ['ptlRuler', 'ptlFilm', 'ptlCuts', 'ptlSubs'].forEach((id) => ($(id).innerHTML = ''));
+      renderTimelineOverlays();
+      return;
+    }
+    const scrollW = tlWidth() || 900;
+    const width = Math.max(scrollW, Math.round(scrollW * tl.zoom));
+    root.style.width = width + 'px';
+    tl.pxPerMs = width / duration;
+    const ppm = tl.pxPerMs;
+
+    // ruler
+    const ruler = $('ptlRuler');
+    ruler.innerHTML = '';
+    const steps = [50, 100, 200, 250, 500, 1000, 2000, 2500, 5000, 10000, 15000, 30000, 60000, 120000, 300000, 600000, 1800000, 3600000];
+    const stepMs = steps.find((v) => v * ppm >= 84) || 3600000;
+    for (let t = 0; t <= duration + 1; t += stepMs) {
+      const x = t * ppm;
+      const tick = document.createElement('div');
+      tick.className = 'tl-tick';
+      tick.style.left = x + 'px';
+      const label = document.createElement('div');
+      label.className = 'tl-tick-label';
+      label.style.left = x + 'px';
+      label.textContent = CU.fmt(t, stepMs < 1000 ? 3 : 0);
+      ruler.append(tick, label);
+    }
+
+    // filmstrip
+    const film = $('ptlFilm');
+    film.innerHTML = '';
+    if (tl.thumbs && tl.thumbs.files && tl.thumbs.files.length) {
+      const step = tl.thumbs.stepMs || 1000;
+      tl.thumbs.files.forEach((f, i) => {
+        const left = i * step * ppm;
+        if (left > width) return;
+        const img = document.createElement('img');
+        img.className = 'tl-thumb';
+        img.draggable = false;
+        img.src = 'media://local/' + encodeURIComponent(String(tl.thumbs.dir).replace(/[\\/]+$/, '') + '/' + f);
+        img.style.left = left + 'px';
+        img.style.width = Math.max(1, step * ppm + 1) + 'px';
+        film.appendChild(img);
+      });
+    } else {
+      const hint = document.createElement('div');
+      hint.className = 'tl-film-hint';
+      hint.textContent = 'Keyframe snapshots are off — enable them in Settings of the main window';
+      film.appendChild(hint);
+    }
+
+    // cuts
+    const cuts = $('ptlCuts');
+    cuts.innerHTML = '';
+    tl.cuts.forEach((c) => {
+      const el = document.createElement('div');
+      el.className = 'tl-cut';
+      el.dataset.cutId = c.id;
+      el.style.left = c.start * ppm + 'px';
+      el.style.width = Math.max(3, (c.end - c.start) * ppm) + 'px';
+      el.innerHTML =
+        `<div class="cut-handle start" data-handle="start"></div>` +
+        `<div class="cut-handle end" data-handle="end"></div>` +
+        `<div class="cut-label">${CU.fmt(c.start, 3)} → ${CU.fmt(c.end, 3)} · ${CU.fmt(c.end - c.start, 3)}</div>`;
+      cuts.appendChild(el);
+    });
+
+    // subtitle lane
+    const subs = $('ptlSubs');
+    subs.innerHTML = '';
+    tl.subs.forEach((ev) => {
+      const el = document.createElement('div');
+      el.className = 'tl-sub' + (ev.dropped ? ' dropped' : '');
+      el.style.left = ev.start * ppm + 'px';
+      el.style.width = Math.max(2, (ev.end - ev.start) * ppm) + 'px';
+      el.title = `${CU.fmt(ev.start, 3)} → ${CU.fmt(ev.end, 3)}\n${ev.text}`;
+      el.textContent = ev.text;
+      subs.appendChild(el);
+    });
+
+    renderTimelineOverlays();
+  }
+
+  function renderTimelineOverlays() {
+    const root = $('ptlTimeline');
+    if (!root) return;
+    const ppm = tl.pxPerMs || 0;
+    const playhead = $('ptlPlayhead');
+    const t = Math.max(0, Math.min(tl.durationMs || 0, tl.time || 0));
+    playhead.style.left = t * ppm + 'px';
+
+    const selEl = $('ptlSelection');
+    const sel = tl.selection;
+    if (sel && sel.end > sel.start + 1) {
+      selEl.classList.remove('hidden');
+      selEl.style.left = sel.start * ppm + 'px';
+      selEl.style.width = Math.max(2, (sel.end - sel.start) * ppm) + 'px';
+    } else {
+      selEl.classList.add('hidden');
+    }
+    const marker = (id, ms) => {
+      const el = $(id);
+      if (ms == null) {
+        el.classList.add('hidden');
+        return;
+      }
+      el.classList.remove('hidden');
+      el.style.left = ms * ppm + 'px';
+    };
+    marker('ptlMarkerIn', tl.inPoint);
+    marker('ptlMarkerOut', tl.outPoint);
+
+    // Keep the playhead in view while the main window is playing.
+    const scroll = $('ptlScroll');
+    if (scroll && tl.playing && ppm) {
+      const x = t * ppm;
+      if (x < scroll.scrollLeft + 30 || x > scroll.scrollLeft + scroll.clientWidth - 30) {
+        scroll.scrollLeft = Math.max(0, x - scroll.clientWidth / 2);
+      }
+    }
+  }
+
+  function timeAt(clientX) {
+    const root = $('ptlTimeline');
+    if (!root || !tl.pxPerMs) return 0;
+    const r = root.getBoundingClientRect();
+    return Math.max(0, Math.min(tl.durationMs, (clientX - r.left) / tl.pxPerMs));
+  }
+
+  function wireTimeline() {
+    const scroll = $('ptlScroll');
+    if (!scroll) return;
+    let drag = null;
+    let lastSend = 0;
+
+    const sendSelect = (start, end, force) => {
+      const now = performance.now();
+      if (!force && now - lastSend < 40) return;
+      lastSend = now;
+      tl.selection = { start, end };
+      renderTimelineOverlays();
+      send('select', { start, end });
+    };
+
+    scroll.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0 || !tl.durationMs) return;
+      const onPlayhead = e.target.closest('#ptlPlayhead');
+      const onRuler = e.target.closest('#ptlRuler');
+      drag = {
+        mode: onPlayhead || onRuler ? 'seek' : 'select',
+        startMs: timeAt(e.clientX),
+        moved: false,
+      };
+      try {
+        scroll.setPointerCapture(e.pointerId);
+      } catch {
+        /* ignore */
+      }
+      if (drag.mode === 'seek') send('seekTo', { ms: drag.startMs });
+      e.preventDefault();
+    });
+
+    scroll.addEventListener('pointermove', (e) => {
+      if (!drag) return;
+      const ms = timeAt(e.clientX);
+      if (Math.abs(ms - drag.startMs) > Math.max(2, tl.durationMs / tlWidth() * 3)) drag.moved = true;
+      if (drag.mode === 'seek') {
+        tl.time = ms;
+        renderTimelineOverlays();
+        const now = performance.now();
+        if (now - lastSend > 40) {
+          lastSend = now;
+          send('seekTo', { ms });
+        }
+        return;
+      }
+      if (!drag.moved) return;
+      sendSelect(Math.min(drag.startMs, ms), Math.max(drag.startMs, ms));
+    });
+
+    const endDrag = (e) => {
+      if (!drag) return;
+      const ms = e && typeof e.clientX === 'number' ? timeAt(e.clientX) : drag.startMs;
+      if (drag.mode === 'select') {
+        if (drag.moved) sendSelect(Math.min(drag.startMs, ms), Math.max(drag.startMs, ms), true);
+        else {
+          // A plain click seeks and clears the selection.
+          suggestClearSelection();
+          send('seekTo', { ms: drag.startMs });
+        }
+      } else {
+        send('seekTo', { ms });
+      }
+      drag = null;
+    };
+    scroll.addEventListener('pointerup', endDrag);
+    scroll.addEventListener('pointercancel', () => {
+      drag = null;
+    });
+
+    // Double-click sets In, then Out (same rule as the main window).
+    scroll.addEventListener('dblclick', (e) => {
+      if (!tl.durationMs) return;
+      send('mark', { ms: timeAt(e.clientX) });
+    });
+  }
+
+  function suggestClearSelection() {
+    tl.selection = null;
+    renderTimelineOverlays();
+    send('select', { start: 0, end: 0 });
+  }
+
+  function applyTransportToTimeline(t) {
+    tl.time = t.time;
+    tl.playing = t.playing;
+    tl.selection = t.selection;
+    tl.inPoint = t.inPoint;
+    tl.outPoint = t.outPoint;
+    const zoom = Number(t.zoom) || 1;
+    if (Math.abs(zoom - tl.zoom) > 0.001) {
+      // Remember the centre so zooming does not jump the view.
+      const scroll = $('ptlScroll');
+      const centre = scroll && tl.pxPerMs ? (scroll.scrollLeft + scroll.clientWidth / 2) / tl.pxPerMs : 0;
+      tl.zoom = zoom;
+      renderTimelineBase();
+      if (scroll && tl.pxPerMs) scroll.scrollLeft = Math.max(0, centre * tl.pxPerMs - scroll.clientWidth / 2);
+      return;
+    }
+    renderTimelineOverlays();
+  }
+
   /* ───────────────────────────── keys ───────────────────────────── */
   function onKey(e) {
     if (e.target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
@@ -277,17 +537,31 @@
     $('panelSidebar').hidden = NAME !== 'sidebar';
     $('panelTransport').hidden = NAME !== 'transport';
 
-    if (NAME === 'transport') wireTransport();
-    else wireSidebar();
+    if (NAME === 'transport') {
+      wireTransport();
+      wireTimeline();
+    } else wireSidebar();
 
     panelAPI.onState((payload) => {
       if (!payload || payload.panel !== NAME || !payload.data) return;
+      if (payload.kind === 'timeline') {
+        Object.assign(tl, payload.data);
+        renderTimelineBase();
+        return;
+      }
       last = payload.data;
-      if (NAME === 'transport') renderTransport(last);
-      else renderSidebar(last);
+      if (NAME === 'transport') {
+        renderTransport(last);
+        applyTransportToTimeline(last);
+      } else {
+        renderSidebar(last);
+      }
     });
 
     $('btnDock').addEventListener('click', () => panelAPI.close());
+    window.addEventListener('resize', () => {
+      if (NAME === 'transport') renderTimelineBase();
+    });
     window.addEventListener('keydown', onKey);
 
     panelAPI.ready();

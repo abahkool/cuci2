@@ -16,9 +16,20 @@ body.panel-shell {
   gap: 8px;
   flex: none;
   height: 36px;
-  padding: 0 10px;
+  padding: 0 10px 0 6px;
   background: linear-gradient(180deg, rgba(23, 27, 36, 0.95), rgba(18, 21, 29, 0.8));
   border-bottom: 1px solid var(--border);
+}
+
+/* flat, glyph-only dock button — sits at the far left of the header */
+.pane-btn.dock-btn {
+  width: 24px;
+  height: 24px;
+  color: var(--muted);
+}
+.pane-btn.dock-btn svg {
+  width: 15px;
+  height: 15px;
 }
 
 .panel-logo {
@@ -72,11 +83,24 @@ body.panel-shell {
   min-height: 200px;
 }
 
-/* Control center: the bar supplies its own padding; give it a card edge. */
+/* Control center: the bar and the timeline share this pane. */
 .panel-body.transport-panel {
   padding: 8px 10px 10px;
   gap: 0;
-  overflow: hidden auto;
+  overflow: hidden;
+}
+
+/* The timeline rides along with the control center and fills the rest of the
+   window; it reuses the .timeline / .tl-* widgets from styles.css. */
+.panel-timeline {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 110px;
+  margin-top: 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #0a0c11;
+  overflow: hidden;
 }
 
 .transport-panel .transport {

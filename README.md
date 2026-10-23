@@ -56,12 +56,12 @@ subtitles** to the new length. Everything is powered by `ffmpeg`.
   low-res H.264 proxy for previewing; exports still use the original files.
 - **Sensible encode presets** — x264 / x265 / NVENC, CRF quality, resolution/fps
   normalisation, AAC audio, `+faststart`, live progress with ETA, and cancellable exports.
-- **Pin, auto-hide, detach** — every pane has a flat pin + detach button. Pinned (default)
-  keeps it docked; unpinned hides it and hovering the player slides in a chevron to call it
-  back, so the player can own the whole window. The side panel and the control center can
-  also be **popped out into their own windows** for a second monitor — they stay in sync both
-  ways. The timeline is sticky: it follows the control center (and floats as a card while the
-  controls are in their own window).
+- **Pin, peek, detach** — every pane has a flat pin + detach button. Pinned (default) keeps
+  it docked; unpinned hides it, and hovering the player slides in a chevron that opens a
+  temporary peek — it closes again as soon as you move away unless you click the pin. The
+  side panel and the control center can be **popped out into their own windows** for a second
+  monitor and stay in sync both ways. The timeline belongs to the control center: it hides,
+  peeks and detaches together with it, timeline included inside the popped-out window.
 - Undo/redo and keyboard shortcuts throughout.
 
 ---

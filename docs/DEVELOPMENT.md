@@ -467,24 +467,26 @@ Each pane carries a flat `[pin][detach]` pair in its own header — side panel
 (`#btnPinSidebar`/`#btnDetachSidebar`) and control center
 (`#btnPinTransport`/`#btnDetachTransport`). There is no global layout toolbar.
 
-- **pinned** (default) → `layout.<pane>.pinned = true`, the pane is docked and always visible.
-- **unpinned** → `body.hide-<pane>` (`display: none`). While anything is unpinned, moving the
-  pointer over `.player-wrap` fades in `.reveal-bar` chevrons (`›` on the left edge for the
-  side panel, `^` at the bottom for the controls); clicking one pins that pane back.
-- **detached** → `body.detach-<pane>`; the side panel and control center leave for their own
-  OS window (see below). Detaching pins implicitly.
-- **The timeline is sticky to the control center** (`paneState('timeline')` mirrors
-  `layout.transport`): pinned with it, hidden with it, and when the controls live in a window
-  the timeline floats over the player as a card so it stays usable.
-- **Timeline as a floating card**: `.is-floating` sets `position: fixed` with inline
-  `left/top/width/height`, plus a lazily injected `.float-head` (drag to move, dock, hide,
-  double-click to dock). CSS `resize` gives the corner grip and a `ResizeObserver` persists
-  the dragged size.
-- Hidden/detached panes leave the CSS grid, so `.main`'s `1fr` player row absorbs the space
-  (`body.hide-sidebar`/`detach-sidebar` collapse `.layout` to one column).
+- **pinned** (default) → `layout.<pane>.pinned = true`, docked and always visible.
+- **unpinned** → the pane is `display: none` (`body.hide-<pane>`) and the player takes the
+  space. Moving the pointer over `.player-wrap` fades in `.reveal-bar` chevrons (`›` on the
+  left edge, `^` at the bottom).
+- **peek** → clicking a chevron opens the pane as a **temporary slide-over drawer**
+  (`body.peek-<pane>`, `position: fixed`, z-index 45) — it is *not* a pin. It closes when the
+  pointer leaves it (260 ms grace, deferred while a mouse button is held), when the player is
+  clicked, when the window loses focus, or on `Escape`. Only the pin button makes it stay.
+- **detached** → `body.detach-<pane>`; the pane moves into its own OS window (see below).
+  Detaching pins implicitly.
+- **The timeline belongs to the control center** (`paneState('timeline')` mirrors
+  `layout.transport`): it is pinned/hidden/peeked with it and it is **rendered inside the
+  control center window** when detached, so the two are always one pane.
+- Hidden/detached/peeked panes leave the CSS grid, so `.main`'s `1fr` player row absorbs the
+  space (`body.hide-sidebar`/`detach-sidebar`/`peek-sidebar` collapse `.layout` to one
+  column). The peek drawers are sized from `--topbar-h`, `--status-h` and (for the controls)
+  `--transport-h`, set by `measureChrome()`.
 - State persists in `localStorage["cuci2.layout"]` as
-  `{ sidebar|transport: { pinned, detached }, timeline: { rect } }` (`rect` = float
-  geometry); legacy `hidden` entries are still read. Windowed panes reopen on next launch.
+  `{ sidebar|transport: { pinned, detached } }` (legacy `hidden` entries are still read); a
+  peek is never persisted. Windowed panes reopen on the next launch.
 - Shortcuts: `Ctrl+1`/`Ctrl+2` pin-toggle sidebar/controls, `Ctrl+Shift+1`/`Ctrl+Shift+2`
   detach-toggle them. The splitter is disabled while the controls are hidden/detached.
 
@@ -505,14 +507,20 @@ panel window --'panel:cmd'--> panels.js --'panel:cmd'--> main renderer (onPanelC
 - `panel:ready` is the handshake: a fresh window asks for a snapshot; `app.js` answers with
   `pushPanelState(name)`. `panel:closed` (title-bar X) docks the pane back into the main
   window; the panel's own **Dock** button sends `panel:close-self`.
-- Snapshots: `sidebarSnapshot()` (clips, cuts, subtitle tracks/rows) and
-  `transportSnapshot()` (timecodes, seek ratio, mode, in/out). Coalesced through
-  `scheduleSidebarSync()` (40 ms) / `scheduleTransportSync()` (60 ms) and only built while
-  the matching window is open.
+- Snapshots carry a `kind`: `main` (per-pane view model) or `timeline`.
+  `sidebarSnapshot()` (clips, cuts, subtitle tracks/rows) and `transportSnapshot()`
+  (timecodes, seek ratio, mode, in/out, selection, zoom) are coalesced through
+  `scheduleSidebarSync()` (40 ms) / `scheduleTransportSync()` (60 ms); `timelineSnapshot()`
+  (duration, cuts, subtitle blocks, filmstrip) goes through `scheduleTimelineSync()` (120 ms,
+  triggered from `renderTimeline()`). Only built while the matching window is open.
 - Commands (`onPanelCommand`) are validated then routed into the existing handlers:
   `click` with an id from `PANEL_CLICK_IDS` → `els[id].click()`; plus `seek`, `zoom`, `snap`,
   `activate`, `clip`, `cutDelete`, `cutHover`, `seekTo`, `subOffset`, `subToggle`,
   `subActivate`, `subRemove`. Cut/track/clip ids are checked against current state first.
+- The control center window also renders the timeline (`#ptlTimeline`, reusing the `.tl-*`
+  widgets): `src/panel.js` draws the ruler/filmstrip/cuts/subtitle lane and sends `select`
+  (drag), `seekTo` (click / playhead drag) and `mark` (double-click → In then Out). Zoom comes
+  from the transport snapshot; the view auto-scrolls with the playhead while playing.
 - Bounds live in `settings.json` under `panels.<name>` (`panel:open` falls back to defaults
   beside the main window; off-screen bounds are rejected so an unplugged monitor cannot hide
   a panel). Panels are not parented, so they are free to move to another display.

@@ -118,9 +118,11 @@ state = {
 7. **Export guard**: exporting with 0 cuts requires a second click (prevents accidental
    full-length re-encodes).
 8. **Detached panels are real OS windows** (`lib/panels.js` + `src/panel.*`). The main
-   renderer is the only source of truth: panels get snapshots (`panel:state`) and reply with
-   validated commands (`panel:cmd`). They use `panel-preload.js`, never `window.api`.
-   Do not add app logic to `src/panel.js` — extend the snapshot/command maps in `src/app.js`.
+   renderer is the only source of truth: panels get snapshots (`panel:state`, `kind: main |
+   timeline`) and reply with validated commands (`panel:cmd`). They use `panel-preload.js`,
+   never `window.api`. The timeline is part of the control center pane and is rendered inside
+   that window (`#ptlTimeline`). Do not add app logic to `src/panel.js` — extend the
+   snapshot/command maps in `src/app.js`.
 9. **Classic scripts, ordered**: `util.js`, `srt.js`, `job.js`, `app.js`. No ES modules.
 10. **Job-derived strings** are always rendered via `textContent` or `CU.escapeHtml()`.
 11. Transport uses a CSS grid with named areas; breakpoint at 1250 px moves the right-hand
@@ -168,10 +170,10 @@ right-click cut menu, cut-edge drag, undo/redo), multi-clip merge, frame-accurat
 progress + cancel, subtitle sync with **multiple tracks per clip** (enable/remove, per-track
 `.srt` export, "track to burn"), Parental AI (NSFW) scanning, cut jobs (file + compact share
 code, Export/Import tabs, description), status bar with history, player/timeline splitter,
-context menu, keyboard shortcuts, workspace layout (per-pane **pin/auto-hide** with
-hover-to-reveal handles, **detach** the side panel / control center into their own draggable
-windows for a second monitor, timeline sticky to the control center and floating as a card
-while the controls are detached), MSIX packaging scaffold.
+context menu, keyboard shortcuts, workspace layout (per-pane **pin/peek/detach**:
+auto-hide + hover chevrons open a temporary peek drawer, the side panel / control center
+detach into their own OS windows, and the timeline travels inside the control center window),
+MSIX packaging scaffold.
 
 Local-only (gitignored): `vendor/ffmpeg` (ffmpeg/ffprobe 9.0.2), `vendor/nsfw/model_quantized.onnx`,
 `Sample/` (including the user's screenshots in `Sample/others/`).
