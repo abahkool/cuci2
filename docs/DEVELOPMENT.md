@@ -540,6 +540,17 @@ panel window --'panel:cmd'--> panels.js --'panel:cmd'--> main renderer (onPanelC
   segment boundary advances `program.idx` (and switches `src` if the next segment is another
   clip). `state.resultTime` tracks output time.
 
+Seeking in result mode:
+- the scrubber calls `seekResult(outputMs)`, which pauses, finds the range containing that
+  output time and seeks the `<video>` to `srcStart + (outputMs - outStart)`.
+- the timeline is **source-time** based, so a click/scrub there goes through
+  `sourceToResultMs(clipId, srcMs)` first (inside a cut it snaps to the next kept frame).
+  `seekTo()` branches to `seekResult()` in result mode; without that the playhead moved but
+  the preview stayed put.
+- `programPlay(fromResultMs)` must **keep** the requested output position inside the found
+  range (`resultTime = clamp(target, outStart, outEnd)`). It used to snap to `outStart`, which
+  made every seek restart from 0:00 — the e2e "result seek" case guards this.
+
 ### Debug handle
 
 `init()` exposes `window.__cuciApp = { state, api, CU, addVideos, loadSubtitleFromPath,

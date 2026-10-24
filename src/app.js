@@ -1219,9 +1219,29 @@
     menu.style.top = Math.max(8, Math.min(clientY, window.innerHeight - rect.height - 8)) + 'px';
   }
 
+  /** Map a source time on `clipId` to its position in the merged result. */
+  function sourceToResultMs(clipId, srcMs) {
+    const { ranges } = programRanges();
+    const mine = ranges.filter((r) => r.clipId === clipId);
+    if (!mine.length) return 0;
+    for (const r of mine) {
+      if (srcMs >= r.srcStart && srcMs <= r.srcEnd) return r.outStart + (srcMs - r.srcStart);
+    }
+    // Inside a removed range: snap forward to the next kept frame (or back to
+    // the last one when the clip is cut away to its end).
+    const next = mine.find((r) => r.srcStart >= srcMs);
+    return next ? next.outStart : mine[mine.length - 1].outEnd;
+  }
+
   function seekTo(ms) {
     const clip = activeClip();
     if (!clip) return;
+    // In Result mode the timeline is source-time based; translate the target
+    // before seeking, otherwise the preview stays where it was.
+    if (state.playMode === 'result') {
+      seekResult(sourceToResultMs(clip.id, CU.clamp(ms, 0, clip.durationMs)));
+      return;
+    }
     state.playhead = CU.clamp(ms, 0, clip.durationMs);
     if (state.playMode === 'source') {
       seekVideo(state.playhead);
@@ -1252,18 +1272,21 @@
   }
 
   async function programPlay(fromResultMs) {
-    const { ranges } = programRanges();
+    const { ranges, total } = programRanges();
     if (!ranges.length) {
       toast('Nothing to preview — every frame is cut away.', 'warn');
       return;
     }
-    let idx = ranges.findIndex((r) => fromResultMs >= r.outStart && fromResultMs < r.outEnd - 1);
-    if (idx < 0) idx = ranges.findIndex((r) => r.outStart >= fromResultMs);
+    const target = CU.clamp(Number(fromResultMs) || 0, 0, total);
+    let idx = ranges.findIndex((r) => target >= r.outStart && target < r.outEnd - 1);
+    if (idx < 0) idx = ranges.findIndex((r) => r.outStart >= target);
     if (idx < 0) idx = ranges.length - 1;
     program.ranges = ranges;
     program.idx = idx;
     program.playing = true;
-    state.resultTime = ranges[idx].outStart;
+    // Resume *at* the requested output position (the old code snapped to the
+    // start of the range, so every seek restarted from 0:00.000).
+    state.resultTime = CU.clamp(target, ranges[idx].outStart, ranges[idx].outEnd);
     await playProgramRange();
   }
 
@@ -1299,21 +1322,28 @@
     if (!ranges.length) return;
     const t = CU.clamp(ms, 0, total);
     state.resultTime = t;
-    let idx = ranges.findIndex((r) => t >= r.outStart && t <= r.outEnd);
+    let idx = ranges.findIndex((r) => t >= r.outStart && t < r.outEnd);
+    if (idx < 0) idx = ranges.findIndex((r) => r.outStart >= t);
     if (idx < 0) idx = ranges.length - 1;
     program.idx = idx;
     program.playing = false;
+    if (!els.video.paused) els.video.pause();
     const r = ranges[idx];
     const clip = state.clips.find((c) => c.id === r.clipId);
     const local = r.srcStart + CU.clamp(t - r.outStart, 0, r.srcEnd - r.srcStart);
+    const clipChanged = state.activeClipId !== r.clipId;
     state.activeClipId = r.clipId;
-    updateClipList();
+    if (clipChanged) {
+      updateClipList();
+      renderTimeline();
+    }
     const ok = await ensureVideoFor(clip);
     if (ok) await seekVideo(local);
     state.playhead = local;
-    renderTimeline();
+    if (!clipChanged) renderOverlays(); // scrubbing only moves the playhead
     updateTransport();
     updateSubtitleOverlay();
+    scrollPlayheadIntoView();
   }
 
   async function togglePlay() {
