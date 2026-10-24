@@ -56,6 +56,7 @@ lib/
   nsfw.js               ONNX NSFW scene detection (sampling + inference + grouping)
   media-protocol.js     seekable media:// handler (HTTP range support)
 src/i18n.js             UI translations (14 languages) + language detection
+src/guide-i18n.js       user-guide + import-confirmation strings (merged via CU.i18n.extend)
   selftest.js           export-pipeline test against real ffmpeg   (node)
   test-locate.js        verifies the tool resolution chain         (node)
   test-job.js           cut-job trust boundary: caps, bombs, XSS, SRT injection (node)
@@ -590,6 +591,9 @@ use those variables instead of hard-coded colours. Persisted in
   main window includes in every `panel:state` snapshot.
 - Adding a language: add it to `LANGS` + a `DICT` entry with all keys (the key set is
   `Object.keys(DICT.en)`), and add the code to the e2e appearance check if it is a big one.
+- `src/guide-i18n.js` adds the user-guide and import-dialog keys through
+  `CU.i18n.extend({...})` (loaded after `i18n.js`); keep its key set in sync across all 14
+  languages too.
 
 ### Build script
 
@@ -612,6 +616,20 @@ obfuscate first as well, so no packaging path ships readable renderer code. Use
 missing, downloads the Microsoft Windows SDK BuildTools NuGet package once into
 `vendor/msix-tools/` and extracts it with a small zip reader (no extra npm dependency).
 `build-msix.mjs` packs with it and then verifies the archive with `makeappx unpack`.
+
+### User guide + job import confirmation
+
+- **User guide** (`#guideModal`, topbar **?** or **F1**): static markup with `data-i18n`
+  attributes — sections for getting started, cutting, preview, subtitles, Parent Assist,
+  export, jobs, workspace, a shortcut table (`<kbd>`) and tips. It is translated by the same
+  `CU.i18n.apply()` pass, so no JS rendering is involved.
+- **Import confirmation**: `openJobFile()` / `importShareCode()` never apply a payload
+  directly. `requestJobImport(text, label)` runs `CU.parseJobText()` (byte caps + bounded
+  inflate) and `CU.sanitizeJob()` (whitelists, length caps, plain strings), builds a preview
+  with `findClipForEntry()`, then shows `#confirmModal` — description, clips, cuts, subtitle
+  tracks, matched/missing videos and the export format — and only calls `applyJob()` when the
+  user confirms. Every value in the dialog is written with `textContent`; job text is never
+  passed to `innerHTML`.
 
 ### Debug handle
 

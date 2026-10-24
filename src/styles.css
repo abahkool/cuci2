@@ -2142,3 +2142,91 @@ html[dir='rtl'] .sidebar {
 .hidden {
   display: none !important;
 }
+
+/* ─────────────── user guide & import confirmation ─────────────── */
+.guide-card {
+  width: 780px;
+  max-width: min(960px, calc(100vw - 40px));
+}
+.guide-body {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+.guide-section {
+  margin-top: 16px;
+}
+.guide-section h3 {
+  margin: 0 0 5px;
+  font-size: 12px;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.guide-section p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+.guide-keys {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 6px;
+}
+.guide-keys th {
+  width: 200px;
+  padding: 5px 10px 5px 0;
+  text-align: left;
+  font-weight: 400;
+  white-space: nowrap;
+  vertical-align: top;
+}
+.guide-keys td {
+  padding: 5px 0;
+  color: var(--muted);
+  vertical-align: top;
+}
+.guide-keys tr + tr th,
+.guide-keys tr + tr td {
+  border-top: 1px solid var(--border-soft);
+}
+kbd {
+  display: inline-block;
+  font: 11px/1.4 var(--mono);
+  color: var(--text);
+  background: var(--panel-3);
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  padding: 1px 5px;
+}
+.guide-tips {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  color: var(--muted);
+}
+.guide-tips li {
+  margin-bottom: 5px;
+  line-height: 1.5;
+}
+.confirm-rows {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 7px 16px;
+  margin: 14px 0 0;
+}
+.confirm-rows dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+.confirm-rows dd {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.confirm-rows dd.warn {
+  color: var(--warn);
+}
+html[dir='rtl'] .guide-keys th {
+  text-align: right;
+  padding: 5px 0 5px 10px;
+}

@@ -19,6 +19,7 @@
       </div>
       <div class="spacer"></div>
 
+      <button id="btnGuide" class="btn ghost icon" title="User guide (F1)" data-i18n-title="guideOpen">?</button>
       <button id="btnSettings" class="btn ghost icon" title="Settings" data-i18n-title="settings">⚙</button>
       <button id="btnAddSub" class="btn" data-i18n="addSubtitle">Add Subtitle</button>
       <button id="btnAddVideo" class="btn" data-i18n="addVideo">Add Video</button>
@@ -574,6 +575,112 @@
       </div>
     </div>
 
+    <!-- ───────────────────────── User guide ───────────────────────── -->
+    <div id="guideModal" class="modal hidden">
+      <div class="modal-card guide-card">
+        <div class="modal-head">
+          <h2 data-i18n="guideTitle">User guide</h2>
+          <button id="guideClose" class="btn ghost icon" title="Close">✕</button>
+        </div>
+        <div class="modal-body guide-body">
+          <p class="hint" data-i18n="guideIntro">Everything CUCI can do, in one place.</p>
+
+          <section class="guide-section">
+            <h3 data-i18n="guideGettingStarted">Getting started</h3>
+            <p data-i18n="guideGettingStartedText"></p>
+          </section>
+
+          <section class="guide-section">
+            <h3 data-i18n="guideCutting">Cutting &amp; the timeline</h3>
+            <p data-i18n="guideCuttingText"></p>
+          </section>
+
+          <section class="guide-section">
+            <h3 data-i18n="guidePreview">Source vs Preview</h3>
+            <p data-i18n="guidePreviewText"></p>
+          </section>
+
+          <section class="guide-section">
+            <h3 data-i18n="guideSubtitles">Subtitles</h3>
+            <p data-i18n="guideSubtitlesText"></p>
+          </section>
+
+          <section class="guide-section">
+            <h3 data-i18n="guideParent">Parent Assist</h3>
+            <p data-i18n="guideParentText"></p>
+          </section>
+
+          <section class="guide-section">
+            <h3 data-i18n="guideExport">Export</h3>
+            <p data-i18n="guideExportText"></p>
+          </section>
+
+          <section class="guide-section">
+            <h3 data-i18n="guideJobs">Jobs &amp; sharing</h3>
+            <p data-i18n="guideJobsText"></p>
+          </section>
+
+          <section class="guide-section">
+            <h3 data-i18n="guideLayout">Workspace</h3>
+            <p data-i18n="guideLayoutText"></p>
+          </section>
+
+          <section class="guide-section">
+            <h3 data-i18n="guideShortcuts">Keyboard shortcuts</h3>
+            <table class="guide-keys">
+              <tr><th><kbd>Space</kbd></th><td data-i18n="kPlay">Play / pause</td></tr>
+              <tr><th><kbd>←</kbd> <kbd>→</kbd></th><td data-i18n="kStep">Step one frame</td></tr>
+              <tr><th><kbd>Shift</kbd> + <kbd>←</kbd>/<kbd>→</kbd></th><td data-i18n="kSecond">Jump one second</td></tr>
+              <tr><th><kbd>I</kbd> <kbd>O</kbd></th><td data-i18n="kInOut">Set In / Out points</td></tr>
+              <tr><th><kbd>X</kbd></th><td data-i18n="kCut">Cut the selection</td></tr>
+              <tr><th><kbd>Home</kbd> <kbd>End</kbd></th><td data-i18n="kStartEnd">Jump to clip start / end</td></tr>
+              <tr><th><kbd>+</kbd> <kbd>−</kbd></th><td data-i18n="kZoom">Zoom the timeline</td></tr>
+              <tr><th><kbd>Ctrl</kbd>+<kbd>Z</kbd></th><td data-i18n="kUndo">Undo</td></tr>
+              <tr><th><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd></th><td data-i18n="kRedo">Redo</td></tr>
+              <tr><th><kbd>Ctrl</kbd>+<kbd>1</kbd>/<kbd>2</kbd></th><td data-i18n="kPanels">Pin or hide the side panel / control center</td></tr>
+              <tr><th><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>1</kbd>/<kbd>2</kbd></th><td data-i18n="kDetach">Detach or re-dock those panes</td></tr>
+              <tr><th><kbd>F1</kbd></th><td data-i18n="kGuide">Open this guide</td></tr>
+              <tr><th>Right-click</th><td data-i18n="kMenu">Cut context menu</td></tr>
+              <tr><th>Double-click</th><td data-i18n="kMarkDbl">Set In, then Out, then restart</td></tr>
+            </table>
+          </section>
+
+          <section class="guide-section">
+            <h3 data-i18n="guideTips">Tips &amp; tricks</h3>
+            <ul class="guide-tips">
+              <li data-i18n="guideTip1"></li>
+              <li data-i18n="guideTip2"></li>
+              <li data-i18n="guideTip3"></li>
+              <li data-i18n="guideTip4"></li>
+            </ul>
+          </section>
+        </div>
+        <div class="modal-foot">
+          <div class="spacer"></div>
+          <button id="guideClose2" class="btn primary" data-i18n="close">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─────────────────── Job import confirmation ─────────────────── -->
+    <div id="confirmModal" class="modal hidden">
+      <div class="modal-card">
+        <div class="modal-head">
+          <h2 data-i18n="confirmTitle">Import this cut job?</h2>
+          <button id="confirmClose" class="btn ghost icon" title="Close">✕</button>
+        </div>
+        <div class="modal-body">
+          <p class="hint" data-i18n="confirmHint">Nothing changes until you confirm.</p>
+          <dl id="confirmRows" class="confirm-rows"></dl>
+        </div>
+        <div class="modal-foot">
+          <div class="spacer"></div>
+          <button id="confirmCancel" class="btn ghost" data-i18n="confirmCancel">Cancel</button>
+          <button id="confirmOk" class="btn primary" data-i18n="confirmImport">Import</button>
+        </div>
+      </div>
+    </div>
+
     <div id="statusLog" class="status-log hidden"></div>
     <div id="ctxMenu" class="ctx-menu hidden"></div>
     <div id="toasts" class="toasts"></div>
@@ -582,6 +689,7 @@
     <script src="srt.js"></script>
     <script src="job.js"></script>
     <script src="i18n.js"></script>
+    <script src="guide-i18n.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

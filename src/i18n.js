@@ -1593,7 +1593,16 @@
     sel.value = LANGS.some(([c]) => c === value) ? value : 'auto';
   }
 
-  C.i18n = { LANGS, DICT, t, apply, resolve, stored, fillSelect, current: () => current };
+  /** Merge extra strings (src/guide-i18n.js) into DICT and re-apply. */
+  function extend(extra) {
+    if (!extra || typeof extra !== 'object') return;
+    for (const [code, obj] of Object.entries(extra)) {
+      if (DICT[code] && obj && typeof obj === 'object') Object.assign(DICT[code], obj);
+    }
+    if (document.readyState !== 'loading') apply(stored());
+  }
+
+  C.i18n = { LANGS, DICT, t, apply, resolve, stored, fillSelect, extend, current: () => current };
 
   // Translate the static markup before the app's own init runs.
   document.addEventListener('DOMContentLoaded', () => apply(stored()));

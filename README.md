@@ -67,6 +67,9 @@ subtitles** to the new length. Everything is powered by `ffmpeg`.
 - **14 UI languages** — English, Bahasa Melayu, Bahasa Indonesia, 简体中文, Español,
   Français, Deutsch, Português, Русский, 日本語, 한국어, العربية (RTL), हिन्दी and Türkçe.
   The language follows your system automatically and can be pinned in Settings.
+- **Built-in user guide** — press **F1** (or the **?** button) for a translated walkthrough:
+  cutting, preview, subtitles, Parent Assist, export, jobs, the workspace and every keyboard
+  shortcut, plus a tips section.
 - **Dark / Light / System theme** — the default follows Windows; pick one in Settings.
 - Undo/redo and keyboard shortcuts throughout.
 
@@ -222,6 +225,10 @@ The **Job** button opens a two-tab panel:
 
 - **Save job file…** writes a readable `<name>.cuci.json` you can reopen later.
 - **Copy code** copies the compact share code.
+- **Importing asks first** — a job file or share code is decoded with the same hardened
+  parser (size caps, bounded inflate, `sanitizeJob`), summarised in a confirmation dialog
+  (description, clips, cuts, subtitles, matched/missing videos, format) and only applied when
+  you confirm.
 - Add an optional **description** and, if you like, embed the subtitle text.
 
 **Import**

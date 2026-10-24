@@ -46,7 +46,8 @@ Docs: `README.md` (users) · `docs/DEVELOPMENT.md` (architecture, IPC, data form
 | `src/panel.js` | 350 | thin panel view: renders snapshots, forwards commands |
 | `src/panel.css` | 80 | panel window chrome |
 | `src/job.js` | 360 | cut-job codec + **untrusted-input** validation (`sanitizeJob`) |
-| `src/i18n.js` | 1500 | 14-language UI dictionary, detection, `<html dir>` switching |
+| `src/i18n.js` | 1520 | 14-language UI dictionary, detection, `<html dir>` switching |
+| `src/guide-i18n.js` | 640 | user-guide + import-dialog strings (14 languages) |
 | `src/srt.js` | 157 | subtitle parse/serialise/remap + SRT text cleaning |
 | `src/util.js` | 46 | time formatting helpers |
 | `src/index.html` | 517 | UI markup (all modals, timeline, transport) |
@@ -119,6 +120,9 @@ state = {
    `applyJob()` sanitizes again. Never bypass.
 5. **Subtitle text is cleaned** in `sanitizeSubtitleText` and in `serializeSrt/serializeVtt`:
    blank lines collapsed, `-->` → `→`, to prevent cue injection.
+   **Job imports are confirmed first**: `requestJobImport()` decodes with
+   `parseJobText`/`sanitizeJob`, then shows `#confirmModal` (description included) and only
+   calls `applyJob` after the user confirms. Dialog values use `textContent`, never innerHTML.
 6. **Timeline geometry** uses `--timeline-h`; the splitter handle is `#playerSplitter`; the
    height persists in `localStorage["cuci.timelineHeight"]`.
 7. **Export guard**: exporting with 0 cuts requires a second click (prevents accidental

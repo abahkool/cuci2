@@ -122,6 +122,8 @@
       'setLoadThumbs', 'setDetect', 'setSave', 'setClose', 'setClose2', 'setStatus',
       'btnJob', 'jobModal', 'jobClose', 'jobClose2', 'jobTabExport', 'jobTabImport', 'jobPanelExport', 'jobPanelImport',
       'jobSave', 'jobOpen', 'jobDesc', 'jobDescCount', 'jobIncludeSubs', 'jobCode',
+      'btnGuide', 'guideModal', 'guideClose', 'guideClose2',
+      'confirmModal', 'confirmClose', 'confirmCancel', 'confirmOk', 'confirmRows',
       'jobCopy', 'jobRefresh', 'jobCodeInfo', 'jobPaste', 'jobImport', 'jobPasteClip', 'jobStatus',
       'statusbar', 'statusIcon', 'statusSpinner', 'statusText', 'statusInfo', 'statusClear', 'statusProgress', 'statusProgressBar', 'statusLog',
       'btnNsfw', 'nsfwModal', 'nsfwClose', 'nsfwClose2', 'nsfwInterval', 'nsfwMinDur', 'nsfwEstimate', 'nsfwThreshold',
@@ -1782,9 +1784,7 @@
     if (!p) return;
     try {
       const text = await api.readText(p, { maxBytes: CU.JOB_LIMITS.jsonBytes });
-      const job = await CU.parseJobText(text);
-      const res = applyJob(job);
-      finishJobApply(res.job, res, ` from ${CU.basename(p)}`);
+      await requestJobImport(text, ` from ${CU.basename(p)}`);
     } catch (err) {
       toast('Could not open job:\n' + (err.message || err), 'error', 9000);
     }
@@ -1804,16 +1804,99 @@
     toast('Pasted from clipboard.', 'ok', 2500);
   }
 
+  /* ───────────────────────── user guide ───────────────────────── */
+  function openGuide() {
+    els.guideModal.classList.remove('hidden');
+    els.guideClose.focus();
+  }
+
+  function closeGuide() {
+    els.guideModal.classList.add('hidden');
+  }
+
+  /* ─────────── job import: summary + confirmation prompt ─────────── */
+  let importResolve = null;
+
+  function closeImportConfirm(ok) {
+    if (!importResolve) return;
+    const resolve = importResolve;
+    importResolve = null;
+    els.confirmModal.classList.add('hidden');
+    resolve(ok);
+  }
+
+  /**
+   * Fill the confirmation dialog from an already-sanitized job. Every value is
+   * written with textContent: a share code can carry arbitrary unicode, so it
+   * must never reach innerHTML.
+   */
+  function renderImportSummary(job, matched, missing) {
+    const dl = els.confirmRows;
+    dl.textContent = '';
+    const add = (key, value, kind) => {
+      const dt = document.createElement('dt');
+      dt.textContent = t(key);
+      const dd = document.createElement('dd');
+      dd.textContent = String(value);
+      if (kind) dd.className = kind;
+      dl.append(dt, dd);
+    };
+    if (job.description) add('confirmDescription', job.description);
+    add('confirmClips', job.clips.length);
+    const cuts = job.clips.reduce((n, c) => n + c.cuts.length, 0);
+    if (cuts) add('confirmCuts', cuts);
+    const tracks = job.clips.reduce((n, c) => n + (c.subtitles || []).filter((x) => x.events && x.events.length).length, 0);
+    if (tracks) add('confirmSubtitles', tracks);
+    add('confirmFound', `${matched} / ${job.clips.length}`);
+    if (missing.length) add('confirmMissing', missing.join(', '), 'warn');
+    if (job.export && job.export.container) {
+      const fmt = exportFormat(job.export.container);
+      add('format', `${fmt.label} · ${job.export.videoCodec} + ${fmt.audio}`);
+    }
+  }
+
+  function askImportConfirm(job, matched, missing) {
+    renderImportSummary(job, matched, missing);
+    els.confirmModal.classList.remove('hidden');
+    els.confirmOk.focus();
+    return new Promise((resolve) => {
+      importResolve = resolve;
+    });
+  }
+
+  /** Decode → sanitize → preview → confirm → apply (never trusts the payload). */
+  async function requestJobImport(text, sourceLabel) {
+    let job;
+    try {
+      // parseJobText enforces the byte caps, bounded inflate and sanitizeJob.
+      job = await CU.parseJobText(text);
+      job = CU.sanitizeJob(job); // plain, length-capped strings only
+    } catch (err) {
+      toast('Could not import:\n' + (err.message || err), 'error', 9000);
+      return;
+    }
+    const used = new Set();
+    let matched = 0;
+    const missing = [];
+    for (const entry of job.clips) {
+      const clip = findClipForEntry(entry, used);
+      if (clip) {
+        used.add(clip.id);
+        matched += 1;
+      } else {
+        missing.push(entry.name || '?');
+      }
+    }
+    const ok = await askImportConfirm(job, matched, missing);
+    if (!ok) return;
+    const res = applyJob(job);
+    finishJobApply(res.job, res, sourceLabel);
+  }
+
   async function importShareCode() {
     const text = (els.jobPaste.value || '').trim();
     if (!text) return toast('Paste a share code first.', 'warn');
-    try {
-      const job = await CU.parseJobText(text);
-      const res = applyJob(job);
-      finishJobApply(res.job, res, ' from share code');
-    } catch (err) {
-      toast('Could not import:\n' + (err.message || err), 'error', 9000);
-    }
+    await requestJobImport(text, ' from share code');
   }
 
   /** Switch the cut-job modal between its Export and Import tabs. */
@@ -3029,6 +3112,12 @@
 
     els.btnExport.addEventListener('click', openExportModal);
     els.btnSettings.addEventListener('click', openSettings);
+    els.btnGuide.addEventListener('click', openGuide);
+    els.guideClose.addEventListener('click', closeGuide);
+    els.guideClose2.addEventListener('click', closeGuide);
+    els.confirmOk.addEventListener('click', () => closeImportConfirm(true));
+    els.confirmCancel.addEventListener('click', () => closeImportConfirm(false));
+    els.confirmClose.addEventListener('click', () => closeImportConfirm(false));
     els.btnJob.addEventListener('click', openJobModal);
     els.jobTabExport.addEventListener('click', () => selectJobTab('export'));
     els.jobTabImport.addEventListener('click', () => selectJobTab('import'));
@@ -3490,6 +3579,20 @@
     }
     if (e.key === 'Escape' && !els.ctxMenu.classList.contains('hidden')) {
       hideContextMenu();
+      return;
+    }
+    if (e.key === 'F1') {
+      e.preventDefault();
+      if (els.guideModal.classList.contains('hidden')) openGuide();
+      else closeGuide();
+      return;
+    }
+    if (!els.confirmModal.classList.contains('hidden')) {
+      if (e.key === 'Escape') closeImportConfirm(false);
+      return;
+    }
+    if (!els.guideModal.classList.contains('hidden')) {
+      if (e.key === 'Escape') closeGuide();
       return;
     }
     if (!els.exportModal.classList.contains('hidden')) {
