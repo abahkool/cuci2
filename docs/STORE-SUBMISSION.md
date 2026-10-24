@@ -134,10 +134,10 @@ $cert = New-SelfSignedCertificate -Type Custom -Subject "CN=1A2B3C4D-..." `
   -CertStoreLocation "Cert:\CurrentUser\My" `
   -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.3")
 
-Export-PfxCertificate -Cert $cert -FilePath cuci2-test.pfx -Password (Read-Host -AsSecureString)
+Export-PfxCertificate -Cert $cert -FilePath cuci-test.pfx -Password (Read-Host -AsSecureString)
 
 # trust it once, then install
-Import-Certificate -FilePath cuci2-test.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople
+Import-Certificate -FilePath cuci-test.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople
 Add-AppxPackage .\dist\CUCI_1.0.0.0_x64.msix
 ```
 
@@ -271,7 +271,7 @@ Paste-ready. Verify character limits in Partner Center (typical: description 10,
 
 > **CUCI Video Cut Studio**
 
-Tiles use the short name **CUCI2**.
+Tiles use the short name **CUCI**.
 
 ### Short description (~100 chars)
 
@@ -280,7 +280,7 @@ Tiles use the short name **CUCI2**.
 ### Description
 
 ```
-CUCI2 is a focused desktop editor for one job: cutting out the parts you don't want and
+CUCI is a focused desktop editor for one job: cutting out the parts you don't want and
 joining what's left — with subtitles that stay in sync.
 
 MILLISECOND PRECISION
@@ -288,12 +288,12 @@ Every edit point is stored and exported to the millisecond, with optional frame 
 based on the real source frame rate. What you set is what you get.
 
 CUT, MERGE, REPEAT
-Remove as many ranges as you like from each clip, reorder clips, and CUCI2 joins the kept
+Remove as many ranges as you like from each clip, reorder clips, and CUCI joins the kept
 segments into one continuous file. Clips with different resolutions, frame rates or missing
 audio are normalised automatically.
 
 SUBTITLES THAT FOLLOW YOUR CUTS
-Load an .srt or .vtt and CUCI2 rewrites the timings to match your edit: captions after a cut
+Load an .srt or .vtt and CUCI rewrites the timings to match your edit: captions after a cut
 move earlier by exactly the removed time, captions spanning a cut are trimmed, and captions
 inside a removed scene are dropped. Export the corrected subtitle file, or burn the captions
 straight into the video.
@@ -448,7 +448,7 @@ Disclose this in the Store description too (the copy in §6 already does). Expec
 Paste into **Partner Center → Submission → Notes for certification**:
 
 ```
-CUCI2 is an offline video cutting utility. It ships no media content.
+CUCI is an offline video cutting utility. It ships no media content.
 
 - The NSFW detection feature runs an ONNX image classifier entirely on-device
   (onnxruntime-node). No frames, files or telemetry leave the machine.
@@ -468,9 +468,9 @@ Test steps: launch → Add Video → drag on the timeline → Cut → Export.
 The app collects nothing; you still need a published URL. Minimal text (host it as a GitHub Pages page or a `PRIVACY.md` on the repo):
 
 ```
-CUCI2 privacy policy
+CUCI privacy policy
 
-CUCI2 processes video and subtitle files entirely on your device. We do not collect,
+CUCI processes video and subtitle files entirely on your device. We do not collect,
 store, transmit or sell any personal data, usage analytics, telemetry or media.
 
 Network access happens only when you explicitly ask the app to download the optional

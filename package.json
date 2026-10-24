@@ -1,10 +1,10 @@
 {
-  "name": "cuci2",
+  "name": "cuci",
   "productName": "CUCI",
   "version": "1.0.1",
   "description": "CUCI — Cut Out Bad Scenes. Millisecond-precision video cut & merge with automatic subtitle sync.",
   "main": "main.js",
-  "author": "CUCI2",
+  "author": "CUCI",
   "license": "MIT",
   "scripts": {
     "start": "electron .",

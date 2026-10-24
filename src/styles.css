@@ -1139,7 +1139,7 @@ input[type="range"]::-webkit-slider-thumb {
  * detached        → the side panel / control center move to their own OS window.
  *                   The timeline belongs to the control center, so it travels
  *                   with it (see src/panel.html).
- * State lives in localStorage["cuci2.layout"]; a peek is never persisted.
+ * State lives in localStorage["cuci.layout"]; a peek is never persisted.
  */
 body.hide-sidebar .sidebar,
 body.hide-timeline #timelineWrap,

@@ -39,7 +39,7 @@
     return `${n.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
   };
 
-  C.storageKey = 'cuci2.state.v1';
+  C.storageKey = 'cuci.state.v1';
 
   C.escapeHtml = (s) =>
     String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

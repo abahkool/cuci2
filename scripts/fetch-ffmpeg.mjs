@@ -7,7 +7,7 @@
  *   node scripts/fetch-ffmpeg.mjs --force   # re-download
  *   node scripts/fetch-ffmpeg.mjs --strict  # exit non-zero on failure (for dist)
  *
- * Skipped entirely when CUCI2_SKIP_FFMPEG_FETCH=1.
+ * Skipped entirely when CUCI_SKIP_FFMPEG_FETCH=1 (legacy: CUCI2_SKIP_FFMPEG_FETCH).
  *
  * Sources (latest release of each channel):
  *   win32-x64   gyan.dev "release essentials" zip (ffmpeg + ffprobe, libass)
@@ -38,8 +38,8 @@ function log(...a) {
   console.log('[fetch-ffmpeg]', ...a);
 }
 
-if (process.env.CUCI2_SKIP_FFMPEG_FETCH === '1') {
-  log('skipped (CUCI2_SKIP_FFMPEG_FETCH=1)');
+if (process.env.CUCI_SKIP_FFMPEG_FETCH === '1' || process.env.CUCI2_SKIP_FFMPEG_FETCH === '1') {
+  log('skipped (CUCI_SKIP_FFMPEG_FETCH=1)');
   process.exit(0);
 }
 
@@ -157,7 +157,7 @@ async function main() {
   if (!list.length) throw new Error(`no ffmpeg source for ${process.platform}-${process.arch}`);
 
   fs.mkdirSync(vendorDir, { recursive: true });
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'cuci2-fetch-'));
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'cuci-fetch-'));
 
   try {
     let i = 0;

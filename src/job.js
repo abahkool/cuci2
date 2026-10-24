@@ -173,6 +173,7 @@
 
   function fromCompact(k) {
     if (!isObject(k)) throw new Error('Share code has an unexpected format.');
+    // 'CUCI2' is the pre-rename app id — old share codes still decode.
     if (!['CUCI', 'CUCI2'].includes(k.a) && !['CUCI', 'CUCI2'].includes(k.app)) throw new Error('Share code has an unexpected format.');
     if (Array.isArray(k.clips)) return k; // already the verbose form
 
@@ -244,6 +245,7 @@
    */
   function sanitizeJob(raw) {
     if (!isObject(raw)) throw new Error('Not a CUCI job.');
+    // Accept the pre-rename 'CUCI2' id so old job files keep working.
     if (raw.app !== 'CUCI' && raw.app !== 'CUCI2') throw new Error('Not a CUCI job.');
     if (!Array.isArray(raw.clips)) throw new Error('Job has no clips.');
 
@@ -339,6 +341,7 @@
     if (!code) throw new Error('Empty share code.');
     if (code.length > LIMITS.codeChars) throw new Error('Share code is too long.');
 
+    // New codes are CUCI-1…; CUCI2-1… is the legacy prefix.
     const m = /^(?:CUCI|CUCI2)-1([zp])\.([A-Za-z0-9_-]+)$/.exec(code);
     if (!m) throw new Error('This does not look like a CUCI share code.');
 

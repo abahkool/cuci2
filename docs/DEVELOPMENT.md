@@ -161,7 +161,7 @@ It is **resumable** (downloads into `vendor/.cache/` and continues partial files
 
 - `--force` — re-download even if present (`npm run fetch:ffmpeg`),
 - `--strict` — non-zero exit on failure (`predist`, so `npm run dist` fails loudly),
-- `CUCI2_SKIP_FFMPEG_FETCH=1` — skip entirely (useful in CI).
+- `CUCI_SKIP_FFMPEG_FETCH=1` — skip entirely (useful in CI; the old `CUCI2_` name still works).
 
 Without `--strict` the script always exits 0, so a failed download never breaks
 `npm install` — the app simply falls back to a system ffmpeg.
@@ -364,7 +364,7 @@ Hugging Face search for ONNX NSFW classifiers returns exactly two models; CUCI u
 | output | `logits` `float32[1,2]` |
 | norm | mean/std `[0.5,0.5,0.5]`, scale `1/255` |
 
-Model lookup order: `CUCI2_NSFW_MODEL_DIR` → `vendor/nsfw/` → `<userData>/models/nsfw/`
+Model lookup order: `CUCI_NSFW_MODEL_DIR` (legacy `CUCI2_` accepted) → `vendor/nsfw/` → `<userData>/models/nsfw/`
 (downloaded there on first use, resumable via `curl -C -` with a `fetch` fallback).
 
 ### Pipeline
@@ -467,7 +467,7 @@ merged subtitle list).
 handle at the top of the transport (`#playerSplitter`) drags it: dragging **down** grows the
 player and shrinks the timeline, and vice versa. The transport bar's empty background works
 as a handle too. The value is clamped so the player keeps at least 120px, persisted in
-`localStorage["cuci2.timelineHeight"]`, re-clamped on window resize, and reset to 260 on
+`localStorage["cuci.timelineHeight"]`, re-clamped on window resize, and reset to 260 on
 double-click.
 
 The timeline's internal bands are height-relative: the filmstrip runs from the 26px ruler to
@@ -497,7 +497,7 @@ Each pane carries a flat `[pin][detach]` pair in its own header — side panel
   space (`body.hide-sidebar`/`detach-sidebar`/`peek-sidebar` collapse `.layout` to one
   column). The peek drawers are sized from `--topbar-h`, `--status-h` and (for the controls)
   `--transport-h`, set by `measureChrome()`.
-- State persists in `localStorage["cuci2.layout"]` as
+- State persists in `localStorage["cuci.layout"]` as
   `{ sidebar|transport: { pinned, detached } }` (legacy `hidden` entries are still read); a
   peek is never persisted. Windowed panes reopen on the next launch.
 - Shortcuts: `Ctrl+1`/`Ctrl+2` pin-toggle sidebar/controls, `Ctrl+Shift+1`/`Ctrl+Shift+2`
@@ -680,7 +680,7 @@ NSFW defaults are deliberately aggressive — sensitivity `0.3` (the slider mini
 5 s minimum cut length — so brief scenes are not missed. Raise the threshold if the first
 pass produces too many false positives.
 
-### Cut job — verbose (`.cuci2.json`)
+### Cut job — verbose (`.cuci.json`; old `.cuci2.json` files still load)
 
 ```json
 {
@@ -726,7 +726,7 @@ Short keys, used **only** inside the share code:
 ### Share code
 
 ```
-CUCI2-1<z|p>.<base64url(bytes)>
+CUCI-1<z|p>.<base64url(bytes)>   (legacy CUCI2-1 codes still import)
   z = deflate-raw(JSON)   (CompressionStream)
   p = plain JSON          (fallback if CompressionStream is unavailable)
 ```

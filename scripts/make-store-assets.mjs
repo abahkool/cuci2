@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Generate placeholder Microsoft Store / MSIX artwork for CUCI².
+ * Generate placeholder Microsoft Store / MSIX artwork for CUCI.
  *
  *   node scripts/make-store-assets.mjs
  *
@@ -35,10 +35,10 @@ const ASSETS = [
   { file: 'StoreLogo.png', w: 50, h: 50, text: 'C', size: 30, font: FONT_BOLD },
   { file: 'Square44x44Logo.png', w: 44, h: 44, text: 'C', size: 26, font: FONT_BOLD },
   { file: 'LockScreenLogo.png', w: 24, h: 24, text: 'C', size: 15, font: FONT_BOLD },
-  { file: 'Square150x150Logo.png', w: 150, h: 150, text: 'CUCI2', size: 30, font: FONT_BOLD },
-  { file: 'Square310x310Logo.png', w: 310, h: 310, text: 'CUCI2', size: 60, font: FONT_BOLD },
-  { file: 'Wide310x150Logo.png', w: 310, h: 150, text: 'CUCI2', size: 46, font: FONT_BOLD },
-  { file: 'SplashScreen.png', w: 620, h: 300, text: 'CUCI2', size: 86, font: FONT_BOLD },
+  { file: 'Square150x150Logo.png', w: 150, h: 150, text: 'CUCI', size: 30, font: FONT_BOLD },
+  { file: 'Square310x310Logo.png', w: 310, h: 310, text: 'CUCI', size: 60, font: FONT_BOLD },
+  { file: 'Wide310x150Logo.png', w: 310, h: 150, text: 'CUCI', size: 46, font: FONT_BOLD },
+  { file: 'SplashScreen.png', w: 620, h: 300, text: 'CUCI', size: 86, font: FONT_BOLD },
 ];
 
 function run(args) {
@@ -80,14 +80,14 @@ function main() {
   const listingLogo = path.join(listingDir, 'StoreListingLogo300x300.png');
   run([
     '-f', 'lavfi', '-i', `color=c=${BG}:s=300x300`,
-    '-vf', buildFilter({ w: 300, h: 300, text: 'CUCI2', size: 58, font: FONT_BOLD }),
+    '-vf', buildFilter({ w: 300, h: 300, text: 'CUCI', size: 58, font: FONT_BOLD }),
     '-frames:v', '1', listingLogo,
   ]);
   console.log(`  300x300 ${path.relative(root, listingLogo)}`);
 
   // electron-builder app icon (256x256 ICO)
   const png = path.join(buildDir, '_icon256.png');
-  run(['-f', 'lavfi', '-i', `color=c=${BG}:s=256x256`, '-vf', buildFilter({ w: 256, h: 256, text: 'CUCI2', size: 52, font: FONT_BOLD }), '-frames:v', '1', png]);
+  run(['-f', 'lavfi', '-i', `color=c=${BG}:s=256x256`, '-vf', buildFilter({ w: 256, h: 256, text: 'CUCI', size: 52, font: FONT_BOLD }), '-frames:v', '1', png]);
   run(['-i', png, '-vf', 'scale=256:256', path.join(buildDir, 'icon.ico')]);
   fs.rmSync(png, { force: true });
   console.log(`  256x256 ${path.relative(root, path.join(buildDir, 'icon.ico'))}`);

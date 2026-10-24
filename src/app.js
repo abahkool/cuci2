@@ -38,6 +38,30 @@
 
   const t = (key) => CU.i18n.t(key);
 
+  /**
+   * One-time move of the pre-rename (CUCI2) browser-storage keys so existing
+   * installs keep their layout, splitter height and saved state.
+   */
+  function migrateStorage() {
+    const moves = [
+      ['cuci.layout', 'cuci2.layout'],
+      ['cuci.timelineHeight', 'cuci2.timelineHeight'],
+      ['cuci.state.v1', 'cuci2.state.v1'],
+    ];
+    try {
+      for (const [now, oldKey] of moves) {
+        const oldVal = localStorage.getItem(oldKey);
+        if (oldVal != null) {
+          if (localStorage.getItem(now) == null) localStorage.setItem(now, oldVal);
+          localStorage.removeItem(oldKey);
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  migrateStorage();
+
   /* ───────────────────────────── theme ───────────────────────────── */
   const THEME_KEY = 'cuci.theme';
   const THEME_MODES = ['system', 'dark', 'light'];
@@ -1738,7 +1762,7 @@
   async function saveJobFile() {
     if (!state.clips.length) return toast('Add a video first.', 'warn');
     const first = state.clips[0];
-    const def = pathJoin(CU.dirname(first.path), CU.stripExt(first.name) + '.cuci2.json');
+    const def = pathJoin(CU.dirname(first.path), CU.stripExt(first.name) + '.cuci.json');
     const p = await api.saveFile({ title: 'Save cut job', defaultPath: def, filters: [{ name: 'CUCI job', extensions: ['json'] }] });
     if (!p) return;
     try {
@@ -2362,7 +2386,7 @@
     layout = defaultLayout();
     let saved = null;
     try {
-      saved = JSON.parse(localStorage.getItem('cuci2.layout') || 'null');
+      saved = JSON.parse(localStorage.getItem('cuci.layout') || 'null');
     } catch {
       saved = null;
     }
@@ -2381,7 +2405,7 @@
   function saveLayout() {
     try {
       localStorage.setItem(
-        'cuci2.layout',
+        'cuci.layout',
         JSON.stringify({
           sidebar: { pinned: layout.sidebar.pinned, detached: layout.sidebar.detached },
           transport: { pinned: layout.transport.pinned, detached: layout.transport.detached },
@@ -2939,7 +2963,7 @@
     document.documentElement.style.setProperty('--timeline-h', h + 'px');
     if (persist) {
       try {
-        localStorage.setItem('cuci2.timelineHeight', String(h));
+        localStorage.setItem('cuci.timelineHeight', String(h));
       } catch {
         /* ignore */
       }
@@ -3569,7 +3593,7 @@
     refillCodecOptions();
     loadLayout();
     try {
-      const saved = Number(localStorage.getItem('cuci2.timelineHeight'));
+      const saved = Number(localStorage.getItem('cuci.timelineHeight'));
       if (Number.isFinite(saved) && saved >= 140) timelineHeight = saved;
     } catch {
       /* ignore */

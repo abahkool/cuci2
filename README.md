@@ -46,7 +46,7 @@ subtitles** to the new length. Everything is powered by `ffmpeg`.
 - **Fast timeline tools** — drag to select, `I`/`O` marks, **double-click the ruler or
   filmstrip** to set In then Out, and a **right-click context menu** with all cut actions.
 - **Save & share cut jobs** — store your cut list + subtitles + export settings as a
-  `.cuci2.json` file, or as a compact one-line code you can paste into chat/email/social.
+  `.cuci.json` file, or as a compact one-line code you can paste into chat/email/social.
 - **Status bar** — live progress (*analyzing*, *loading keyframe snapshots*, *exporting*),
   sticky errors/warnings, active-clip info, and a click-to-open message history.
 - **Parent Assist** — scan the active clip with an on-device image classifier and turn flagged
@@ -134,7 +134,7 @@ npm install     # also fetches the bundled ffmpeg into vendor/ffmpeg (skippable)
 npm start
 ```
 
-`npm install` downloads the bundled ffmpeg (~110 MB). Set `CUCI2_SKIP_FFMPEG_FETCH=1` to
+`npm install` downloads the bundled ffmpeg (~110 MB). Set `CUCI_SKIP_FFMPEG_FETCH=1` to
 skip it, or set full ffmpeg paths in ⚙ Settings to use your own.
 
 `npm run dev` starts the app with DevTools open and renderer console logs forwarded to the
@@ -220,7 +220,7 @@ The **Job** button opens a two-tab panel:
 
 **Export**
 
-- **Save job file…** writes a readable `<name>.cuci2.json` you can reopen later.
+- **Save job file…** writes a readable `<name>.cuci.json` you can reopen later.
 - **Copy code** copies the compact share code.
 - Add an optional **description** and, if you like, embed the subtitle text.
 
@@ -245,7 +245,7 @@ CUCI-1z.<base64url( deflate-raw( JSON ) )>
 ```
 
 - `CUCI-1` — app + format version; `z` = deflate-raw (`p` = plain, automatic fallback).
-  Codes that start with the old `CUCI2-1` prefix still import.
+  Codes that start with the old `CUCI2-1` prefix (the app’s previous name) still import.
 - **base64url** (no `+ / =`) survives chat, email and URLs unchanged.
 - A compact key schema keeps it small: a single-clip job with two cuts is **~230
   characters** (fits a tweet); a description and embedded subtitles make it larger.
@@ -310,7 +310,7 @@ resolutions/fps/audio). Choose a CRF you're happy with.
 - **Preview shows a black frame / refuses to play** — the codec isn't decodable by Chromium;
   use *Create preview proxy*.
 - **NSFW scan fails to start** — the model needs a one-time ~84 MB download; if you are
-  offline, place `model_quantized.onnx` in `vendor/nsfw/` (or set `CUCI2_NSFW_MODEL_DIR` to a
+  offline, place `model_quantized.onnx` in `vendor/nsfw/` (or set `CUCI_NSFW_MODEL_DIR` to a
   folder containing it) and it will be used directly.
 - **Nothing was cut out of the export** — open Export and check the `removed` line; if it is
   `0:00.000` the cut list is empty and Export will ask you to confirm.

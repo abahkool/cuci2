@@ -1,16 +1,16 @@
-# AGENTS.md — CUCI2 handoff
+# AGENTS.md — CUCI handoff
 
 Pi auto-loads this file as a context file. Keep it short and current — its purpose is to let
 a fresh session start cheaply, without re-reading the codebase.
 
 ## What this is
 
-**CUCI²** — Electron desktop app: millisecond-precision video cut/merge, automatic subtitle
+**CUCI** — Electron desktop app: millisecond-precision video cut/merge, automatic subtitle
 sync (multiple tracks), on-device NSFW ("Parental AI") scan, shareable cut jobs, MSIX/Store
 packaging.
 
-- Repo: https://github.com/abahkool/cuci2 — branch `main`, last commit `2aef20f`
-- Working dir: `C:\Data\Project\CUCI2`
+- Repo: https://github.com/abahkool/cuci2 — branch `main` (the repo keeps its original name)
+- Working dir: `C:\Data\Project\CUCI2` (folder keeps the old name)
 - Renderer: vanilla HTML/CSS/JS, **no bundler**, classic scripts attached to `window.CUCI`
 - Main process: ffmpeg/ffprobe CLI + `onnxruntime-node`
 - License: MIT
@@ -120,7 +120,7 @@ state = {
 5. **Subtitle text is cleaned** in `sanitizeSubtitleText` and in `serializeSrt/serializeVtt`:
    blank lines collapsed, `-->` → `→`, to prevent cue injection.
 6. **Timeline geometry** uses `--timeline-h`; the splitter handle is `#playerSplitter`; the
-   height persists in `localStorage["cuci2.timelineHeight"]`.
+   height persists in `localStorage["cuci.timelineHeight"]`.
 7. **Export guard**: exporting with 0 cuts requires a second click (prevents accidental
    full-length re-encodes).
 8. **Detached panels are real OS windows** (`lib/panels.js` + `src/panel.*`). The main
