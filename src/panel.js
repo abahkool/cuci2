@@ -6,7 +6,8 @@
 
   const params = new URLSearchParams(location.search);
   const NAME = params.get('panel') === 'transport' ? 'transport' : 'sidebar';
-  const TITLES = { sidebar: 'Side panel', transport: 'Control center' };
+  const TITLE_KEYS = { sidebar: 'sidePanel', transport: 'controlCenter' };
+  const t = (key) => CU.i18n.t(key);
 
   let last = null;
 
@@ -43,37 +44,37 @@
     $('zoomRange').addEventListener('input', () => send('zoom', { value: Number($('zoomRange').value) }));
   }
 
-  function renderIo(t) {
+  function renderIo(d) {
     const fmt = (v) => (v == null ? '—' : CU.fmt(v, 3));
     let extra = '';
-    if (t.inPoint != null && t.outPoint != null && t.outPoint > t.inPoint) {
-      extra = ` · sel ${CU.fmt(t.outPoint - t.inPoint, 3)}`;
+    if (d.inPoint != null && d.outPoint != null && d.outPoint > d.inPoint) {
+      extra = ` · ${t('selLabel')} ${CU.fmt(d.outPoint - d.inPoint, 3)}`;
     }
-    $('ioReadout').innerHTML = `In <b>${fmt(t.inPoint)}</b> · Out <b>${fmt(t.outPoint)}</b>${extra}`;
+    $('ioReadout').innerHTML = `${t('inLabel')} <b>${fmt(d.inPoint)}</b> · ${t('outLabel')} <b>${fmt(d.outPoint)}</b>${extra}`;
   }
 
-  function renderTransport(t) {
-    $('timecode').textContent = CU.fmt(t.time, 3);
-    $('timeTotal').textContent = CU.fmt(t.total, 3);
+  function renderTransport(d) {
+    $('timecode').textContent = CU.fmt(d.time, 3);
+    $('timeTotal').textContent = CU.fmt(d.total, 3);
     const tc = $('resultTc');
-    tc.classList.toggle('hidden', t.mode !== 'result');
-    if (t.mode === 'result') tc.textContent = `result ${CU.fmt(t.resultTime, 3)} / ${CU.fmt(t.resultTotal, 3)}`;
-    $('btnPlay').textContent = t.playing ? '❚❚' : '▶';
+    tc.classList.toggle('hidden', d.mode !== 'result');
+    if (d.mode === 'result') tc.textContent = `${t('preview').toLowerCase()} ${CU.fmt(d.resultTime, 3)} / ${CU.fmt(d.resultTotal, 3)}`;
+    $('btnPlay').textContent = d.playing ? '❚❚' : '▶';
 
     const seek = $('seekRange');
-    if (document.activeElement !== seek && Number(seek.value) !== t.seekValue) seek.value = String(t.seekValue);
+    if (document.activeElement !== seek && Number(seek.value) !== d.seekValue) seek.value = String(d.seekValue);
     const zoom = $('zoomRange');
-    if (document.activeElement !== zoom && Math.abs(Number(zoom.value) - t.zoom) > 0.001) zoom.value = String(t.zoom);
+    if (document.activeElement !== zoom && Math.abs(Number(zoom.value) - d.zoom) > 0.001) zoom.value = String(d.zoom);
     const snap = $('chkSnap');
-    if (snap.checked !== !!t.snap) snap.checked = !!t.snap;
+    if (snap.checked !== !!d.snap) snap.checked = !!d.snap;
 
-    $('modeSource').classList.toggle('active', t.mode === 'source');
-    $('modeResult').classList.toggle('active', t.mode === 'result');
-    $('btnPlay').disabled = !t.hasClip;
-    $('btnCut').disabled = !t.hasClip;
-    $('btnClearCuts').disabled = !t.hasClip;
-    renderIo(t);
-    $('panelStatus').textContent = t.clipName || 'No media';
+    $('modeSource').classList.toggle('active', d.mode === 'source');
+    $('modeResult').classList.toggle('active', d.mode === 'result');
+    $('btnPlay').disabled = !d.hasClip;
+    $('btnCut').disabled = !d.hasClip;
+    $('btnClearCuts').disabled = !d.hasClip;
+    renderIo(d);
+    $('panelStatus').textContent = d.clipName || t('noMedia');
   }
 
   /* ───────────────────────── side panel ───────────────────────── */
@@ -92,7 +93,8 @@
     const list = $('clipList');
     list.innerHTML = '';
     if (!s.clips.length) {
-      list.innerHTML = '<div class="sub-info">No media loaded yet.</div>';
+      list.innerHTML = '<div class="sub-info"></div>';
+      list.firstChild.textContent = t('noMedia');
       return;
     }
     s.clips.forEach((clip, i) => {
@@ -137,9 +139,13 @@
     $('cutCount').textContent = String(s.cuts.length);
     const list = $('cutList');
     list.innerHTML = '';
-    if (!s.clipName) list.innerHTML = '<div class="sub-info">Select a clip first.</div>';
+    if (!s.clipName) {
+      list.innerHTML = '<div class="sub-info"></div>';
+      list.firstChild.textContent = t('selectClip');
+    }
     else if (!s.cuts.length) {
-      list.innerHTML = '<div class="sub-info">No cuts yet. Drag on the filmstrip in the main window, or use the cut tools.</div>';
+      list.innerHTML = '<div class="sub-info"></div>';
+      list.firstChild.textContent = t('noCuts');
     }
     s.cuts.forEach((c) => {
       const el = document.createElement('div');
@@ -169,12 +175,11 @@
     eventList.innerHTML = '';
 
     if (!s.clipName) {
-      info.textContent = 'Select a clip to manage its subtitles.';
+      info.textContent = t('selectClipSubs');
       return;
     }
     if (!sub.tracks.length) {
-      info.innerHTML =
-        'No subtitles loaded for this clip. Add one or more <code>.srt</code>/<code>.vtt</code> files — each becomes its own track.';
+      info.textContent = t('noSubs');
       return;
     }
 
@@ -534,10 +539,22 @@
   }
 
   /* ───────────────────────────── boot ───────────────────────────── */
+  function applyPanelLanguage(lang) {
+    const current = CU.i18n.current();
+    if (lang && lang !== current) CU.i18n.apply(lang);
+    $('panelSub').textContent = t(TITLE_KEYS[NAME]);
+    document.title = `CUCI — ${t(TITLE_KEYS[NAME])}`;
+    if (last) {
+      if (NAME === 'transport') renderTransport(last);
+      else renderSidebar(last);
+    }
+  }
+
   function init() {
     document.body.dataset.panel = NAME;
-    document.title = `CUCI — ${TITLES[NAME]}`;
-    $('panelSub').textContent = TITLES[NAME];
+    CU.i18n.apply(CU.i18n.stored());
+    $('panelSub').textContent = t(TITLE_KEYS[NAME]);
+    document.title = `CUCI — ${t(TITLE_KEYS[NAME])}`;
     $('panelSidebar').hidden = NAME !== 'sidebar';
     $('panelTransport').hidden = NAME !== 'transport';
 
@@ -553,6 +570,7 @@
         renderTimelineBase();
         return;
       }
+      if (payload.data.lang && payload.data.lang !== CU.i18n.current()) applyPanelLanguage(payload.data.lang);
       last = payload.data;
       if (NAME === 'transport') {
         renderTransport(last);

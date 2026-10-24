@@ -15,20 +15,20 @@
       <div class="brand">
         <span class="logo">✂</span>
         <span class="brand-name">CUCI</span>
-        <small>Cut Out Bad Scenes</small>
+        <small data-i18n="tagline">Cut Out Bad Scenes</small>
       </div>
       <div class="spacer"></div>
 
-      <button id="btnSettings" class="btn ghost icon" title="Settings">⚙</button>
-      <button id="btnAddSub" class="btn">Add Subtitle</button>
-      <button id="btnAddVideo" class="btn">Add Video</button>
-      <button id="btnExport" class="btn primary">Export</button>
+      <button id="btnSettings" class="btn ghost icon" title="Settings" data-i18n-title="settings">⚙</button>
+      <button id="btnAddSub" class="btn" data-i18n="addSubtitle">Add Subtitle</button>
+      <button id="btnAddVideo" class="btn" data-i18n="addVideo">Add Video</button>
+      <button id="btnExport" class="btn primary" data-i18n="export">Export</button>
     </header>
 
     <div class="layout">
       <aside id="sidebar" class="sidebar">
         <div class="pane-head">
-          <span class="pane-title">Side panel</span>
+          <span class="pane-title" data-i18n="sidePanel">Side panel</span>
           <span class="spacer"></span>
           <button id="btnPinSidebar" class="pane-btn" aria-pressed="true" title="Pinned — click to auto-hide" aria-label="Pin the side panel">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -43,38 +43,38 @@
           </button>
         </div>
         <section class="panel">
-          <h3>Media <span id="clipCount" class="pill">0</span></h3>
+          <h3><span data-i18n="media">Media</span> <span id="clipCount" class="pill">0</span></h3>
           <div id="clipList" class="clip-list"></div>
         </section>
 
         <section class="panel">
-          <h3>Cuts <span id="cutCount" class="pill">0</span></h3>
+          <h3><span data-i18n="cuts">Cuts</span> <span id="cutCount" class="pill">0</span></h3>
           <div id="cutList" class="cut-list"></div>
         </section>
 
         <section class="panel grow">
-          <h3>Subtitles</h3>
+          <h3 data-i18n="subtitles">Subtitles</h3>
           <div class="row">
-            <button id="btnSubAdd" class="btn tiny">Add subtitle files…</button>
+            <button id="btnSubAdd" class="btn tiny" data-i18n="addSubFiles">Add subtitle files…</button>
           </div>
           <div id="subInfo" class="sub-info">No subtitle loaded.</div>
           <div id="subTrackList" class="sub-track-list"></div>
           <div class="row">
-            <label class="field"><span>Global offset (ms)</span><input id="subOffset" type="number" step="10" value="0" /></label>
+            <label class="field"><span data-i18n="globalOffset">Global offset (ms)</span><input id="subOffset" type="number" step="10" value="0" /></label>
           </div>
           <div class="row">
-            <button id="btnSubExport" class="btn tiny">Export synced .srt files…</button>
+            <button id="btnSubExport" class="btn tiny" data-i18n="exportSrt">Export synced .srt files…</button>
           </div>
           <div id="subEventList" class="sub-event-list"></div>
         </section>
 
         <section class="panel quick-actions">
-          <h3>Actions</h3>
+          <h3 data-i18n="actions">Actions</h3>
           <div class="action-grid">
-            <button id="btnJob" class="btn tiny" title="Save / open / share the cut job">Job</button>
-            <button id="btnNsfw" class="btn tiny" title="Parent Assist — on-device AI that flags non-child-friendly scenes">Parent Assist</button>
-            <button id="btnSidebarAddSub" class="btn tiny">Add Subtitle</button>
-            <button id="btnSidebarAddVideo" class="btn tiny">Add Video</button>
+            <button id="btnJob" class="btn tiny" title="Save / open / share the cut job" data-i18n="job">Job</button>
+            <button id="btnNsfw" class="btn tiny" title="Parent Assist — on-device AI that flags non-child-friendly scenes" data-i18n="parentAssist">Parent Assist</button>
+            <button id="btnSidebarAddSub" class="btn tiny" data-i18n="addSubtitle">Add Subtitle</button>
+            <button id="btnSidebarAddVideo" class="btn tiny" data-i18n="addVideo">Add Video</button>
           </div>
           <button id="ffStatus" class="ff-status" title="ffmpeg status">checking ffmpeg…</button>
         </section>
@@ -86,21 +86,21 @@
           <div id="subtitleOverlay" class="subtitle-overlay"></div>
           <div id="playerNotice" class="player-notice hidden">
             <div class="notice-card">
-              <h3>Preview not supported</h3>
-              <p id="playerNoticeText">This codec/container cannot be decoded by the built-in player.</p>
+              <h3 data-i18n="previewUnsupported">Preview not supported</h3>
+              <p id="playerNoticeText" data-i18n="previewUnsupportedText">This codec/container cannot be decoded by the built-in player.</p>
               <div class="notice-actions">
-                <button id="btnMakeProxy" class="btn primary">Create preview proxy</button>
-                <button id="btnDismissNotice" class="btn ghost">Dismiss</button>
+                <button id="btnMakeProxy" class="btn primary" data-i18n="makeProxy">Create preview proxy</button>
+                <button id="btnDismissNotice" class="btn ghost" data-i18n="dismiss">Dismiss</button>
               </div>
             </div>
           </div>
           <div id="revealBar" class="reveal-bar" aria-hidden="true">
-            <button id="btnRevealSidebar" class="reveal-btn edge-side hidden" title="Show the side panel">
+            <button id="btnRevealSidebar" class="reveal-btn edge-side hidden" title="Show the side panel" data-i18n-title="showSide">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M9 6l6 6-6 6" />
               </svg>
             </button>
-            <button id="btnRevealTransport" class="reveal-btn edge-controls hidden" title="Show the control center and timeline">
+            <button id="btnRevealTransport" class="reveal-btn edge-controls hidden" title="Show the control center and timeline" data-i18n-title="showControls">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M6 15l6-6 6 6" />
               </svg>
@@ -112,12 +112,12 @@
           <div id="playerSplitter" class="player-splitter" title="Drag to resize the player and timeline"></div>
           <div class="transport-row transport-main">
             <div class="transport-left">
-              <button id="btnStop" class="btn icon" title="Stop">■</button>
-              <button id="btnPrevSec" class="btn icon" title="Back 1s">«</button>
-              <button id="btnPrevFrame" class="btn icon" title="Previous frame (←)">‹</button>
-              <button id="btnPlay" class="btn icon play" title="Play / pause (Space)">▶</button>
-              <button id="btnNextFrame" class="btn icon" title="Next frame (→)">›</button>
-              <button id="btnNextSec" class="btn icon" title="Forward 1s">»</button>
+              <button id="btnStop" class="btn icon" title="Stop" data-i18n-title="stop">■</button>
+              <button id="btnPrevSec" class="btn icon" title="Back 1s" data-i18n-title="back1s">«</button>
+              <button id="btnPrevFrame" class="btn icon" title="Previous frame (←)" data-i18n-title="prevFrame">‹</button>
+              <button id="btnPlay" class="btn icon play" title="Play / pause (Space)" data-i18n-title="playPause">▶</button>
+              <button id="btnNextFrame" class="btn icon" title="Next frame (→)" data-i18n-title="nextFrame">›</button>
+              <button id="btnNextSec" class="btn icon" title="Forward 1s" data-i18n-title="forward1s">»</button>
             </div>
             <div class="timecodes">
               <span id="timecode" class="tc">0:00.000</span>
@@ -126,36 +126,36 @@
               <span id="resultTc" class="tc result hidden"></span>
             </div>
             <div class="seek-wrap">
-              <input id="seekRange" class="seek" type="range" min="0" max="10000" step="1" value="0" aria-label="Seek" />
+              <input id="seekRange" class="seek" type="range" min="0" max="10000" step="1" value="0" aria-label="Seek" data-i18n-aria="seek" />
             </div>
             <div class="transport-right">
               <div class="seg-toggle">
-                <button id="modeSource" class="seg active" title="Preview the untouched source">Source</button>
-                <button id="modeResult" class="seg" title="Preview the cut result">Preview</button>
+                <button id="modeSource" class="seg active" title="Preview the untouched source" data-i18n-title="sourceTitle" data-i18n="source">Source</button>
+                <button id="modeResult" class="seg" title="Preview the cut result" data-i18n-title="previewTitle" data-i18n="preview">Preview</button>
               </div>
-              <label class="snap" title="Snap edits to whole frames"><input id="chkSnap" type="checkbox" checked /> <span>Snap frame</span></label>
-              <label class="zoom"><span>Zoom</span><input id="zoomRange" type="range" min="1" max="12" step="0.1" value="1" /></label>
+              <label class="snap" title="Snap edits to whole frames" data-i18n-title="snapTitle"><input id="chkSnap" type="checkbox" checked /> <span data-i18n="snap">Snap frame</span></label>
+              <label class="zoom"><span data-i18n="zoom">Zoom</span><input id="zoomRange" type="range" min="1" max="12" step="0.1" value="1" /></label>
             </div>
           </div>
 
           <div class="transport-row transport-cuts">
-            <span class="cut-toolbar-label">Cuts</span>
+            <span class="cut-toolbar-label" data-i18n="cutTools">Cuts</span>
 
             <!-- Set In: a '[' bracket marking where the kept range starts -->
-            <button id="btnSetIn" class="btn tiny glyph" title="Set In point at the playhead (I)" aria-label="Set In point">
+            <button id="btnSetIn" class="btn tiny glyph" title="Set In point at the playhead (I)" aria-label="Set In point" data-i18n-title="setIn" data-i18n-aria="setIn">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M9 4v16M9 4h4M9 20h4" />
               </svg>
             </button>
 
             <!-- Set Out: a ']' bracket -->
-            <button id="btnSetOut" class="btn tiny glyph" title="Set Out point at the playhead (O)" aria-label="Set Out point">
+            <button id="btnSetOut" class="btn tiny glyph" title="Set Out point at the playhead (O)" aria-label="Set Out point" data-i18n-title="setOut" data-i18n-aria="setOut">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M15 4v16M15 4h-4M15 20h-4" />
               </svg>
             </button>
 
-            <button id="btnCut" class="btn tiny glyph danger" title="Cut the selected range / In→Out (X)" aria-label="Cut">
+            <button id="btnCut" class="btn tiny glyph danger" title="Cut the selected range / In→Out (X)" aria-label="Cut" data-i18n-title="cut" data-i18n-aria="cut">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <circle cx="6" cy="6" r="2.2" />
                 <circle cx="6" cy="18" r="2.2" />
@@ -167,7 +167,7 @@
             <span class="cut-toolbar-sep"></span>
 
             <!-- Clear marks: undo arrow (back to before the marks were set) -->
-            <button id="btnClearMarks" class="btn tiny glyph ghost" title="Clear In/Out points and selection (undo the marks)" aria-label="Clear In/Out marks">
+            <button id="btnClearMarks" class="btn tiny glyph ghost" title="Clear In/Out points and selection (undo the marks)" aria-label="Clear In/Out marks" data-i18n-title="clearMarks" data-i18n-aria="clearMarks">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M9 14 4 9l5-5" />
                 <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
@@ -175,7 +175,7 @@
             </button>
 
             <!-- Clear cuts: trash -->
-            <button id="btnClearCuts" class="btn tiny glyph ghost" title="Remove all cuts" aria-label="Remove all cuts">
+            <button id="btnClearCuts" class="btn tiny glyph ghost" title="Remove all cuts" aria-label="Remove all cuts" data-i18n-title="clearCuts" data-i18n-aria="clearCuts">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M4 7h16" />
                 <path d="M9 7V4.5h6V7" />
@@ -221,9 +221,9 @@
           <div id="emptyState" class="empty-state">
             <div class="empty-card">
               <div class="empty-icon">🎬</div>
-              <h2>No media yet</h2>
-              <p>Add a video to start cutting with millisecond precision, frame snapping and automatic subtitle sync.</p>
-              <button id="btnAddVideo2" class="btn primary">Add Video</button>
+              <h2 data-i18n="emptyTitle">No media yet</h2>
+              <p data-i18n="emptyText">Add a video to start cutting with millisecond precision, frame snapping and automatic subtitle sync.</p>
+              <button id="btnAddVideo2" class="btn primary" data-i18n="addVideo">Add Video</button>
             </div>
           </div>
         </section>
@@ -235,7 +235,7 @@
       <span id="statusSpinner" class="status-spinner hidden"></span>
       <span id="statusText" class="status-text">Ready</span>
       <span id="statusInfo" class="status-info"></span>
-      <button id="statusClear" class="status-clear hidden" title="Dismiss">✕</button>
+      <button id="statusClear" class="status-clear hidden" title="Dismiss" data-i18n-title="dismiss">✕</button>
       <div id="statusProgress" class="status-progress hidden"><div id="statusProgressBar" class="status-progress-bar"></div></div>
     </footer>
 
@@ -243,16 +243,16 @@
     <div id="exportModal" class="modal hidden">
       <div class="modal-card wide">
         <div class="modal-head">
-          <h2>Export</h2>
+          <h2 data-i18n="export">Export</h2>
           <button id="expClose" class="btn ghost icon">✕</button>
         </div>
         <div class="modal-body">
           <div class="grid2">
             <label class="field wide">
-              <span>Output file</span>
+              <span data-i18n="outputFile">Output file</span>
               <div class="input-row">
                 <input id="expPath" type="text" placeholder="Choose an output file…" spellcheck="false" />
-                <button id="expBrowse" class="btn">Browse…</button>
+                <button id="expBrowse" class="btn" data-i18n="browse">Browse…</button>
               </div>
             </label>
 
@@ -270,7 +270,7 @@
               </select>
             </label>
             <label class="field">
-              <span>Video codec</span>
+              <span data-i18n="videoCodec">Video codec</span>
               <select id="expVcodec">
                 <option value="libx264">H.264 · x264 (CPU)</option>
                 <option value="h264_nvenc">H.264 · NVENC (GPU)</option>
@@ -280,11 +280,11 @@
             </label>
 
             <label class="field">
-              <span>Quality (CRF / CQ) <b id="expCrfVal">20</b></span>
+              <span><span data-i18n="quality">Quality (CRF / CQ)</span> <b id="expCrfVal">20</b></span>
               <input id="expCrf" type="range" min="12" max="34" step="1" value="20" />
             </label>
             <label class="field">
-              <span>Preset</span>
+              <span data-i18n="preset">Preset</span>
               <select id="expPreset">
                 <option>ultrafast</option>
                 <option>veryfast</option>
@@ -296,7 +296,7 @@
             </label>
 
             <label class="field">
-              <span>Resolution</span>
+              <span data-i18n="resolution">Resolution</span>
               <select id="expRes">
                 <option value="source">Source</option>
                 <option value="2160">2160p (4K)</option>
@@ -307,7 +307,7 @@
               </select>
             </label>
             <label class="field">
-              <span>Frame rate</span>
+              <span data-i18n="frameRate">Frame rate</span>
               <select id="expFps">
                 <option value="source">Source</option>
                 <option value="60">60 fps</option>
@@ -316,7 +316,7 @@
               </select>
             </label>
             <label class="field">
-              <span>Audio bitrate</span>
+              <span data-i18n="audioBitrate">Audio bitrate</span>
               <select id="expAbitrate">
                 <option>128k</option>
                 <option selected>192k</option>
@@ -327,12 +327,12 @@
           </div>
 
           <div class="check-row">
-            <label class="check"><input id="expBurn" type="checkbox" /> <span>Burn synced subtitles into the video</span></label>
-            <label class="check"><input id="expSrt" type="checkbox" checked /> <span>Also write synced <code>.srt</code> files next to the output</span></label>
+            <label class="check"><input id="expBurn" type="checkbox" /> <span data-i18n="burnSubs">Burn synced subtitles into the video</span></label>
+            <label class="check"><input id="expSrt" type="checkbox" checked /> <span data-i18n="writeSrt">Also write synced .srt files next to the output</span></label>
           </div>
           <div class="burn-track hidden">
             <label class="field">
-              <span>Subtitle track to burn</span>
+              <span data-i18n="burnTrack">Subtitle track to burn</span>
               <select id="expBurnTrack"></select>
             </label>
           </div>
@@ -345,10 +345,10 @@
           </div>
         </div>
         <div class="modal-foot">
-          <button id="expCancel" class="btn danger hidden">Cancel export</button>
+          <button id="expCancel" class="btn danger hidden" data-i18n="cancelExport">Cancel export</button>
           <div class="spacer"></div>
-          <button id="expClose2" class="btn ghost">Close</button>
-          <button id="expStart" class="btn primary">Start export</button>
+          <button id="expClose2" class="btn ghost" data-i18n="close">Close</button>
+          <button id="expStart" class="btn primary" data-i18n="startExport">Start export</button>
         </div>
       </div>
     </div>
@@ -357,7 +357,7 @@
     <div id="settingsModal" class="modal hidden">
       <div class="modal-card">
         <div class="modal-head">
-          <h2>Settings</h2>
+          <h2 data-i18n="settings">Settings</h2>
           <button id="setClose" class="btn ghost icon">✕</button>
         </div>
         <div class="modal-body">
@@ -366,14 +366,14 @@
             <b>system</b> install and falls back to a <b>bundled</b> copy when none is found.
           </p>
           <label class="field wide">
-            <span>ffmpeg path — leave empty to auto-detect (system, then bundled)</span>
+            <span data-i18n="setFfmpegPath">ffmpeg path — leave empty to auto-detect (system, then bundled)</span>
             <div class="input-row">
               <input id="setFfmpeg" type="text" spellcheck="false" placeholder="auto" />
               <button id="setFfmpegBrowse" class="btn">Browse…</button>
             </div>
           </label>
           <label class="field wide">
-            <span>ffprobe path — leave empty to auto-detect</span>
+            <span data-i18n="setFfprobePath">ffprobe path — leave empty to auto-detect</span>
             <div class="input-row">
               <input id="setFfprobe" type="text" spellcheck="false" placeholder="auto" />
               <button id="setFfprobeBrowse" class="btn">Browse…</button>
@@ -381,18 +381,33 @@
           </label>
           <label class="check">
             <input id="setPreferBundled" type="checkbox" />
-            <span>Prefer the bundled ffmpeg over a system install</span>
+            <span data-i18n="preferBundled">Prefer the bundled ffmpeg over a system install</span>
           </label>
           <div class="job-row">
-            <button id="setDetect" class="btn">Re-detect</button>
-            <button id="setUseBundled" class="btn tiny ghost">Fill bundled paths</button>
+            <button id="setDetect" class="btn" data-i18n="redetect">Re-detect</button>
+            <button id="setUseBundled" class="btn tiny ghost" data-i18n="fillBundled">Fill bundled paths</button>
           </div>
 
           <div class="job-sep"></div>
 
+          <div class="grid2">
+            <label class="field">
+              <span data-i18n="theme">Theme</span>
+              <select id="setTheme">
+                <option value="system" data-i18n="themeSystem">System (follow Windows)</option>
+                <option value="dark" data-i18n="themeDark">Dark</option>
+                <option value="light" data-i18n="themeLight">Light</option>
+              </select>
+            </label>
+            <label class="field">
+              <span data-i18n="language">Language</span>
+              <select id="setLanguage"></select>
+            </label>
+          </div>
+
           <label class="check">
             <input id="setLoadThumbs" type="checkbox" />
-            <span>Load keyframe snapshots into the timeline (filmstrip)</span>
+            <span data-i18n="loadThumbs">Load keyframe snapshots into the timeline (filmstrip)</span>
           </label>
           <p class="hint sub">
             Off by default. When enabled, CUCI samples frames with ffmpeg to draw the filmstrip — on long videos this
@@ -403,8 +418,8 @@
         </div>
         <div class="modal-foot">
           <div class="spacer"></div>
-          <button id="setClose2" class="btn ghost">Close</button>
-          <button id="setSave" class="btn primary">Save</button>
+          <button id="setClose2" class="btn ghost" data-i18n="close">Close</button>
+          <button id="setSave" class="btn primary" data-i18n="save">Save</button>
         </div>
       </div>
     </div>
@@ -413,13 +428,13 @@
     <div id="jobModal" class="modal hidden">
       <div class="modal-card wide">
         <div class="modal-head">
-          <h2>Cut job</h2>
+          <h2 data-i18n="jobTitle">Cut job</h2>
           <button id="jobClose" class="btn ghost icon">✕</button>
         </div>
         <div class="modal-body">
           <div class="tabs" role="tablist">
-            <button id="jobTabExport" class="tab active" role="tab" aria-selected="true" aria-controls="jobPanelExport">Export</button>
-            <button id="jobTabImport" class="tab" role="tab" aria-selected="false" aria-controls="jobPanelImport">Import</button>
+            <button id="jobTabExport" class="tab active" role="tab" aria-selected="true" aria-controls="jobPanelExport" data-i18n="tabExport">Export</button>
+            <button id="jobTabImport" class="tab" role="tab" aria-selected="false" aria-controls="jobPanelImport" data-i18n="tabImport">Import</button>
           </div>
 
           <!-- Export -->
@@ -431,7 +446,7 @@
 
             <label class="field wide">
               <span class="field-head">
-                <span>Description — what is this cut job for?</span>
+                <span data-i18n="jobDesc">Description — what is this cut job for?</span>
                 <b id="jobDescCount" class="field-counter">0 / 200</b>
               </span>
               <textarea
@@ -444,22 +459,22 @@
             </label>
 
             <div class="job-row">
-              <button id="jobSave" class="btn">Save job file…</button>
+              <button id="jobSave" class="btn" data-i18n="saveJobFile">Save job file…</button>
             </div>
 
             <div class="job-sep"></div>
 
             <label class="check">
               <input id="jobIncludeSubs" type="checkbox" />
-              <span>Include subtitle text in the share code (larger, but fully self-contained)</span>
+              <span data-i18n="includeSubs">Include subtitle text in the share code (larger, but fully self-contained)</span>
             </label>
             <label class="field wide">
-              <span>Share code — copy &amp; paste anywhere</span>
+              <span data-i18n="shareCode">Share code — copy &amp; paste anywhere</span>
               <textarea id="jobCode" class="code" rows="5" readonly spellcheck="false"></textarea>
             </label>
             <div class="job-row">
-              <button id="jobCopy" class="btn">Copy code</button>
-              <button id="jobRefresh" class="btn ghost">Refresh</button>
+              <button id="jobCopy" class="btn" data-i18n="copyCode">Copy code</button>
+              <button id="jobRefresh" class="btn ghost" data-i18n="refresh">Refresh</button>
               <span id="jobCodeInfo" class="job-info"></span>
             </div>
           </div>
@@ -472,18 +487,18 @@
             </p>
 
             <div class="job-row">
-              <button id="jobOpen" class="btn">Open job file…</button>
+              <button id="jobOpen" class="btn" data-i18n="openJobFile">Open job file…</button>
             </div>
 
             <div class="job-sep"></div>
 
             <label class="field wide">
-              <span>Import a share code</span>
-              <textarea id="jobPaste" class="code" rows="4" placeholder="Paste a CUCI-1… code here" spellcheck="false"></textarea>
+              <span data-i18n="importLabel">Import a share code</span>
+              <textarea id="jobPaste" class="code" rows="4" placeholder="Paste a CUCI-1… code here" spellcheck="false" data-i18n-placeholder="pastePlaceholder"></textarea>
             </label>
             <div class="job-row">
-              <button id="jobImport" class="btn primary">Import code</button>
-              <button id="jobPasteClip" class="btn">Paste from clipboard</button>
+              <button id="jobImport" class="btn primary" data-i18n="importCode">Import code</button>
+              <button id="jobPasteClip" class="btn" data-i18n="pasteClipboard">Paste from clipboard</button>
             </div>
           </div>
 
@@ -491,7 +506,7 @@
         </div>
         <div class="modal-foot">
           <div class="spacer"></div>
-          <button id="jobClose2" class="btn ghost">Close</button>
+          <button id="jobClose2" class="btn ghost" data-i18n="close">Close</button>
         </div>
       </div>
     </div>
@@ -500,7 +515,7 @@
     <div id="nsfwModal" class="modal hidden">
       <div class="modal-card wide">
         <div class="modal-head">
-          <h2>Auto-detect NSFW scenes</h2>
+          <h2 data-i18n="paTitle">Auto-detect NSFW scenes</h2>
           <button id="nsfwClose" class="btn ghost icon">✕</button>
         </div>
         <div class="modal-body">
@@ -512,11 +527,11 @@
 
           <div class="grid2">
             <label class="field">
-              <span>Sample every (seconds)</span>
+              <span data-i18n="sampleEvery">Sample every (seconds)</span>
               <input id="nsfwInterval" type="number" min="0.25" max="60" step="0.25" value="2" />
             </label>
             <label class="field">
-              <span>Minimum cut length</span>
+              <span data-i18n="minCuts">Minimum cut length</span>
               <select id="nsfwMinDur">
                 <option value="0">any</option>
                 <option value="1000">1 second</option>
@@ -534,7 +549,7 @@
           </p>
 
           <label class="field wide">
-            <span>Sensitivity — lower flags more aggressively <b id="nsfwThresholdVal">0.30</b></span>
+            <span><span data-i18n="sensitivity">Sensitivity — lower flags more aggressively</span> <b id="nsfwThresholdVal">0.30</b></span>
             <input id="nsfwThreshold" type="range" min="0.3" max="0.98" step="0.01" value="0.3" />
           </label>
 
@@ -550,11 +565,11 @@
           <div id="nsfwResults" class="nsfw-results"></div>
         </div>
         <div class="modal-foot">
-          <button id="nsfwCancel" class="btn danger hidden">Cancel scan</button>
+          <button id="nsfwCancel" class="btn danger hidden" data-i18n="cancelScan">Cancel scan</button>
           <div class="spacer"></div>
-          <button id="nsfwClose2" class="btn ghost">Close</button>
-          <button id="nsfwApply" class="btn" disabled>Apply as cuts</button>
-          <button id="nsfwStart" class="btn primary">Scan</button>
+          <button id="nsfwClose2" class="btn ghost" data-i18n="close">Close</button>
+          <button id="nsfwApply" class="btn" disabled data-i18n="applyCuts">Apply as cuts</button>
+          <button id="nsfwStart" class="btn primary" data-i18n="scan">Scan</button>
         </div>
       </div>
     </div>
@@ -566,6 +581,7 @@
     <script src="util.js"></script>
     <script src="srt.js"></script>
     <script src="job.js"></script>
+    <script src="i18n.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

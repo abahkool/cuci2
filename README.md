@@ -64,9 +64,29 @@ subtitles** to the new length. Everything is powered by `ffmpeg`.
   side panel and the control center can be **popped out into their own windows** for a second
   monitor and stay in sync both ways. The timeline belongs to the control center: it hides,
   peeks and detaches together with it, timeline included inside the popped-out window.
+- **14 UI languages** — English, Bahasa Melayu, Bahasa Indonesia, 简体中文, Español,
+  Français, Deutsch, Português, Русский, 日本語, 한국어, العربية (RTL), हिन्दी and Türkçe.
+  The language follows your system automatically and can be pinned in Settings.
+- **Dark / Light / System theme** — the default follows Windows; pick one in Settings.
 - Undo/redo and keyboard shortcuts throughout.
 
 ---
+
+## Build & package
+
+`build.ps1` is the one-stop Windows build script (toolchain check → version bump from a
+source hash → tests → electron-builder / MSIX → optional signing):
+
+```powershell
+.\build.ps1                 # NSIS installer
+.\build.ps1 -Portable       # portable .exe
+.\build.ps1 -Store          # Microsoft Store MSIX (store:package)
+.\build.ps1 -Installer -Portable -Store
+.\build.ps1 -Sign           # sign the produced binaries
+.\build.ps1 -SkipTests -SkipVersion   # quick packaging run
+```
+
+Store submission details live in `docs/STORE-SUBMISSION.md`.
 
 ## Requirements
 
@@ -150,6 +170,8 @@ The ⚙ button opens Settings:
   **Browse…** to point at a specific install (common for Chocolatey/Scoop shims or portable
   builds), or **Fill bundled paths** to use the shipped build explicitly.
 - **Prefer the bundled ffmpeg over a system install** — for reproducible output.
+- **Theme** — System (follows Windows, default), Dark or Light.
+- **Language** — System (auto-detect) or one of the 14 bundled languages.
 - **Load keyframe snapshots into the timeline** — **off by default**. When enabled, CUCI
   samples frames with ffmpeg to draw the filmstrip. On long videos this decodes the whole
   file, so it can take a while; the status bar shows progress. When off, the timeline shows

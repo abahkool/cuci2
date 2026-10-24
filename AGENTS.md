@@ -45,11 +45,13 @@ Docs: `README.md` (users) · `docs/DEVELOPMENT.md` (architecture, IPC, data form
 | `src/panel.html` | 170 | detached panel window markup (side panel + control center) |
 | `src/panel.js` | 350 | thin panel view: renders snapshots, forwards commands |
 | `src/panel.css` | 80 | panel window chrome |
-| `src/job.js` | 357 | cut-job codec + **untrusted-input** validation (`sanitizeJob`) |
+| `src/job.js` | 360 | cut-job codec + **untrusted-input** validation (`sanitizeJob`) |
+| `src/i18n.js` | 1500 | 14-language UI dictionary, detection, `<html dir>` switching |
 | `src/srt.js` | 157 | subtitle parse/serialise/remap + SRT text cleaning |
 | `src/util.js` | 46 | time formatting helpers |
 | `src/index.html` | 517 | UI markup (all modals, timeline, transport) |
-| `src/styles.css` | 1689 | theme, timeline, modals, status bar, context menu |
+| `src/styles.css` | 2100 | theme (dark + light), RTL, timeline, modals, status bar |
+| `build.ps1` | 210 | release script: tools → hash-version → tests → builder/MSIX → signing |
 | `scripts/fetch-ffmpeg.mjs` | 196 | resumable ffmpeg download into `vendor/ffmpeg` (postinstall) |
 | `scripts/build-msix.mjs` | 239 | MSIX staging + `makeappx` packing |
 | `scripts/make-store-assets.mjs` | 97 | placeholder MSIX/listing artwork |
@@ -133,6 +135,10 @@ state = {
     controls to their own row.
 13. Cut tools are inline SVG (no icon library).
 14. Electron-builder must be spawned via `node .../cli.js`, not the `.cmd` shim (EINVAL).
+15. **New UI text must be translatable**: add a key to `DICT.en` in `src/i18n.js`, the
+    other 13 languages, and bind it with `data-i18n*` (static) or `t('key')` (renderer).
+16. **Theme colours come from CSS variables** (`:root` dark + `:root[data-theme='light']`).
+    Hard-coded hex values break the light theme — check it in Settings before shipping.
 
 ## Commands
 
@@ -174,7 +180,8 @@ right-click cut menu, cut-edge drag, undo/redo), multi-clip merge, frame-accurat
 progress + cancel, subtitle sync with **multiple tracks per clip** (enable/remove, per-track
 `.srt` export, "track to burn"), Parental AI (NSFW) scanning, cut jobs (file + compact share
 code, Export/Import tabs, description), status bar with history, player/timeline splitter,
-context menu, keyboard shortcuts, workspace layout (per-pane **pin/peek/detach**:
+context menu, keyboard shortcuts, dark/light/system theme, 14-language UI with automatic
+system-language detection, workspace layout (per-pane **pin/peek/detach**:
 auto-hide + hover chevrons open a temporary peek drawer, the side panel / control center
 detach into their own OS windows, and the timeline travels inside the control center window),
 MSIX packaging scaffold.

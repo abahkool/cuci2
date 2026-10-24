@@ -1,4 +1,5 @@
 :root {
+  color-scheme: dark;
   --bg: #0b0d12;
   --panel: #12151d;
   --panel-2: #171b24;
@@ -344,14 +345,24 @@ body {
 }
 
 .panel {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  min-height: 0;
   background: var(--panel);
   border: 1px solid var(--border-soft);
   border-radius: var(--radius);
   padding: 11px;
 }
 .panel.grow {
-  flex: 1;
+  /* grow into spare space but never shrink below its content: long subtitle
+     lists scroll inside the panel instead of sliding under the next section */
+  flex: 1 0 auto;
   min-height: 140px;
+}
+.panel.grow > .sub-event-list {
+  flex: 1 1 auto;
+  min-height: 120px;
 }
 .panel h3 {
   margin: 0 0 9px;
@@ -962,6 +973,162 @@ input[type="range"]::-webkit-slider-thumb {
   margin: 0 0 16px;
 }
 
+
+/* ─────────────── light theme ─────────────── */
+/*
+ * Dark is the default. `data-theme="light"` is set on <html> by applyTheme();
+ * `data-theme="system"` follows prefers-color-scheme via matchMedia in app.js
+ * (which resolves it to "dark" or "light" before it is written).
+ */
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: #eef1f7;
+  --panel: #ffffff;
+  --panel-2: #f6f8fc;
+  --panel-3: #eaeef6;
+  --border: #d3d9e6;
+  --border-soft: #e2e7f0;
+  --text: #1a2030;
+  --muted: #5a6478;
+  --muted-2: #7a8497;
+  --accent: #3e63dd;
+  --accent-2: #0891b2;
+  --danger: #d93a49;
+  --ok: #157347;
+  --warn: #b45309;
+  --shadow: 0 14px 40px rgba(23, 34, 62, 0.18);
+}
+
+:root[data-theme='light'] body {
+  background: radial-gradient(1200px 700px at 78% -10%, #dfe7ff 0%, transparent 55%), var(--bg);
+}
+
+:root[data-theme='light'] ::-webkit-scrollbar-thumb {
+  background: #b9c2d4;
+}
+:root[data-theme='light'] ::-webkit-scrollbar-thumb:hover {
+  background: #a3aec6;
+}
+
+:root[data-theme='light'] .topbar {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(243, 246, 252, 0.9));
+}
+
+:root[data-theme='light'] .sidebar {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.85), rgba(238, 242, 249, 0.7));
+}
+
+:root[data-theme='light'] .brand small,
+:root[data-theme='light'] .pane-title,
+:root[data-theme='light'] .tl-tick-label {
+  color: var(--muted-2);
+}
+
+:root[data-theme='light'] .ff-status.ok {
+  color: #14532d;
+  border-color: #b7e0c6;
+  background: #e9f8ef;
+}
+:root[data-theme='light'] .ff-status.bad {
+  color: #8c1d26;
+  border-color: #f0c2c7;
+  background: #fdeef0;
+}
+
+:root[data-theme='light'] .badge.sub {
+  color: #14532d;
+  border-color: #b7e0c6;
+  background: #e9f8ef;
+}
+
+:root[data-theme='light'] .clip:hover {
+  border-color: #b8c2d6;
+}
+:root[data-theme='light'] .clip.active {
+  background: linear-gradient(180deg, rgba(62, 99, 221, 0.12), rgba(62, 99, 221, 0.04));
+}
+
+:root[data-theme='light'] .cut-item {
+  background: rgba(217, 58, 73, 0.07);
+  border-color: rgba(217, 58, 73, 0.28);
+}
+:root[data-theme='light'] .cut-item .cut-time {
+  color: #a3212f;
+}
+
+:root[data-theme='light'] .seg.active {
+  background: linear-gradient(180deg, #dbe4ff, #cfd9ff);
+  color: #1e3a8a;
+}
+
+:root[data-theme='light'] .player-splitter::after {
+  background: #b9c2d4;
+}
+
+/* timeline */
+:root[data-theme='light'] .timeline-wrap {
+  background: #f7f9fc;
+}
+:root[data-theme='light'] .tl-ruler {
+  background: linear-gradient(180deg, #eef2f8, #e4e9f2);
+}
+:root[data-theme='light'] .tl-tick {
+  border-color: #c3cbdb;
+}
+:root[data-theme='light'] .tl-tick.minor {
+  border-color: #dbe1ec;
+}
+:root[data-theme='light'] .tl-film {
+  background: repeating-linear-gradient(45deg, #e9edf5, #e9edf5 6px, #e1e7f1 6px, #e1e7f1 12px);
+}
+:root[data-theme='light'] .tl-subs {
+  background: rgba(240, 244, 250, 0.92);
+}
+:root[data-theme='light'] .tl-playhead,
+:root[data-theme='light'] .tl-playhead::before {
+  background: #d93a49;
+}
+:root[data-theme='light'] .tl-playhead {
+  box-shadow: 0 0 10px rgba(217, 58, 73, 0.5);
+}
+
+:root[data-theme='light'] .statusbar {
+  background: linear-gradient(180deg, #fbfcfe, #eef2f8);
+}
+:root[data-theme='light'] .status-log-row:hover {
+  background: rgba(20, 30, 60, 0.05);
+}
+:root[data-theme='light'] .status-log-row.ok .sl-text {
+  color: #14532d;
+}
+:root[data-theme='light'] .status-log-row.warn .sl-text {
+  color: #92400e;
+}
+:root[data-theme='light'] .status-log-row.error .sl-text {
+  color: #9f1239;
+}
+:root[data-theme='light'] .status-progress {
+  background: rgba(20, 30, 60, 0.08);
+}
+
+:root[data-theme='light'] .modal {
+  background: rgba(214, 221, 233, 0.62);
+}
+:root[data-theme='light'] .modal-foot {
+  background: rgba(20, 30, 60, 0.04);
+}
+
+:root[data-theme='light'] .empty-state {
+  background: rgba(244, 247, 252, 0.96);
+}
+
+:root[data-theme='light'] .reveal-btn {
+  background: rgba(255, 255, 255, 0.9);
+}
+:root[data-theme='light'] .reveal-btn:hover {
+  background: #ffffff;
+}
+
 /* ─────────────── panes: pinned / auto-hidden / detached ─────────────── */
 /*
  * pinned (default) → docked and visible.
@@ -1077,15 +1244,81 @@ body.peek-transport #timelineWrap {
   text-align: left;
 }
 
+
+/* ─────────────── RTL (Arabic) ─────────────── */
+/* Timecodes, counters and the timeline itself always read left-to-right. */
+html[dir='rtl'] .timeline-scroll,
+html[dir='rtl'] .timecodes,
+html[dir='rtl'] .io-readout,
+html[dir='rtl'] .clip-meta,
+html[dir='rtl'] .cut-item,
+html[dir='rtl'] .sub-event,
+html[dir='rtl'] .tl-tick-label,
+html[dir='rtl'] .cut-label,
+html[dir='rtl'] .tc,
+html[dir='rtl'] #statusInfo,
+html[dir='rtl'] .job-info,
+html[dir='rtl'] .summary,
+html[dir='rtl'] .field-counter {
+  direction: ltr;
+}
+
+/* The side panel dock/peek and its handle follow the mirrored layout. */
+html[dir='rtl'] body.peek-sidebar .sidebar {
+  left: auto;
+  right: 0;
+  border-right: 0;
+  border-left: 1px solid var(--border);
+  box-shadow: -18px 0 44px rgba(0, 0, 0, 0.6);
+}
+html[dir='rtl'] .reveal-btn.edge-side {
+  left: auto;
+  right: 0;
+  border-left: 1px solid var(--border);
+  border-right: 0;
+  border-radius: 10px 0 0 10px;
+  transform: translate(6px, -50%);
+}
+html[dir='rtl'] .layout {
+  direction: rtl;
+}
+html[dir='rtl'] .sidebar {
+  border-right: 0;
+  border-left: 1px solid var(--border);
+}
+
 /* ─────────────── sidebar widgets ─────────────── */
+/* Long lists scroll inside their panel instead of stretching the sidebar. */
 .clip-list,
 .cut-list,
-.sub-event-list {
+.sub-event-list,
+.sub-track-list,
+.nsfw-results {
   display: flex;
   flex-direction: column;
   gap: 7px;
-  max-height: 244px;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.clip-list,
+.cut-list {
+  flex: 0 1 auto;
+  min-height: 64px;
+  max-height: 30vh;
+}
+
+/* Long subtitle listings scroll inside the panel (never behind the next one). */
+.panel.grow > .sub-event-list {
+  flex: 0 1 auto;
+  min-height: 120px;
+  max-height: min(34vh, 360px);
+  margin-top: 9px;
+}
+
+.sub-track-list {
+  max-height: 140px;
 }
 
 .clip {
@@ -1315,9 +1548,6 @@ body.peek-transport #timelineWrap {
 }
 .input-row input {
   flex: 1;
-}
-.sub-event-list {
-  margin-top: 9px;
 }
 .sub-event {
   display: flex;

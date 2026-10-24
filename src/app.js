@@ -36,7 +36,46 @@
   let remapCache = null;
   let lastFocus = null;
 
+  const t = (key) => CU.i18n.t(key);
+
+  /* ───────────────────────────── theme ───────────────────────────── */
+  const THEME_KEY = 'cuci.theme';
+  const THEME_MODES = ['system', 'dark', 'light'];
+  const darkMq = window.matchMedia('(prefers-color-scheme: dark)');
+  let themeMode = 'system';
+
+  function resolveTheme(mode) {
+    if (mode === 'dark' || mode === 'light') return mode;
+    return darkMq.matches ? 'dark' : 'light';
+  }
+
+  function applyTheme(mode) {
+    themeMode = THEME_MODES.includes(mode) ? mode : 'system';
+    document.documentElement.dataset.theme = resolveTheme(themeMode);
+    if (els.setTheme) els.setTheme.value = themeMode;
+    try {
+      localStorage.setItem(THEME_KEY, themeMode);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function storedTheme() {
+    try {
+      return localStorage.getItem(THEME_KEY) || 'system';
+    } catch {
+      return 'system';
+    }
+  }
+
+  darkMq.addEventListener('change', () => {
+    if (themeMode === 'system') applyTheme('system');
+  });
   const els = {};
+
+  // Apply the saved theme as early as possible (the select is filled later).
+  applyTheme(storedTheme());
+
   function cacheEls() {
     [
       'video', 'subtitleOverlay', 'playerNotice', 'playerNoticeText', 'btnMakeProxy', 'btnDismissNotice',
@@ -55,7 +94,7 @@
       'exportModal', 'expPath', 'expBrowse', 'expContainer', 'expVcodec', 'expCrf', 'expCrfVal',
       'expPreset', 'expRes', 'expFps', 'expAbitrate', 'expBurn', 'expBurnTrack', 'expSrt', 'expSummary',
       'expProgressWrap', 'expProgressBar', 'expStatus', 'expStart', 'expCancel', 'expClose', 'expClose2',
-      'settingsModal', 'setFfmpeg', 'setFfprobe', 'setFfmpegBrowse', 'setFfprobeBrowse', 'setPreferBundled', 'setUseBundled',
+      'settingsModal', 'setFfmpeg', 'setFfprobe', 'setFfmpegBrowse', 'setFfprobeBrowse', 'setPreferBundled', 'setUseBundled', 'setTheme', 'setLanguage',
       'setLoadThumbs', 'setDetect', 'setSave', 'setClose', 'setClose2', 'setStatus',
       'btnJob', 'jobModal', 'jobClose', 'jobClose2', 'jobTabExport', 'jobTabImport', 'jobPanelExport', 'jobPanelImport',
       'jobSave', 'jobOpen', 'jobDesc', 'jobDescCount', 'jobIncludeSubs', 'jobCode',
@@ -751,7 +790,8 @@
     els.clipCount.textContent = String(state.clips.length);
     els.clipList.innerHTML = '';
     if (!state.clips.length) {
-      els.clipList.innerHTML = '<div class="sub-info">No media loaded yet.</div>';
+      els.clipList.innerHTML = '<div class="sub-info"></div>';
+      els.clipList.firstChild.textContent = t('noMedia');
       return;
     }
     state.clips.forEach((clip, i) => {
@@ -836,9 +876,11 @@
     els.cutCount.textContent = String(cuts.length);
     els.cutList.innerHTML = '';
     if (!clip) {
-      els.cutList.innerHTML = '<div class="sub-info">Select a clip first.</div>';
+      els.cutList.innerHTML = '<div class="sub-info"></div>';
+      els.cutList.firstChild.textContent = t('selectClip');
     } else if (!cuts.length) {
-      els.cutList.innerHTML = '<div class="sub-info">No cuts yet. Drag on the filmstrip, or use the cut tools below the player.</div>';
+      els.cutList.innerHTML = '<div class="sub-info"></div>';
+      els.cutList.firstChild.textContent = t('noCuts');
     }
     cuts.forEach((c) => {
       const el = document.createElement('div');
@@ -864,9 +906,9 @@
     const fmt = (v) => (v == null ? '—' : CU.fmt(v, 3));
     let extra = '';
     if (state.inPoint != null && state.outPoint != null && state.outPoint > state.inPoint) {
-      extra = ` · sel ${CU.fmt(state.outPoint - state.inPoint, 3)}`;
+      extra = ` · ${t('selLabel')} ${CU.fmt(state.outPoint - state.inPoint, 3)}`;
     }
-    els.ioReadout.innerHTML = `In <b>${fmt(state.inPoint)}</b> · Out <b>${fmt(state.outPoint)}</b>${extra}`;
+    els.ioReadout.innerHTML = `${t('inLabel')} <b>${fmt(state.inPoint)}</b> · ${t('outLabel')} <b>${fmt(state.outPoint)}</b>${extra}`;
   }
 
   function updateSubPanel() {
@@ -879,14 +921,13 @@
     els.btnSubAdd.disabled = !clip;
 
     if (!clip) {
-      els.subInfo.textContent = 'Select a clip to manage its subtitles.';
+      els.subInfo.textContent = t('selectClipSubs');
       return;
     }
 
     const tracks = clip.subtitles || [];
     if (!tracks.length) {
-      els.subInfo.innerHTML =
-        'No subtitles loaded for this clip. Add one or more <code>.srt</code>/<code>.vtt</code> files — each becomes its own track.';
+      els.subInfo.textContent = t('noSubs');
       return;
     }
 
@@ -2215,6 +2256,21 @@
     return `${label.padEnd(8)}: ${t.path}\n          ${meta}`;
   }
 
+  /** Switch UI language (and re-render the strings this renderer owns). */
+  function applyLanguage(preferred, opts = {}) {
+    const lang = CU.i18n.apply(preferred || 'auto');
+    if (els.setLanguage) CU.i18n.fillSelect(els.setLanguage, preferred || 'auto');
+    if (opts.silent) return lang;
+    renderAll();
+    updateTransport();
+    updateIoReadout();
+    if (!els.exportModal.classList.contains('hidden')) updateExportSummary();
+    if (!statusState.text || statusState.level === 'idle' || statusState.text === 'Ready') {
+      setStatus(t(state.clips.length ? 'ready' : 'readyHint'), 'idle', { log: false });
+    }
+    return lang;
+  }
+
   async function refreshInfo() {
     const info = await api.getInfo();
     state.info = info;
@@ -2238,6 +2294,8 @@
     els.setFfprobe.value = info.settings.ffprobePath || '';
     els.setPreferBundled.checked = !!state.settings.preferBundled;
     els.setLoadThumbs.checked = !!state.settings.loadThumbs;
+    applyTheme(state.settings.theme || storedTheme());
+    applyLanguage(state.settings.language || 'auto', { silent: true });
 
     const b = info.bundled || {};
     els.setStatus.innerHTML = CU.escapeHtml(
@@ -2554,6 +2612,7 @@
       }));
     }
     return {
+      lang: CU.i18n.current(),
       clips: state.clips.map((c) => ({
         id: c.id,
         name: c.name,
@@ -2596,6 +2655,7 @@
     const total = state.playMode === 'result' ? programRanges().total : clip ? clip.durationMs : 0;
     const cur = state.playMode === 'result' ? state.resultTime : clip ? state.playhead : 0;
     return {
+      lang: CU.i18n.current(),
       clipName: clip ? clip.name : null,
       hasClip: !!clip,
       time: clip ? state.playhead : 0,
@@ -3263,12 +3323,16 @@
         ffprobePath: els.setFfprobe.value.trim(),
         loadThumbs: els.setLoadThumbs.checked,
         preferBundled: els.setPreferBundled.checked,
+        theme: els.setTheme.value,
+        language: els.setLanguage.value,
       });
       await refreshInfo();
       applyThumbSetting();
       toast('Settings saved.', 'ok', 2500);
     });
     els.setDetect.addEventListener('click', () => refreshInfo());
+    els.setTheme.addEventListener('change', () => applyTheme(els.setTheme.value));
+    els.setLanguage.addEventListener('change', () => applyLanguage(els.setLanguage.value));
 
     const pickBinary = async (input) => {
       const p = await api.openFile({
@@ -3522,7 +3586,7 @@
       applyTimelineHeight(false);
     });
     restorePanelWindows();
-    if (!statusState.text || statusState.text === 'Ready') setStatus('Ready — add a video to begin', 'idle');
+    if (!statusState.text || statusState.text === 'Ready') setStatus(t('readyHint'), 'idle', { log: false });
 
     // Debug / automation handle (also used by lib/e2e.js).
     window.__cuciApp = {

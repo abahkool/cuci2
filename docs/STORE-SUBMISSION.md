@@ -70,6 +70,18 @@ Fill it in from **Partner Center → Product identity**:
 
 ## 3. Build the MSIX
 
+The easiest path is the PowerShell build script (checks Node, bumps the version when
+sources changed, runs the test suite, builds and optionally signs):
+
+```powershell
+.\build.ps1 -Store            # stage + pack dist/CUCI_<version>_x64.msix
+.\build.ps1 -Store -StageOnly # lay out dist/msix only (no makeappx needed)
+.\build.ps1 -Installer        # NSIS installer for a direct download link
+.\build.ps1 -Store -Sign      # also sign the artefacts with certs/code-signing.pfx
+```
+
+Or drive the tools directly:
+
 ```bash
 npm install
 npm run store:assets      # regenerate placeholder artwork (only when it changes)

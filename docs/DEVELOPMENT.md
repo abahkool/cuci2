@@ -55,6 +55,7 @@ lib/
   ffmpeg-locate.js      resolves custom/env/system/bundled ffmpeg+ffprobe
   nsfw.js               ONNX NSFW scene detection (sampling + inference + grouping)
   media-protocol.js     seekable media:// handler (HTTP range support)
+src/i18n.js             UI translations (14 languages) + language detection
   selftest.js           export-pipeline test against real ffmpeg   (node)
   test-locate.js        verifies the tool resolution chain         (node)
   test-job.js           cut-job trust boundary: caps, bombs, XSS, SRT injection (node)
@@ -560,6 +561,41 @@ Seeking in result mode:
 - `programPlay(fromResultMs)` must **keep** the requested output position inside the found
   range (`resultTime = clamp(target, outStart, outEnd)`). It used to snap to `outStart`, which
   made every seek restart from 0:00 — the e2e "result seek" case guards this.
+
+### Appearance: theme & language
+
+**Theme** (`src/app.js`): `applyTheme('system' | 'dark' | 'light')` writes
+`<html data-theme="dark|light">` (system is resolved through
+`matchMedia('(prefers-color-scheme: dark)')`, with a `change` listener so Windows theme
+switches apply live). The palette lives in `:root` (dark) and `:root[data-theme='light']`
+in `styles.css` — components read `var(--panel)`, `var(--text)`, … so a new surface should
+use those variables instead of hard-coded colours. Persisted in
+`localStorage["cuci.theme"]` **and** `settings.json` (`theme`).
+
+**Language** (`src/i18n.js`, loaded before `app.js` / `panel.js`):
+
+- `CU.i18n.DICT[lang][key]` holds the strings; `en` is the fallback for any missing key.
+- Markup uses `data-i18n` (textContent), `data-i18n-title`, `data-i18n-placeholder` and
+  `data-i18n-aria`; `apply(lang)` rewrites them and sets `<html lang|dir>` (`ar` → RTL).
+- Strings the renderer generates use `CU.i18n.t('key')` (aliased as `t()` in `app.js`);
+  the sidebar/cut/subtitle empty states, the In/Out readout and the idle status are the
+  ones that matter.
+- `resolve(preferred)` uses the explicit choice, else the system locale
+  (`navigator.languages`), else English. `localStorage["cuci.lang"]` gives an instant boot;
+  `settings.json` (`language`) is the durable value shown in Settings.
+- Detached panel windows apply `localStorage` on boot and follow the `lang` field that the
+  main window includes in every `panel:state` snapshot.
+- Adding a language: add it to `LANGS` + a `DICT` entry with all keys (the key set is
+  `Object.keys(DICT.en)`), and add the code to the e2e appearance check if it is a big one.
+
+### Build script
+
+`build.ps1` (repo root) wraps the release flow: Node check → `npm install` when
+`node_modules` is missing → SHA-256 source hash → patch-version bump + `.last-build-hash`
+→ `npm test` → clean `dist/` → `node node_modules/electron-builder/cli.js` for
+`-Installer`/`-Portable` (never the `.cmd` shim → EINVAL) → `npm run store:stage|package`
+for `-Store` → optional `-Sign` via `signtool.exe` and a self-signed
+`certs/code-signing.pfx` (generated with `openssl` when missing).
 
 ### Debug handle
 
