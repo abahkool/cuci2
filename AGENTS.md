@@ -36,7 +36,8 @@ Docs: `README.md` (users) · `docs/DEVELOPMENT.md` (architecture, IPC, data form
 | `panel-preload.js` | 40 | `window.panelAPI` for detached panel windows |
 | `lib/ipc.js` | 644 | all IPC handlers, settings, export orchestration, cancel, NSFW scan |
 | `lib/panels.js` | 240 | detached side panel / control center OS windows (lifecycle, bounds, relay) |
-| `lib/exporter.js` | 82 | pure ffmpeg filtergraph/encoder builders (`buildFilterGraph`, `buildEncoderArgs`) |
+| `lib/exporter.js` | 100 | pure ffmpeg filtergraph/encoder builders (`buildFilterGraph`, `buildEncoderArgs`) |
+| `lib/formats.js` | 100 | export containers → encoders/muxer/audio (mirrored in `src/app.js`) |
 | `lib/media-protocol.js` | 130 | seekable `media://` with HTTP Range (206) |
 | `lib/ffmpeg-locate.js` | 186 | custom → env → system → bundled resolution |
 | `lib/nsfw.js` | 377 | ONNX NSFW scanning (sampling, inference, `groupDetections`) |
@@ -123,12 +124,15 @@ state = {
    never `window.api`. The timeline is part of the control center pane and is rendered inside
    that window (`#ptlTimeline`). Do not add app logic to `src/panel.js` — extend the
    snapshot/command maps in `src/app.js`.
-9. **Classic scripts, ordered**: `util.js`, `srt.js`, `job.js`, `app.js`. No ES modules.
-10. **Job-derived strings** are always rendered via `textContent` or `CU.escapeHtml()`.
-11. Transport uses a CSS grid with named areas; breakpoint at 1250 px moves the right-hand
+9. **Export formats are a table**: `lib/formats.js` (muxer/audio/legal encoders) and the
+   `EXPORT_FORMATS` mirror in `src/app.js` (dropdowns, extensions). Change both together;
+   `lib/selftest.js` muxes every format.
+10. **Classic scripts, ordered**: `util.js`, `srt.js`, `job.js`, `app.js`. No ES modules.
+11. **Job-derived strings** are always rendered via `textContent` or `CU.escapeHtml()`.
+12. Transport uses a CSS grid with named areas; breakpoint at 1250 px moves the right-hand
     controls to their own row.
-12. Cut tools are inline SVG (no icon library).
-13. Electron-builder must be spawned via `node .../cli.js`, not the `.cmd` shim (EINVAL).
+13. Cut tools are inline SVG (no icon library).
+14. Electron-builder must be spawned via `node .../cli.js`, not the `.cmd` shim (EINVAL).
 
 ## Commands
 

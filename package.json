@@ -1,8 +1,8 @@
 {
   "name": "cuci2",
-  "productName": "CUCI2",
+  "productName": "CUCI",
   "version": "1.0.0",
-  "description": "Millisecond-precision video cut & merge studio with automatic subtitle sync.",
+  "description": "CUCI — Cut Out Bad Scenes. Millisecond-precision video cut & merge with automatic subtitle sync.",
   "main": "main.js",
   "author": "CUCI2",
   "license": "MIT",
@@ -30,8 +30,8 @@
     "electron-builder": "^26.15.3"
   },
   "build": {
-    "appId": "com.cuci2.app",
-    "productName": "CUCI2",
+    "appId": "com.cuci.app",
+    "productName": "CUCI",
     "files": [
       "main.js",
       "preload.js",

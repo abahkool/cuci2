@@ -1,6 +1,6 @@
-# CUCI² — Development Reference
+# CUCI — Development Reference
 
-Technical guide for working on CUCI². For the user-facing guide see
+Technical guide for working on CUCI. For the user-facing guide see
 [../README.md](../README.md).
 
 - [Stack](#stack)
@@ -50,6 +50,7 @@ src/
 lib/
   ipc.js                all ipcMain handlers, settings, export orchestration
   panels.js             detached panel windows: lifecycle, bounds, message relay
+  formats.js            export containers: encoders, audio codec, muxer  ← shared
   exporter.js           pure ffmpeg filtergraph/encoder builders  ← unit-testable
   ffmpeg-locate.js      resolves custom/env/system/bundled ffmpeg+ffprobe
   nsfw.js               ONNX NSFW scene detection (sampling + inference + grouping)
@@ -221,7 +222,7 @@ are `webContents.send` pushes. Channels live in `lib/ipc.js`; the renderer reach
 
 ```js
 {
-  outputPath, container,           // 'mp4' | 'mkv' | 'mov'
+  outputPath, container,           // FORMATS key (lib/formats.js)
   segments: [{ path, start, end, hasAudio }],  // ms, in output order
   width, height, fps,              // target normalised format
   videoCodec, crf, preset, audioBitrate,
@@ -229,6 +230,14 @@ are `webContents.send` pushes. Channels live in `lib/ipc.js`; the renderer reach
   subtitleSrt: string              // remapped SRT text, only when burning
 }
 ```
+
+`container` is one of `mp4 · mov · mkv · webm · avi · wmv · flv · ts` (`lib/formats.js`).
+That table decides the muxer (`-f`), the audio encoder (`aac`, `libopus`, `libmp3lame`,
+`wmav2`), the sample rate, whether `+faststart` applies, and which video encoders are legal.
+`buildEncoderArgs()` silently falls back to the container's default encoder so a hand-edited
+job can never pair WebM with x264. The renderer mirrors the table in `EXPORT_FORMATS`
+(`src/app.js`) to build the Format → Video codec dropdowns and the save-dialog filters —
+**edit both lists together**. `lib/selftest.js` muxes one clip in every format.
 
 ---
 
@@ -341,7 +350,7 @@ frames into cut ranges. It is entirely local — inference runs in the main proc
 
 The task named `Falconsai/nsfw_image_detection`, but that repo publishes **only PyTorch /
 safetensors weights** and no ONNX export, so Transformers.js / onnxruntime cannot load it. A
-Hugging Face search for ONNX NSFW classifiers returns exactly two models; CUCI² uses
+Hugging Face search for ONNX NSFW classifiers returns exactly two models; CUCI uses
 `AdamCodd/vit-base-nsfw-detector` (ViT-base, binary `{0: sfw, 1: nsfw}`, ~790k downloads).
 
 | | |
@@ -536,7 +545,8 @@ panel window --'panel:cmd'--> panels.js --'panel:cmd'--> main renderer (onPanelC
 ### Preview modes
 
 - **source** — the `<video>` plays the raw file.
-- **result** — `program.ranges` is played back by seeking between kept segments; crossing a
+- **Preview** (internally `playMode: 'result'`, the template button is `#modeResult`) —
+  `program.ranges` is played back by seeking between kept segments; crossing a
   segment boundary advances `program.idx` (and switches `src` if the next segment is another
   clip). `state.resultTime` tracks output time.
 
@@ -622,7 +632,7 @@ pass produces too many false positives.
 
 ```json
 {
-  "app": "CUCI2", "kind": "cut-job", "version": 1,
+  "app": "CUCI", "kind": "cut-job", "version": 1,
   "created": "2025-01-01T00:00:00.000Z",
   "description": "Remove the intro and the sponsor break.",
   "subOffsetMs": -250,

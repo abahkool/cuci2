@@ -83,8 +83,6 @@ body {
   font-weight: 700;
   letter-spacing: 0.5px;
   font-size: 16px;
-}
-.brand-name .two {
   background: linear-gradient(90deg, var(--accent), var(--accent-2));
   -webkit-background-clip: text;
   background-clip: text;
@@ -1052,6 +1050,31 @@ body.peek-transport #timelineWrap {
     transform: translateY(14px);
     opacity: 0.4;
   }
+}
+
+/* sidebar quick actions: the topbar-free Job / Parent Assist / Add … buttons */
+.quick-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  flex: none;
+}
+.action-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.action-grid .btn {
+  width: 100%;
+  padding: 6px 8px;
+  justify-content: center;
+  text-align: center;
+}
+.quick-actions .ff-status {
+  width: 100%;
+  max-width: none;
+  margin-top: 2px;
+  text-align: left;
 }
 
 /* ─────────────── sidebar widgets ─────────────── */

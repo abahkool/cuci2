@@ -1,4 +1,4 @@
-/* CUCI2 cut-job codec + trust boundary (classic script -> window.CUCI)
+/* CUCI cut-job codec + trust boundary (classic script -> window.CUCI)
  *
  * Job files and share codes are UNTRUSTED input. This module is the only place
  * that turns them into data the app will act on. It:
@@ -29,14 +29,25 @@
     ms: 1_000_000_000, // ~11.5 days, plenty for any clip
   };
 
-  const CONTAINERS = ['mp4', 'mkv', 'mov'];
-  const VIDEO_CODECS = ['libx264', 'libx265', 'h264_nvenc', 'hevc_nvenc'];
+  const CONTAINERS = ['mp4', 'mov', 'mkv', 'webm', 'avi', 'wmv', 'flv', 'ts'];
+  const VIDEO_CODECS = ['libx264', 'libx265', 'h264_nvenc', 'hevc_nvenc', 'libvpx-vp9', 'mpeg4', 'wmv2'];
+  // Which encoder is legal for which container (mirrors lib/formats.js).
+  const CODECS_BY_CONTAINER = {
+    mp4: ['libx264', 'libx265', 'h264_nvenc', 'hevc_nvenc'],
+    mov: ['libx264', 'libx265', 'h264_nvenc', 'hevc_nvenc'],
+    mkv: ['libx264', 'libx265', 'h264_nvenc', 'hevc_nvenc'],
+    webm: ['libvpx-vp9'],
+    avi: ['mpeg4'],
+    wmv: ['wmv2'],
+    flv: ['libx264'],
+    ts: ['libx264'],
+  };
   const PRESETS = ['ultrafast', 'veryfast', 'faster', 'medium', 'slow', 'slower'];
   const RESOLUTIONS = ['source', '2160', '1440', '1080', '720', '480'];
   const FPS = ['source', '60', '30', '24'];
   const BITRATES = ['128k', '192k', '256k', '320k'];
 
-  const SHARE_PREFIX = 'CUCI2-1';
+  const SHARE_PREFIX = 'CUCI-1';
 
   /* ── primitives ──────────────────────────────────────────────── */
   function isObject(v) {
@@ -138,7 +149,7 @@
   function toCompact(job) {
     const e = job.export || {};
     return {
-      a: 'CUCI2',
+      a: 'CUCI',
       v: job.version || 1,
       t: job.created,
       D: job.description || undefined,
@@ -162,12 +173,12 @@
 
   function fromCompact(k) {
     if (!isObject(k)) throw new Error('Share code has an unexpected format.');
-    if (k.a !== 'CUCI2' && k.app !== 'CUCI2') throw new Error('Share code has an unexpected format.');
+    if (!['CUCI', 'CUCI2'].includes(k.a) && !['CUCI', 'CUCI2'].includes(k.app)) throw new Error('Share code has an unexpected format.');
     if (Array.isArray(k.clips)) return k; // already the verbose form
 
     const e = Array.isArray(k.e) ? k.e : null;
     return {
-      app: 'CUCI2',
+      app: 'CUCI',
       kind: 'cut-job',
       version: k.v,
       created: k.t,
@@ -211,9 +222,11 @@
   function sanitizeExport(e) {
     if (!isObject(e)) return undefined;
     const pick = (v, list, def) => (list.includes(String(v)) ? String(v) : def);
+    const container = pick(e.container, CONTAINERS, 'mp4');
+    const codecs = CODECS_BY_CONTAINER[container] || CODECS_BY_CONTAINER.mp4;
     return {
-      container: pick(e.container, CONTAINERS, 'mp4'),
-      videoCodec: pick(e.videoCodec, VIDEO_CODECS, 'libx264'),
+      container,
+      videoCodec: pick(e.videoCodec, codecs, codecs[0]),
       crf: Math.round(num(e.crf, 20, 0, 51)),
       preset: pick(e.preset, PRESETS, 'medium'),
       resolution: pick(e.resolution, RESOLUTIONS, 'source'),
@@ -226,12 +239,12 @@
 
   /**
    * Turn untrusted input into a job the app can safely act on.
-   * Throws on anything that is not structurally a CUCI2 job; otherwise returns
+   * Throws on anything that is not structurally a CUCI job; otherwise returns
    * a fresh object containing only known, validated fields.
    */
   function sanitizeJob(raw) {
-    if (!isObject(raw)) throw new Error('Not a CUCI2 job.');
-    if (raw.app !== 'CUCI2') throw new Error('Not a CUCI2 job.');
+    if (!isObject(raw)) throw new Error('Not a CUCI job.');
+    if (raw.app !== 'CUCI' && raw.app !== 'CUCI2') throw new Error('Not a CUCI job.');
     if (!Array.isArray(raw.clips)) throw new Error('Job has no clips.');
 
     let cutTotal = 0;
@@ -298,7 +311,7 @@
     if (!clips.length) throw new Error('Job contains no valid clips.');
 
     return {
-      app: 'CUCI2',
+      app: 'CUCI',
       kind: 'cut-job',
       version: Math.round(num(raw.version, 1, 0, 1000)),
       created: text(raw.created, 64),
@@ -310,7 +323,7 @@
   }
 
   /* ── public API ──────────────────────────────────────────────── */
-  /** job -> compact, paste-friendly code: CUCI2-1z.<base64url(deflate(json))> */
+  /** job -> compact, paste-friendly code: CUCI-1z.<base64url(deflate(json))> */
   C.encodeShareCode = async function (rawJob) {
     const job = sanitizeJob(rawJob);
     const raw = new TextEncoder().encode(JSON.stringify(toCompact(job)));
@@ -326,8 +339,8 @@
     if (!code) throw new Error('Empty share code.');
     if (code.length > LIMITS.codeChars) throw new Error('Share code is too long.');
 
-    const m = /^CUCI2-1([zp])\.([A-Za-z0-9_-]+)$/.exec(code);
-    if (!m) throw new Error('This does not look like a CUCI2 share code.');
+    const m = /^(?:CUCI|CUCI2)-1([zp])\.([A-Za-z0-9_-]+)$/.exec(code);
+    if (!m) throw new Error('This does not look like a CUCI share code.');
 
     const bytes = base64urlToBytes(m[2]);
     if (bytes.length > LIMITS.compressedBytes) throw new Error('Share code is too large.');

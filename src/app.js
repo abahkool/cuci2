@@ -1,4 +1,4 @@
-/* CUCI2 renderer — video cut & merge studio */
+/* CUCI renderer — cut out bad scenes */
 (function () {
   const api = window.api;
   const CU = window.CUCI;
@@ -44,6 +44,7 @@
       'clipList', 'clipCount', 'cutList', 'cutCount', 'ioReadout',
       'btnSetIn', 'btnSetOut', 'btnCut', 'btnClearCuts', 'btnClearMarks',
       'subInfo', 'subOffset', 'btnSubAdd', 'subTrackList', 'btnSubExport', 'subEventList',
+      'btnSidebarAddSub', 'btnSidebarAddVideo',
       'btnPlay', 'btnStop', 'btnPrevFrame', 'btnNextFrame', 'btnPrevSec', 'btnNextSec',
       'timecode', 'timeTotal', 'resultTc', 'seekRange', 'modeSource', 'modeResult', 'chkSnap', 'zoomRange',
       'mainPane', 'transportBar', 'timelineWrap', 'playerSplitter', 'sidebar', 'playerWrap',
@@ -964,7 +965,7 @@
     const { total } = programRanges();
     if (state.playMode === 'result') {
       els.resultTc.classList.remove('hidden');
-      els.resultTc.textContent = `result ${CU.fmt(state.resultTime, 3)} / ${CU.fmt(total, 3)}`;
+      els.resultTc.textContent = `preview ${CU.fmt(state.resultTime, 3)} / ${CU.fmt(total, 3)}`;
     } else {
       els.resultTc.classList.add('hidden');
     }
@@ -1498,7 +1499,7 @@
   function buildJob(includeSubtitles) {
     const description = (state.jobDescription || '').trim().slice(0, 200);
     return {
-      app: 'CUCI2',
+      app: 'CUCI',
       kind: 'cut-job',
       version: 1,
       created: new Date().toISOString(),
@@ -1560,6 +1561,7 @@
       if (el && v != null && v !== '') el.value = String(v);
     };
     set(els.expContainer, exp.container);
+    refillCodecOptions(exp.videoCodec);
     set(els.expVcodec, exp.videoCodec);
     set(els.expCrf, exp.crf);
     set(els.expPreset, exp.preset);
@@ -1696,7 +1698,7 @@
     if (!state.clips.length) return toast('Add a video first.', 'warn');
     const first = state.clips[0];
     const def = pathJoin(CU.dirname(first.path), CU.stripExt(first.name) + '.cuci2.json');
-    const p = await api.saveFile({ title: 'Save cut job', defaultPath: def, filters: [{ name: 'CUCI2 job', extensions: ['json'] }] });
+    const p = await api.saveFile({ title: 'Save cut job', defaultPath: def, filters: [{ name: 'CUCI job', extensions: ['json'] }] });
     if (!p) return;
     try {
       await api.writeText(p, JSON.stringify(buildJob(true), null, 2));
@@ -1710,7 +1712,7 @@
   async function openJobFile() {
     const p = await api.openFile({
       title: 'Open cut job',
-      filters: [{ name: 'CUCI2 job / share code', extensions: ['json', 'txt', 'cuci2'] }, { name: 'All files', extensions: ['*'] }],
+      filters: [{ name: 'CUCI job / share code', extensions: ['json', 'txt', 'cuci'] }, { name: 'All files', extensions: ['*'] }],
     });
     if (!p) return;
     try {
@@ -1943,6 +1945,72 @@
   }
 
   /* ───────────────────────────── export ───────────────────────────── */
+  /* Export formats — keep in sync with lib/formats.js (the main process muxes). */
+  const EXPORT_FORMATS = {
+    mp4: {
+      label: 'MP4',
+      ext: 'mp4',
+      audio: 'AAC',
+      video: [
+        ['libx264', 'H.264 · x264 (CPU)'],
+        ['h264_nvenc', 'H.264 · NVENC (GPU)'],
+        ['libx265', 'H.265 · x265 (CPU)'],
+        ['hevc_nvenc', 'H.265 · NVENC (GPU)'],
+      ],
+      defaultVideo: 'libx264',
+    },
+    mov: {
+      label: 'MOV',
+      ext: 'mov',
+      audio: 'AAC',
+      video: [
+        ['libx264', 'H.264 · x264 (CPU)'],
+        ['h264_nvenc', 'H.264 · NVENC (GPU)'],
+        ['libx265', 'H.265 · x265 (CPU)'],
+        ['hevc_nvenc', 'H.265 · NVENC (GPU)'],
+      ],
+      defaultVideo: 'libx264',
+    },
+    mkv: {
+      label: 'MKV',
+      ext: 'mkv',
+      audio: 'AAC',
+      video: [
+        ['libx264', 'H.264 · x264 (CPU)'],
+        ['h264_nvenc', 'H.264 · NVENC (GPU)'],
+        ['libx265', 'H.265 · x265 (CPU)'],
+        ['hevc_nvenc', 'H.265 · NVENC (GPU)'],
+      ],
+      defaultVideo: 'libx264',
+    },
+    webm: { label: 'WebM', ext: 'webm', audio: 'Opus', video: [['libvpx-vp9', 'VP9 · libvpx (CPU)']], defaultVideo: 'libvpx-vp9' },
+    avi: { label: 'AVI', ext: 'avi', audio: 'MP3', video: [['mpeg4', 'MPEG-4 part 2 (CPU)']], defaultVideo: 'mpeg4' },
+    wmv: { label: 'WMV', ext: 'wmv', audio: 'WMA', video: [['wmv2', 'WMV2 (CPU)']], defaultVideo: 'wmv2' },
+    flv: { label: 'FLV', ext: 'flv', audio: 'AAC', video: [['libx264', 'H.264 · x264 (CPU)']], defaultVideo: 'libx264' },
+    ts: { label: 'MPEG-TS', ext: 'ts', audio: 'AAC', video: [['libx264', 'H.264 · x264 (CPU)']], defaultVideo: 'libx264' },
+  };
+  const exportFormat = (name) => (Object.prototype.hasOwnProperty.call(EXPORT_FORMATS, name) ? EXPORT_FORMATS[name] : EXPORT_FORMATS.mp4);
+
+  /** Rebuild the codec list for the selected format (keeps the old choice when valid). */
+  function refillCodecOptions(preferred) {
+    const fmt = exportFormat(els.expContainer.value);
+    const prev = preferred || els.expVcodec.value;
+    const keep = fmt.video.some(([v]) => v === prev) ? prev : fmt.defaultVideo;
+    els.expVcodec.innerHTML = '';
+    for (const [value, label] of fmt.video) {
+      const opt = document.createElement('option');
+      opt.value = value;
+      opt.textContent = label;
+      els.expVcodec.appendChild(opt);
+    }
+    els.expVcodec.value = keep;
+  }
+
+  function codecLabel() {
+    const opt = els.expVcodec.options[els.expVcodec.selectedIndex];
+    return (opt && opt.textContent) || els.expVcodec.value || 'H.264';
+  }
+
   function currentSetup() {
     const { ranges, total } = programRanges();
     const first = state.clips[0];
@@ -2002,6 +2070,7 @@
       `output duration  : ${CU.fmt(total, 3)}`,
       `removed          : ${CU.fmt(removed, 3)}`,
       `video            : ${width}×${height} @ ${Number(fps).toFixed(3)} fps`,
+      `format           : ${exportFormat(els.expContainer.value).label} · ${codecLabel()} + ${exportFormat(els.expContainer.value).audio} · ${els.expAbitrate.value}`,
       `subtitles        : ${tracks.length} track(s) · ${subs.length} events synced` + (els.expBurn.checked ? ' · burned in' : ''),
     ];
     let html = lines
@@ -2020,8 +2089,7 @@
     const first = state.clips[0];
     if (!first) return '';
     const dir = CU.dirname(first.path);
-    const container = els.expContainer.value || 'mp4';
-    return pathJoin(dir, CU.stripExt(first.name) + '.cut.' + container);
+    return pathJoin(dir, CU.stripExt(first.name) + '.cut.' + exportFormat(els.expContainer.value).ext);
   }
 
   function openExportModal() {
@@ -2655,6 +2723,7 @@
     'btnStop', 'btnPrevSec', 'btnPrevFrame', 'btnPlay', 'btnNextFrame', 'btnNextSec',
     'btnSetIn', 'btnSetOut', 'btnCut', 'btnClearMarks', 'btnClearCuts',
     'modeSource', 'modeResult', 'btnSubAdd', 'btnSubExport',
+    'btnJob', 'btnNsfw', 'btnSidebarAddSub', 'btnSidebarAddVideo',
   ]);
 
   async function onPanelCommand(msg) {
@@ -2864,6 +2933,9 @@
   function wire() {
     els.btnAddVideo.addEventListener('click', async () => addVideos(await api.openVideos()));
     els.btnAddVideo2.addEventListener('click', async () => addVideos(await api.openVideos()));
+    // Sidebar quick actions mirror the topbar buttons.
+    els.btnSidebarAddSub.addEventListener('click', () => els.btnAddSub.click());
+    els.btnSidebarAddVideo.addEventListener('click', () => els.btnAddVideo.click());
 
     els.btnAddSub.addEventListener('click', async () => {
       const clip = activeClip();
@@ -3150,9 +3222,12 @@
     els.expClose.addEventListener('click', closeExportModal);
     els.expClose2.addEventListener('click', closeExportModal);
     els.expBrowse.addEventListener('click', async () => {
-      const container = els.expContainer.value;
-      const filters = { mp4: ['mp4'], mkv: ['mkv'], mov: ['mov'] }[container] || ['mp4'];
-      const p = await api.saveFile({ title: 'Export video as', defaultPath: els.expPath.value || defaultOutputPath(), filters: [{ name: container.toUpperCase(), extensions: filters }] });
+      const fmt = exportFormat(els.expContainer.value);
+      const filters = [
+        { name: `${fmt.label} video`, extensions: [fmt.ext] },
+        { name: 'All files', extensions: ['*'] },
+      ];
+      const p = await api.saveFile({ title: 'Export video as', defaultPath: els.expPath.value || defaultOutputPath(), filters });
       if (p) {
         els.expPath.value = p;
         updateExportSummary();
@@ -3165,8 +3240,10 @@
       });
     });
     els.expContainer.addEventListener('change', () => {
+      const fmt = exportFormat(els.expContainer.value);
       const cur = els.expPath.value;
-      if (cur) els.expPath.value = cur.replace(/\.[^./\\]+$/, '.' + els.expContainer.value);
+      if (cur) els.expPath.value = cur.replace(/\.[^./\\]+$/, '.' + fmt.ext);
+      refillCodecOptions();
       updateExportSummary();
     });
     els.expStart.addEventListener('click', startExport);
@@ -3425,6 +3502,7 @@
   /* ───────────────────────────── boot ───────────────────────────── */
   async function init() {
     cacheEls();
+    refillCodecOptions();
     loadLayout();
     try {
       const saved = Number(localStorage.getItem('cuci2.timelineHeight'));

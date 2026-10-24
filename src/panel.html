@@ -7,7 +7,7 @@
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' media: data: blob:; media-src 'self' media: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'"
     />
-    <title>CUCI2</title>
+    <title>CUCI</title>
     <link rel="stylesheet" href="styles.css" />
     <link rel="stylesheet" href="panel.css" />
   </head>
@@ -21,7 +21,7 @@
         </svg>
       </button>
       <span class="panel-logo">✂</span>
-      <span class="panel-title" id="panelTitle">CUCI²</span>
+      <span class="panel-title" id="panelTitle">CUCI</span>
       <span class="panel-sub" id="panelSub"></span>
       <span class="spacer"></span>
       <span class="panel-status" id="panelStatus"></span>
@@ -53,6 +53,16 @@
           <button id="btnSubExport" class="btn tiny">Export synced .srt files…</button>
         </div>
         <div id="subEventList" class="sub-event-list"></div>
+      </section>
+
+      <section class="panel quick-actions">
+        <h3>Actions</h3>
+        <div class="action-grid">
+          <button id="btnJob" class="btn tiny">Job</button>
+          <button id="btnNsfw" class="btn tiny">Parent Assist</button>
+          <button id="btnSidebarAddSub" class="btn tiny">Add Subtitle</button>
+          <button id="btnSidebarAddVideo" class="btn tiny">Add Video</button>
+        </div>
       </section>
     </div>
 

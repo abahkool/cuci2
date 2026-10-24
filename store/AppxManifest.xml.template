@@ -32,7 +32,7 @@
 
   <Applications>
     <!-- EntryPoint=Windows.FullTrustApplication + runFullTrust is required for Electron. -->
-    <Application Id="CUCI2" Executable="app\CUCI2.exe" EntryPoint="Windows.FullTrustApplication">
+    <Application Id="CUCI2" Executable="app\CUCI.exe" EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements
         DisplayName="{{DISPLAY_NAME}}"
         Description="{{DESCRIPTION}}"

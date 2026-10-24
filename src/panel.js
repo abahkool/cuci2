@@ -1,4 +1,4 @@
-/* CUCI2 detached panel renderer — thin view over the main window's state. */
+/* CUCI detached panel renderer — thin view over the main window's state. */
 (function () {
   const panelAPI = window.panelAPI;
   const CU = window.CUCI;
@@ -80,6 +80,10 @@
   function wireSidebar() {
     $('btnSubAdd').addEventListener('click', () => send('click', { id: 'btnSubAdd' }));
     $('btnSubExport').addEventListener('click', () => send('click', { id: 'btnSubExport' }));
+    for (const id of ['btnJob', 'btnNsfw', 'btnSidebarAddSub', 'btnSidebarAddVideo']) {
+      const btn = $(id);
+      if (btn) btn.addEventListener('click', () => send('click', { id }));
+    }
     $('subOffset').addEventListener('input', () => send('subOffset', { ms: Number($('subOffset').value) || 0 }));
   }
 
@@ -532,7 +536,7 @@
   /* ───────────────────────────── boot ───────────────────────────── */
   function init() {
     document.body.dataset.panel = NAME;
-    document.title = `CUCI² — ${TITLES[NAME]}`;
+    document.title = `CUCI — ${TITLES[NAME]}`;
     $('panelSub').textContent = TITLES[NAME];
     $('panelSidebar').hidden = NAME !== 'sidebar';
     $('panelTransport').hidden = NAME !== 'transport';

@@ -1,4 +1,4 @@
-# ✂ CUCI² — Video Cut & Merge Studio
+# ✂ CUCI — Cut Out Bad Scenes
 
 A small desktop app (Electron) for **trimming unwanted scenes out of a video with
 millisecond precision**, **joining clips together**, and **automatically re-syncing
@@ -6,11 +6,11 @@ subtitles** to the new length. Everything is powered by `ffmpeg`.
 
 ```
 ┌───────────────────────────────────────────────────────────────────────┐
-│  ✂ CUCI²  cut & merge studio        ffmpeg ✓   [Job] [+ Sub] [+ Video]  │
+│  ✂ CUCI   cut out bad scenes                     [+ Sub] [+ Video] [Export]│
 ├────────────┬──────────────────────────────────────────────────────────┤
 │ Media      │                     video preview                        │
 │ Cuts       ├──────────────────────────────────────────────────────────┤
-│ Subtitles  │  ◀◀ ‹ ▶ › ▶▶  0:04.250 / 0:32.800  ──●──── [Source|Result]│
+│ Subtitles  │  ◀◀ ‹ ▶ › ▶▶  0:04.250 / 0:32.800  ──●──── [Source|Preview]│
 │            ├──────────────────────────────────────────────────────────┤
 │            │  ┃────┃████████┃──────┃████┃────────────────  filmstrip  │
 │            │  ░░░░░ subtitle track ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  │
@@ -32,30 +32,32 @@ subtitles** to the new length. Everything is powered by `ffmpeg`.
 - **Millisecond precision** — edit points are stored and exported to the millisecond
   (`trim=start=1.234:end=5.678`). Optional **frame snapping** using the real source fps.
 - **Cut & merge** — remove as many ranges as you like from each clip, reorder clips, and
-  CUCI² joins the kept segments into one continuous output (sources with different
+  CUCI joins the kept segments into one continuous output (sources with different
   resolutions/fps, or missing audio, are normalised automatically).
 - **Subtitle auto-sync, multiple tracks** — load one or more `.srt` / `.vtt` files per clip
-  and CUCI² remaps every track through the cut list:
+  and CUCI remaps every track through the cut list:
   - events after a cut shift earlier by exactly the removed duration,
   - events spanning a cut boundary are trimmed/split,
   - events fully inside a cut are dropped,
   - a global manual **offset (ms)** is available for nudging.
   Export the remapped subtitles as `.srt`, and/or **burn them into the video**.
-- **Source / Result preview** — watch the untouched source while editing, or switch to
-  *Result* to play back the cut timeline seamlessly (skipping removed ranges).
+- **Source / Preview** — watch the untouched source while editing, or switch to *Preview* to
+  play back the cut timeline seamlessly (skipping removed ranges).
 - **Fast timeline tools** — drag to select, `I`/`O` marks, **double-click the ruler or
   filmstrip** to set In then Out, and a **right-click context menu** with all cut actions.
 - **Save & share cut jobs** — store your cut list + subtitles + export settings as a
   `.cuci2.json` file, or as a compact one-line code you can paste into chat/email/social.
 - **Status bar** — live progress (*analyzing*, *loading keyframe snapshots*, *exporting*),
   sticky errors/warnings, active-clip info, and a click-to-open message history.
-- **Parental AI** — scan the active clip with an on-device image classifier and turn flagged
+- **Parent Assist** — scan the active clip with an on-device image classifier and turn flagged
   (non-child-friendly) scenes into cuts in one click. Everything runs locally; no frames are
   uploaded.
 - **Preview proxy** — if Chromium can't decode a container/codec (e.g. MKV/HEVC), generate a
   low-res H.264 proxy for previewing; exports still use the original files.
-- **Sensible encode presets** — x264 / x265 / NVENC, CRF quality, resolution/fps
-  normalisation, AAC audio, `+faststart`, live progress with ETA, and cancellable exports.
+- **Popular output formats** — MP4, MOV, MKV, WebM (VP9/Opus), AVI, WMV, FLV and MPEG-TS,
+  with the codecs the container actually supports (x264 / x265 / NVENC, VP9, MPEG-4, WMV2).
+  CRF quality, resolution/fps normalisation, `+faststart` for MP4/MOV, live progress with ETA,
+  and cancellable exports.
 - **Pin, peek, detach** — every pane has a flat pin + detach button. Pinned (default) keeps
   it docked; unpinned hides it, and hovering the player slides in a chevron that opens a
   temporary peek — it closes again as soon as you move away unless you click the pin. The
@@ -70,12 +72,12 @@ subtitles** to the new length. Everything is powered by `ffmpeg`.
 
 - **Node.js 18+** to run from source (developed on Node 25)
 - Windows, macOS or Linux
-- **ffmpeg / ffprobe — optional.** CUCI² prefers your own install and falls back to a
+- **ffmpeg / ffprobe — optional.** CUCI prefers your own install and falls back to a
   bundled copy when you don't have one (see below).
 
 ### Where ffmpeg comes from
 
-CUCI² uses the first of these that actually runs:
+CUCI uses the first of these that actually runs:
 
 1. an explicit path you set in ⚙ Settings,
 2. the `FFMPEG_PATH` / `FFPROBE_PATH` environment variables,
@@ -148,7 +150,7 @@ The ⚙ button opens Settings:
   **Browse…** to point at a specific install (common for Chocolatey/Scoop shims or portable
   builds), or **Fill bundled paths** to use the shipped build explicitly.
 - **Prefer the bundled ffmpeg over a system install** — for reproducible output.
-- **Load keyframe snapshots into the timeline** — **off by default**. When enabled, CUCI²
+- **Load keyframe snapshots into the timeline** — **off by default**. When enabled, CUCI
   samples frames with ffmpeg to draw the filmstrip. On long videos this decodes the whole
   file, so it can take a while; the status bar shows progress. When off, the timeline shows
   a placeholder instead.
@@ -205,23 +207,24 @@ self-contained.
 ### Share code format
 
 ```
-CUCI2-1z.<base64url( deflate-raw( JSON ) )>
+CUCI-1z.<base64url( deflate-raw( JSON ) )>
 ```
 
-- `CUCI2-1` — app + format version; `z` = deflate-raw (`p` = plain, automatic fallback).
+- `CUCI-1` — app + format version; `z` = deflate-raw (`p` = plain, automatic fallback).
+  Codes that start with the old `CUCI2-1` prefix still import.
 - **base64url** (no `+ / =`) survives chat, email and URLs unchanged.
 - A compact key schema keeps it small: a single-clip job with two cuts is **~230
   characters** (fits a tweet); a description and embedded subtitles make it larger.
 
 On import, clips are matched by file name, byte size and duration. If a source video isn't
-loaded yet, CUCI² remembers the job and applies it automatically once you add the missing
+loaded yet, CUCI remembers the job and applies it automatically once you add the missing
 file(s).
 
 ---
 
-## Parental AI (NSFW detection)
+## Parent Assist (NSFW detection)
 
-The **Parental AI** button extracts frames from the active clip at a configurable interval
+The **Parent Assist** button extracts frames from the active clip at a configurable interval
 (default: one every 2 seconds), classifies each one, and turns consecutive flagged samples
 into cut ranges you review before applying.
 
@@ -252,7 +255,7 @@ frame count and an estimate before you start.
 ## Preview codecs & proxies
 
 The built-in player only decodes what Chromium supports (typically H.264/VP8/VP9/AV1 with
-AAC/Opus). MKV/HEVC/ProRes and similar may not preview. In that case CUCI² offers
+AAC/Opus). MKV/HEVC/ProRes and similar may not preview. In that case CUCI offers
 **Create preview proxy** — it generates a small H.264 version for the player. **Cutting and
 exporting always use the original files**, so output quality is never affected.
 
@@ -264,7 +267,7 @@ resolutions/fps/audio). Choose a CRF you're happy with.
 ## Troubleshooting
 
 - **`[pid:...:ERROR:ffmpeg_common.cc] Unsupported pixel format: -1` on exit** — harmless.
-  That is Chromium's *bundled* media library (not CUCI²'s `ffmpeg` CLI) tearing down the
+  That is Chromium's *bundled* media library (not CUCI's `ffmpeg` CLI) tearing down the
   `<video>` decoder as the window closes. It does not affect cutting, matching or exports.
 - **`ffmpeg ✗ not found`** — the bundled build is probably missing too. Run
   `npm run fetch:ffmpeg`, or install ffmpeg / set its full path in ⚙ Settings.
@@ -293,7 +296,7 @@ Microsoft Store (MSIX):
 ```bash
 cp store/identity.example.json store/identity.json   # fill in from Partner Center
 npm run store:assets                                 # placeholder artwork (replace with branding)
-npm run store:package                                # -> dist/CUCI2_<version>_x64.msix
+npm run store:package                                # -> dist/CUCI_<version>_x64.msix
 ```
 
 Full walkthrough — identity, WACK, test plan, listing copy, age rating — is in

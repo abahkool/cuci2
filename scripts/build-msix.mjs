@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * Build a Microsoft Store (MSIX) package for CUCI².
+ * Build a Microsoft Store (MSIX) package for CUCI.
  *
  *   npm run store:assets                  # regenerate placeholder artwork
  *   npm run store:stage                   # build the app + layout dist/msix (no MSIX tool needed)
- *   npm run store:package                 # stage + pack into dist/CUCI2_<version>_<arch>.msix
+ *   npm run store:package                 # stage + pack into dist/CUCI_<version>_<arch>.msix
  *
  * Options:
  *   --stage-only        stop after laying out dist/msix
@@ -199,7 +199,7 @@ if (stageOnly) {
 
 /* ── 3. pack ───────────────────────────────────────────────────── */
 const makeappx = findSdkTool('makeappx.exe');
-const outMsix = path.join(root, 'dist', `CUCI2_${msixVersion}_${arch}.msix`);
+const outMsix = path.join(root, 'dist', `CUCI_${msixVersion}_${arch}.msix`);
 
 if (!makeappx) {
   console.error(

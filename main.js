@@ -2,6 +2,7 @@
 
 const { app, BrowserWindow, protocol } = require('electron');
 const path = require('node:path');
+const fs = require('node:fs');
 const { registerIpc, killCurrentJob } = require('./lib/ipc');
 const { MEDIA_PRIVILEGES, registerMediaProtocol } = require('./lib/media-protocol');
 
@@ -14,7 +15,7 @@ protocol.registerSchemesAsPrivileged(MEDIA_PRIVILEGES);
 // Packaged (MSIX / Store) builds get it from the package identity, so only set
 // it for unpackaged builds or it would mismatch the Store identity.
 if (process.platform === 'win32' && !process.windowsStore) {
-  app.setAppUserModelId('com.cuci2.app');
+  app.setAppUserModelId('com.cuci.app');
 }
 
 let mainWindow = null;
@@ -26,7 +27,7 @@ function createWindow() {
     minWidth: 1040,
     minHeight: 680,
     backgroundColor: '#0b0d12',
-    title: 'CUCI2 — Video Cut & Merge',
+    title: 'CUCI — Cut Out Bad Scenes',
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -54,7 +55,23 @@ function createWindow() {
   }
 }
 
+/**
+ * CUCI2 → CUCI rename: keep the existing settings/, models/ and window state by
+ * moving the old userData folder before anything reads it.
+ */
+function migrateUserData() {
+  try {
+    const appData = app.getPath('appData');
+    const oldDir = path.join(appData, 'CUCI2');
+    const newDir = path.join(appData, 'CUCI');
+    if (fs.existsSync(oldDir) && !fs.existsSync(newDir)) fs.renameSync(oldDir, newDir);
+  } catch {
+    /* the app simply starts with fresh settings */
+  }
+}
+
 app.whenReady().then(() => {
+  migrateUserData();
   registerIpc({ getWindow: () => mainWindow });
   registerMediaProtocol();
   createWindow();
