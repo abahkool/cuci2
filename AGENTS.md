@@ -51,7 +51,10 @@ Docs: `README.md` (users) · `docs/DEVELOPMENT.md` (architecture, IPC, data form
 | `src/util.js` | 46 | time formatting helpers |
 | `src/index.html` | 517 | UI markup (all modals, timeline, transport) |
 | `src/styles.css` | 2100 | theme (dark + light), RTL, timeline, modals, status bar |
-| `build.ps1` | 210 | release script: tools → hash-version → tests → builder/MSIX → signing |
+| `build.ps1` | 250 | release script: tools → hash-version → tests → obfuscate+verify → builder/MSIX/APPX → signing |
+| `scripts/obfuscate.mjs` | 190 | stage `.build/app` with the renderer obfuscated |
+| `scripts/verify-build.cjs` | 150 | boot the staged app in Electron and assert it works |
+| `scripts/msix-tools.mjs` | 200 | locate/provision makeappx + signtool (SDK or NuGet) |
 | `scripts/fetch-ffmpeg.mjs` | 196 | resumable ffmpeg download into `vendor/ffmpeg` (postinstall) |
 | `scripts/build-msix.mjs` | 239 | MSIX staging + `makeappx` packing |
 | `scripts/make-store-assets.mjs` | 97 | placeholder MSIX/listing artwork |
@@ -135,6 +138,13 @@ state = {
     controls to their own row.
 13. Cut tools are inline SVG (no icon library).
 14. Electron-builder must be spawned via `node .../cli.js`, not the `.cmd` shim (EINVAL).
+15. **Never package the working tree**: `build.ps1` and the `dist`/`store:*` npm scripts run
+    `scripts/obfuscate.mjs` first and build from `.build/app`. After changing renderer code,
+    re-run `npm run obfuscate` + `npm run verify:build` before trusting a package (verify
+    boots the obfuscated stage, checks i18n/theme/media/cuts).
+16. MSIX/APPX must be packed with **makeappx** (Windows SDK or the NuGet BuildTools copy in
+    `vendor/msix-tools/`); `build-msix.mjs` round-trips the package with `makeappx unpack`.
+    Do not hand-roll a package writer.
 15. **New UI text must be translatable**: add a key to `DICT.en` in `src/i18n.js`, the
     other 13 languages, and bind it with `data-i18n*` (static) or `t('key')` (renderer).
 16. **Theme colours come from CSS variables** (`:root` dark + `:root[data-theme='light']`).

@@ -1,48 +1,57 @@
 # CUCI - Build Script
 # --------------------
-# Checks the toolchain, bumps the version when sources changed, runs the tests
-# (optional), then packages with electron-builder (NSIS installer / portable)
-# or stages + packs the Microsoft Store MSIX via scripts/build-msix.mjs.
+# Checks the toolchain, bumps the version when sources changed, runs the tests,
+# obfuscates the renderer, verifies the obfuscated app, then packages:
+#   * NSIS installer  (-Installer, default)
+#   * portable .exe   (-Portable)
+#   * Microsoft Store .msix  (-Store)
+#   * legacy .appx           (-Appx)
+# Signing is opt-in (-Sign).
 #
-#   .\build.ps1                 # NSIS installer (default)
-#   .\build.ps1 -Portable       # portable single .exe
-#   .\build.ps1 -Store          # MSIX for the Microsoft Store (store:package)
-#   .\build.ps1 -Store -StageOnly
-#   .\build.ps1 -Installer -Portable
-#   .\build.ps1 -Sign           # sign the produced binaries (needs a cert)
-#   .\build.ps1 -SkipTests      # skip npm test
-#   .\build.ps1 -SkipVersion    # do not bump package.json
+#   .\build.ps1                          # NSIS installer, obfuscated + verified
+#   .\build.ps1 -Portable
+#   .\build.ps1 -Installer -Portable -Store -Appx
+#   .\build.ps1 -Store -NoDownload       # never fetch the SDK tools from NuGet
+#   .\build.ps1 -NoObfuscate             # package readable sources (debug only)
+#   .\build.ps1 -SkipTests -SkipVerify   # packaging only
+#   .\build.ps1 -Sign                    # sign the produced binaries
 #
 # Notes
+#  * The obfuscated app is staged in .build/app and every artifact is built from
+#    there. scripts/verify-build.cjs boots it before packaging (i18n, media,
+#    cuts) so a broken obfuscation never reaches a release.
 #  * electron-builder is launched through node cli.js: the .cmd shim fails with
-#    EINVAL when spawned from PowerShell on this project.
-#  * The MSIX target needs makeappx.exe (Windows SDK) and store/identity.json;
-#    without them the script stages dist/msix and prints the next step.
+#    EINVAL when spawned from PowerShell.
+#  * makeappx.exe comes from the Windows SDK when installed; otherwise the
+#    Microsoft "Windows SDK BuildTools" package is downloaded once into
+#    vendor/msix-tools/ (pass -NoDownload to forbid that).
+#  * Store uploads do not need to be signed - Microsoft re-signs them.
 
 param(
     [switch]$Installer = $false,
     [switch]$Portable = $false,
     [switch]$Store = $false,
-    [switch]$StageOnly = $false,
+    [switch]$Appx = $false,
     [switch]$Sign = $false,
+    [switch]$NoObfuscate = $false,
+    [switch]$NoDownload = $false,
     [switch]$SkipTests = $false,
+    [switch]$SkipVerify = $false,
     [switch]$SkipVersion = $false
 )
 
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = Split-Path -Parent $PSCommandPath
 $DistDir = Join-Path $ProjectRoot 'dist'
+$AppDir = Join-Path $ProjectRoot '.build\app'
 
-function Step($n, $text) {
-    Write-Host ""
-    Write-Host "[$n] $text" -ForegroundColor Yellow
-}
+function Step($n, $text) { Write-Host ""; Write-Host "[$n] $text" -ForegroundColor Yellow }
 function Ok($text) { Write-Host "  $text" -ForegroundColor Green }
 function Info($text) { Write-Host "  $text" -ForegroundColor Gray }
 function Warn($text) { Write-Host "  WARNING: $text" -ForegroundColor DarkYellow }
 function Die($text) { Write-Host "  ERROR: $text" -ForegroundColor Red; exit 1 }
 
-if (-not ($Installer -or $Portable -or $Store)) { $Installer = $true }
+if (-not ($Installer -or $Portable -or $Store -or $Appx)) { $Installer = $true }
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
@@ -52,26 +61,30 @@ Write-Host "========================================" -ForegroundColor Cyan
 Push-Location $ProjectRoot
 try {
     # ── 1. toolchain ────────────────────────────────────────────────
-    Step '1/8' 'Checking Node.js...'
+    Step '1/9' 'Checking Node.js...'
     $nodeVersion = node --version 2>&1
     if ($LASTEXITCODE -ne 0) { Die 'Node.js is not installed (https://nodejs.org).' }
     Ok "Node.js $nodeVersion"
     if (-not (Test-Path (Join-Path $ProjectRoot 'node_modules'))) {
-        Step '1/8' 'Installing dependencies (first run, may fetch ~110 MB ffmpeg)...'
+        Info 'First run: installing dependencies (may fetch ~110 MB ffmpeg)...'
         npm install
         if ($LASTEXITCODE -ne 0) { Die 'npm install failed.' }
-        Ok 'Dependencies installed.'
-    } else {
-        Info 'node_modules present - skipping npm install'
     }
+    if (-not $NoObfuscate -and -not (Test-Path (Join-Path $ProjectRoot 'node_modules\javascript-obfuscator'))) {
+        Info 'Installing the obfuscator...'
+        npm install --save-dev javascript-obfuscator
+        if ($LASTEXITCODE -ne 0) { Die 'Could not install javascript-obfuscator.' }
+    }
+    Ok 'Dependencies ready.'
 
     # ── 2. version bump from a source hash ──────────────────────────
-    Step '2/8' 'Checking sources for a version bump...'
+    Step '2/9' 'Checking sources for a version bump...'
     $hashFile = Join-Path $ProjectRoot '.last-build-hash'
-    $codeFiles = Get-ChildItem $ProjectRoot -Recurse -File -Include *.js,*.mjs,*.html,*.css,*.json |
+    $codeFiles = Get-ChildItem $ProjectRoot -Recurse -File -Include *.js,*.mjs,*.cjs,*.html,*.css,*.json |
         Where-Object {
             $_.FullName -notmatch '\\node_modules\\' -and
             $_.FullName -notmatch '\\dist\\' -and
+            $_.FullName -notmatch '\\.build\\' -and
             $_.FullName -notmatch '\\vendor\\' -and
             $_.FullName -notmatch '\\Sample\\' -and
             $_.Name -notin @('package-lock.json', 'package.json')
@@ -94,7 +107,7 @@ try {
     }
 
     # ── 3. tests ────────────────────────────────────────────────────
-    Step '3/8' 'Running the test suite...'
+    Step '3/9' 'Running the test suite...'
     if ($SkipTests) {
         Warn 'Skipped (-SkipTests)'
     } else {
@@ -104,51 +117,79 @@ try {
     }
 
     # ── 4. clean ────────────────────────────────────────────────────
-    Step '4/8' 'Cleaning previous output...'
+    Step '4/9' 'Cleaning previous output...'
     if (Test-Path $DistDir) { Remove-Item $DistDir -Recurse -Force }
-    Ok 'dist/ is empty.'
+    if (Test-Path (Join-Path $ProjectRoot '.build')) { Remove-Item (Join-Path $ProjectRoot '.build') -Recurse -Force }
+    Ok 'dist/ and .build/ are empty.'
+
+    # ── 5. obfuscate + verify ───────────────────────────────────────
+    Step '5/9' 'Obfuscating the renderer...'
+    $BuildAppDir = ''
+    if ($NoObfuscate) {
+        Warn 'Skipped (-NoObfuscate) - packaging the working tree as-is.'
+    } else {
+        node scripts/obfuscate.mjs --out "$AppDir"
+        if ($LASTEXITCODE -ne 0) { Die 'Obfuscation failed.' }
+        $BuildAppDir = $AppDir
+        Ok "Obfuscated app staged in $AppDir"
+        if (-not $SkipVerify) {
+            Info 'Verifying the obfuscated app boots...'
+            node_modules\.bin\electron.cmd scripts\verify-build.cjs --app-dir "$AppDir"
+            if ($LASTEXITCODE -ne 0) { Die 'The obfuscated build failed verification (see output above).' }
+        }
+    }
 
     $ebCli = Join-Path $ProjectRoot 'node_modules\electron-builder\cli.js'
+    $appDirFlag = if ($BuildAppDir) { @("--config.directories.app=$BuildAppDir") } else { @() }
 
-    # ── 5. Windows installer / portable ─────────────────────────────
-    Step '5/8' 'Building Windows targets...'
+    # ── 6. Windows installer / portable ─────────────────────────────
+    Step '6/9' 'Building Windows targets...'
     if ($Installer) {
         Info 'Target: NSIS installer'
-        node $ebCli --win nsis --config.directories.output="$DistDir"
+        node $ebCli --win nsis --config.directories.output="$DistDir" @appDirFlag
         if ($LASTEXITCODE -ne 0) { Die 'electron-builder (nsis) failed.' }
         Ok 'NSIS installer built.'
     }
     if ($Portable) {
         Info 'Target: portable .exe'
-        node $ebCli --win portable --config.directories.output="$DistDir"
+        node $ebCli --win portable --config.directories.output="$DistDir" @appDirFlag
         if ($LASTEXITCODE -ne 0) { Die 'electron-builder (portable) failed.' }
         Ok 'Portable build built.'
     }
     if (-not ($Installer -or $Portable)) { Info 'No electron-builder target selected.' }
 
-    # ── 6. Microsoft Store MSIX ─────────────────────────────────────
-    Step '6/8' 'Microsoft Store package...'
-    if ($Store) {
-        if (-not (Test-Path (Join-Path $ProjectRoot 'store\identity.json'))) {
-            Warn 'store/identity.json is missing - copy store/identity.example.json and fill in your Partner Center values.'
-            Warn 'Continuing with the example identity (fine for a local stage test).'
-        }
-        if ($StageOnly) {
-            npm run store:stage
-        } else {
-            npm run store:package
-        }
-        if ($LASTEXITCODE -ne 0) {
-            Warn 'store:package did not complete (makeappx.exe / identity). dist/msix is still staged.'
-        } else {
-            Ok 'MSIX staged/packed.'
-        }
+    # ── 7. Microsoft Store packages ─────────────────────────────────
+    Step '7/9' 'Microsoft Store packages (.msix / .appx)...'
+    if (-not ($Store -or $Appx)) {
+        Info 'Skipped (use -Store and/or -Appx)'
     } else {
-        Info 'Skipped (use -Store)'
+        if (-not (Test-Path (Join-Path $ProjectRoot 'store\identity.json'))) {
+            Warn 'store/identity.json is missing - the example identity is used.'
+            Warn 'Copy store/identity.example.json and fill in your Partner Center values before uploading.'
+        }
+        $msixArgs = @()
+        if (-not (Test-Path (Join-Path $DistDir 'win-unpacked'))) {
+            Info 'No win-unpacked yet - build-msix will create it.'
+        }
+        if ($NoDownload) { $msixArgs += '--no-download' }
+        if ($BuildAppDir) { $msixArgs += @('--app-dir', $BuildAppDir) }
+
+        if ($Store) {
+            Info 'Packing .msix...'
+            node scripts/build-msix.mjs @msixArgs
+            if ($LASTEXITCODE -ne 0) { Warn '.msix packing failed (see output above).' } else { Ok '.msix packed.' }
+        }
+        if ($Appx) {
+            Info 'Packing legacy .appx...'
+            $appxArgs = $msixArgs
+            if ($Store) { $appxArgs += '--skip-build' }   # reuse the unpacked build
+            node scripts/build-msix.mjs --appx @appxArgs
+            if ($LASTEXITCODE -ne 0) { Warn '.appx packing failed (see output above).' } else { Ok '.appx packed.' }
+        }
     }
 
-    # ── 7. signing ──────────────────────────────────────────────────
-    Step '7/8' 'Signing...'
+    # ── 8. signing ──────────────────────────────────────────────────
+    Step '8/9' 'Signing...'
     if (-not $Sign) {
         Info 'Skipped (use -Sign)'
     } else {
@@ -174,9 +215,13 @@ try {
 
         $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter 'signtool.exe' -ErrorAction SilentlyContinue |
             Where-Object { $_.FullName -match '\\x64\\' } | Sort-Object FullName -Descending | Select-Object -First 1
-        if (-not $signtool) { Die 'signtool.exe not found (install the Windows SDK).' }
+        if (-not $signtool -and (Test-Path (Join-Path $ProjectRoot 'vendor\msix-tools'))) {
+            $signtool = Get-ChildItem (Join-Path $ProjectRoot 'vendor\msix-tools') -Recurse -Filter 'signtool.exe' -ErrorAction SilentlyContinue |
+                Where-Object { $_.FullName -match '\\x64\\' } | Select-Object -First 1
+        }
+        if (-not $signtool) { Die 'signtool.exe not found (install the Windows SDK or run -Store once).' }
 
-        $binaries = Get-ChildItem $DistDir -Recurse -File -Include *.exe,*.msix,*.dll
+        $binaries = Get-ChildItem $DistDir -Recurse -File -Include *.exe,*.msix,*.appx,*.dll
         if (-not $binaries) { Warn 'No binaries to sign.' }
         foreach ($bin in $binaries) {
             Info "Signing $($bin.Name) ..."
@@ -185,9 +230,10 @@ try {
         }
     }
 
-    # ── 8. summary ──────────────────────────────────────────────────
-    Step '8/8' 'Done.'
-    $outs = Get-ChildItem $DistDir -Recurse -File -Include *.exe,*.msix,*.appx,*.zip -ErrorAction SilentlyContinue
+    # ── 9. summary ──────────────────────────────────────────────────
+    Step '9/9' 'Done.'
+    $outs = Get-ChildItem $DistDir -Recurse -File -Include *.exe,*.msix,*.appx,*.zip -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -notmatch '\\win-unpacked\\' -and $_.FullName -notmatch '\\msix\\' }
     if ($outs) {
         foreach ($o in $outs) { Write-Host ("  {0}" -f $o.FullName) -ForegroundColor White }
     } else {

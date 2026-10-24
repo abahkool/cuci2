@@ -5,23 +5,30 @@
  *   npm run store:assets                  # regenerate placeholder artwork
  *   npm run store:stage                   # build the app + layout dist/msix (no MSIX tool needed)
  *   npm run store:package                 # stage + pack into dist/CUCI_<version>_<arch>.msix
+ *   npm run store:appx                    # same, but emits the legacy .appx container
  *
  * Options:
  *   --stage-only        stop after laying out dist/msix
+ *   --appx              emit CUCI_<version>_<arch>.appx instead of .msix
  *   --no-ffmpeg         drop the bundled ffmpeg (smaller package; see docs/STORE-SUBMISSION.md)
  *   --skip-build        reuse an existing dist/<arch>-unpacked
+ *   --app-dir <dir>     build this app directory (used for the obfuscated stage)
  *   --identity <file>   identity JSON (default store/identity.json, falls back to the example)
  *   --arch x64|arm64    target architecture (default x64)
  *   --version x.y.z.b   4-part MSIX version (default: package.json version + .0)
  *   --sign <pfx>        sign the package (needs --cert-pass or SIGNCERT_PASS) — local testing only
+ *   --no-download       never fetch the Windows SDK build tools from NuGet
  *
- * Microsoft signs Store submissions itself; see docs/STORE-SUBMISSION.md.
+ * makeappx.exe comes from the Windows SDK when installed; otherwise the SDK
+ * BuildTools package is downloaded once into vendor/msix-tools/ (Microsoft
+ * signed, same tool). Microsoft re-signs Store submissions itself.
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { ensureSdkTool } from './msix-tools.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
@@ -36,6 +43,9 @@ const opt = (name, def) => {
 
 const stageOnly = has('--stage-only');
 const skipBuild = has('--skip-build');
+const appx = has('--appx');
+const noDownload = has('--no-download');
+const appDirArg = opt('--app-dir', '');
 const noFfmpeg = has('--no-ffmpeg');
 const arch = opt('--arch', 'x64');
 const identityFile = path.resolve(root, opt('--identity', 'store/identity.json'));
@@ -75,30 +85,6 @@ function run(cmd, args, opts = {}) {
   if (r.status !== 0) throw new Error(`${path.basename(cmd)} exited with ${r.status}`);
 }
 
-function findSdkTool(name) {
-  const roots = ['C:\\Program Files (x86)\\Windows Kits\\10\\bin', 'C:\\Program Files\\Windows Kits\\10\\bin'];
-  for (const base of roots) {
-    if (!fs.existsSync(base)) continue;
-    const versions = fs
-      .readdirSync(base)
-      .filter((v) => /^10\./.test(v))
-      .sort()
-      .reverse();
-    for (const v of versions) {
-      for (const a of [arch, 'x64', 'x86']) {
-        const p = path.join(base, v, a, name);
-        if (fs.existsSync(p)) return p;
-      }
-    }
-  }
-  const which = spawnSync('where', [name], { encoding: 'utf8', windowsHide: true });
-  if (which.status === 0) {
-    const first = which.stdout.split(/\r?\n/).find(Boolean);
-    if (first) return first.trim();
-  }
-  return null;
-}
-
 /* ── 1. build the app ──────────────────────────────────────────── */
 const unpacked = path.join(root, 'dist', arch === 'x64' ? 'win-unpacked' : `win-${arch}-unpacked`);
 
@@ -113,7 +99,9 @@ if (!skipBuild) {
   }
   const ebPkg = JSON.parse(fs.readFileSync(ebPkgPath, 'utf8'));
   const ebBin = typeof ebPkg.bin === 'string' ? ebPkg.bin : ebPkg.bin['electron-builder'];
-  run(process.execPath, [path.join(path.dirname(ebPkgPath), ebBin), '--win', '--dir', `--${arch}`]);
+  const ebArgs = [path.join(path.dirname(ebPkgPath), ebBin), '--win', '--dir', `--${arch}`];
+  if (appDirArg) ebArgs.push(`--config.directories.app=${path.resolve(root, appDirArg)}`);
+  run(process.execPath, ebArgs);
 }
 if (!fs.existsSync(unpacked)) {
   console.error(`\nUnpacked app not found at ${unpacked}\nRun without --skip-build first.`);
@@ -198,19 +186,21 @@ if (stageOnly) {
 }
 
 /* ── 3. pack ───────────────────────────────────────────────────── */
-const makeappx = findSdkTool('makeappx.exe');
-const outMsix = path.join(root, 'dist', `CUCI_${msixVersion}_${arch}.msix`);
+const ext = appx ? 'appx' : 'msix';
+const outPkg = path.join(root, 'dist', `CUCI_${msixVersion}_${arch}.${ext}`);
 
+console.log(`\n== locating makeappx (${ext}) ==`);
+const makeappx = await ensureSdkTool('makeappx.exe', { root, arch, allowDownload: !noDownload });
 if (!makeappx) {
   console.error(
     [
       '',
-      'makeappx.exe was not found, so the .msix could not be packed.',
+      'makeappx.exe is not installed and could not be provisioned (offline?).',
       '',
-      'Install the MSIX packaging tools, then re-run:',
+      'Either install the MSIX packaging tools:',
       '  winget install --id Microsoft.Windows SDK   (or add "MSIX Packaging Tools" via the',
       '  Visual Studio Installer / Windows SDK setup)',
-      '  — or install the “MSIX Packaging Tool” from the Store and open dist/msix.',
+      'or allow the one-off NuGet download (do not pass --no-download).',
       '',
       `The staging tree is ready at: ${stage}`,
       'See docs/STORE-SUBMISSION.md for the full walkthrough.',
@@ -219,20 +209,38 @@ if (!makeappx) {
   );
   process.exit(2);
 }
+console.log('  ' + makeappx);
 
-console.log('\n== packing ==');
-run(makeappx, ['pack', '/d', stage, '/p', outMsix, '/o']);
-console.log(`  ${path.relative(root, outMsix)} (${(fs.statSync(outMsix).size / 1048576).toFixed(0)} MB)`);
+console.log(`\n== packing .${ext} ==`);
+run(makeappx, ['pack', '/d', stage, '/p', outPkg, '/o']);
+const pkgMb = (fs.statSync(outPkg).size / 1048576).toFixed(0);
+console.log(`  ${path.relative(root, outPkg)} (${pkgMb} MB)`);
+
+// Round-trip check: makeappx must be able to unpack what it just produced.
+if (!noDownload) {
+  const verifyDir = path.join(root, 'dist', '.msix-verify');
+  fs.rmSync(verifyDir, { recursive: true, force: true });
+  try {
+    run(makeappx, ['unpack', '/p', outPkg, '/d', verifyDir]);
+    const manifest = path.join(verifyDir, 'AppxManifest.xml');
+    console.log(`  package verified (unpacked, manifest ${fs.existsSync(manifest) ? 'present' : 'MISSING'})`);
+  } catch (err) {
+    console.error(`  ! package verification failed: ${err.message}`);
+    process.exit(4);
+  } finally {
+    fs.rmSync(verifyDir, { recursive: true, force: true });
+  }
+}
 
 /* ── 4. optional local signing ─────────────────────────────────── */
 if (signPfx) {
-  const signtool = findSdkTool('signtool.exe');
+  const signtool = await ensureSdkTool('signtool.exe', { root, arch, allowDownload: !noDownload });
   if (!signtool) {
     console.error('signtool.exe not found — cannot sign.');
     process.exit(3);
   }
   console.log('\n== signing (local testing) ==');
-  run(signtool, ['sign', '/fd', 'SHA256', '/f', signPfx, ...(certPass ? ['/p', certPass] : []), outMsix]);
+  run(signtool, ['sign', '/fd', 'SHA256', '/f', signPfx, ...(certPass ? ['/p', certPass] : []), outPkg]);
   console.log('  signed');
 }
 

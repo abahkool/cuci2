@@ -22,3 +22,9 @@ store/identity.json
 
 # temp / scratch
 *.tmp
+
+# obfuscated staging used by build.ps1 (recreated on every build)
+.build/
+
+# release hash used by build.ps1 for the automatic version bump
+.last-build-hash

@@ -74,11 +74,19 @@ The easiest path is the PowerShell build script (checks Node, bumps the version 
 sources changed, runs the test suite, builds and optionally signs):
 
 ```powershell
-.\build.ps1 -Store            # stage + pack dist/CUCI_<version>_x64.msix
-.\build.ps1 -Store -StageOnly # lay out dist/msix only (no makeappx needed)
+.\build.ps1 -Store            # obfuscate + build + pack dist/CUCI_<version>_x64.msix
+.\build.ps1 -Appx             # same, but the legacy .appx container
 .\build.ps1 -Installer        # NSIS installer for a direct download link
-.\build.ps1 -Store -Sign      # also sign the artefacts with certs/code-signing.pfx
+.\build.ps1 -Store -Appx -Sign  # both containers, signed for local testing
+.\build.ps1 -Store -NoDownload  # offline: use an installed SDK only
 ```
+
+`makeappx.exe` is taken from the Windows SDK when installed. If it is not, the script downloads
+the Microsoft **Windows SDK BuildTools** NuGet package once and extracts it into
+`vendor/msix-tools/` (same signed tool, nothing hand-rolled). `build-msix.mjs` then
+round-trips the package (`makeappx unpack`) before reporting success, so a broken archive is
+caught immediately. Both `.msix` and `.appx` are accepted by Partner Center; `.msix` is
+preferred for new submissions.
 
 Or drive the tools directly:
 
@@ -91,10 +99,12 @@ npm run store:package     # builds the app and packs dist/CUCI_<version>_x64.msi
 Useful variants:
 
 ```bash
-npm run store:stage                       # lay out dist/msix, no makeappx needed
+npm run store:stage                       # obfuscate + lay out dist/msix, no makeappx needed
+npm run store:appx                        # obfuscate + pack .appx
 node scripts/build-msix.mjs --no-ffmpeg   # drop the bundled ffmpeg (see §4)
 node scripts/build-msix.mjs --arch arm64  # ARM64 package
 node scripts/build-msix.mjs --sign my.pfx --cert-pass hunter2   # local install only
+node scripts/build-msix.mjs --no-download # forbid fetching the SDK tools
 ```
 
 ### Manual path (no makeappx)

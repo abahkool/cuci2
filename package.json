@@ -1,7 +1,7 @@
 {
   "name": "cuci2",
   "productName": "CUCI",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "CUCI — Cut Out Bad Scenes. Millisecond-precision video cut & merge with automatic subtitle sync.",
   "main": "main.js",
   "author": "CUCI2",
@@ -19,15 +19,19 @@
     "test:smoke": "electron lib/smoke.js",
     "test:e2e": "electron lib/e2e.js",
     "test:cancel": "electron lib/test-cancel.js",
+    "obfuscate": "node scripts/obfuscate.mjs",
+    "verify:build": "electron scripts/verify-build.cjs",
     "predist": "node scripts/fetch-ffmpeg.mjs --strict",
-    "dist": "electron-builder",
+    "dist": "node scripts/obfuscate.mjs && node node_modules/electron-builder/cli.js --config.directories.app=.build/app",
     "store:assets": "node scripts/make-store-assets.mjs",
-    "store:stage": "node scripts/build-msix.mjs --stage-only",
-    "store:package": "node scripts/build-msix.mjs"
+    "store:stage": "node scripts/obfuscate.mjs && node scripts/build-msix.mjs --stage-only --app-dir .build/app",
+    "store:package": "node scripts/obfuscate.mjs && node scripts/build-msix.mjs --app-dir .build/app",
+    "store:appx": "node scripts/obfuscate.mjs && node scripts/build-msix.mjs --appx --app-dir .build/app"
   },
   "devDependencies": {
     "electron": "^33.2.0",
-    "electron-builder": "^26.15.3"
+    "electron-builder": "^26.15.3",
+    "javascript-obfuscator": "^5.9.0"
   },
   "build": {
     "appId": "com.cuci.app",

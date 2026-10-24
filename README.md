@@ -74,17 +74,29 @@ subtitles** to the new length. Everything is powered by `ffmpeg`.
 
 ## Build & package
 
-`build.ps1` is the one-stop Windows build script (toolchain check → version bump from a
-source hash → tests → electron-builder / MSIX → optional signing):
+`build.ps1` is the one-stop Windows build script: toolchain check → patch-version bump from a
+source hash → `npm test` → **obfuscate the renderer into `.build/app` and verify it boots** →
+electron-builder (NSIS/portable) → Microsoft Store `.msix` / legacy `.appx` → optional signing.
 
 ```powershell
-.\build.ps1                 # NSIS installer
+.\build.ps1                 # NSIS installer (obfuscated + verified)
 .\build.ps1 -Portable       # portable .exe
-.\build.ps1 -Store          # Microsoft Store MSIX (store:package)
-.\build.ps1 -Installer -Portable -Store
+.\build.ps1 -Store          # Microsoft Store .msix
+.\build.ps1 -Appx           # legacy .appx container
+.\build.ps1 -Installer -Portable -Store -Appx
 .\build.ps1 -Sign           # sign the produced binaries
-.\build.ps1 -SkipTests -SkipVersion   # quick packaging run
+.\build.ps1 -NoObfuscate    # debug build with readable sources
+.\build.ps1 -SkipTests -SkipVerify -SkipVersion   # quick packaging run
 ```
+
+Renderer JavaScript is obfuscated with `javascript-obfuscator` before every package (also for
+`npm run dist` / `npm run store:*`). Every artifact is built from the obfuscated stage, and
+`scripts/verify-build.cjs` boots that stage first (i18n, media probe, cuts) so a broken
+obfuscation never ships.
+
+`makeappx.exe` is used from the installed Windows SDK when present; otherwise the Microsoft
+*Windows SDK BuildTools* package is downloaded once into `vendor/msix-tools/` (pass
+`-NoDownload` to forbid that). Store uploads do not need signing — Microsoft re-signs them.
 
 Store submission details live in `docs/STORE-SUBMISSION.md`.
 

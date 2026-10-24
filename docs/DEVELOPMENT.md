@@ -64,6 +64,9 @@ src/i18n.js             UI translations (14 languages) + language detection
   e2e.js                full UI flow test (load → subtitle → cut → seek → export → job)
   test-cancel.js        verifies cancel kills ffmpeg + removes residue
 scripts/
+  obfuscate.mjs         stages .build/app with the renderer obfuscated (build.ps1 default)
+  verify-build.cjs      boots the staged app (Electron) and asserts it still works
+  msix-tools.mjs        find/provision makeappx + signtool (Windows SDK or NuGet)
   fetch-ffmpeg.mjs      downloads a recent ffmpeg into vendor/ (postinstall)
 vendor/
   ffmpeg/               bundled binaries (gitignored — npm run fetch:ffmpeg)
@@ -592,10 +595,23 @@ use those variables instead of hard-coded colours. Persisted in
 
 `build.ps1` (repo root) wraps the release flow: Node check → `npm install` when
 `node_modules` is missing → SHA-256 source hash → patch-version bump + `.last-build-hash`
-→ `npm test` → clean `dist/` → `node node_modules/electron-builder/cli.js` for
-`-Installer`/`-Portable` (never the `.cmd` shim → EINVAL) → `npm run store:stage|package`
-for `-Store` → optional `-Sign` via `signtool.exe` and a self-signed
-`certs/code-signing.pfx` (generated with `openssl` when missing).
+→ `npm test` → clean `dist/` and `.build/` → **`scripts/obfuscate.mjs`** stages `.build/app`
+(renderer JS obfuscated; `node_modules` + `vendor` junctioned so deps and `extraResources`
+resolve) → **`scripts/verify-build.cjs`** boots that stage in Electron and checks CUCI
+helpers, preload API, i18n switching, theme, media probing and a cut → `node
+node_modules/electron-builder/cli.js` for `-Installer`/`-Portable` with
+`--config.directories.app=.build/app` (never the `.cmd` shim → EINVAL) → `node
+scripts/build-msix.mjs [--appx] --app-dir .build/app` for `-Store`/`-Appx` → optional `-Sign`
+via `signtool.exe` and a self-signed `certs/code-signing.pfx`.
+
+`npm run dist`, `npm run store:package`, `npm run store:appx` and `npm run store:stage`
+obfuscate first as well, so no packaging path ships readable renderer code. Use
+`-NoObfuscate` only for debugging.
+
+`scripts/msix-tools.mjs` locates `makeappx.exe` (vendor copy → Windows SDK → PATH) and, when
+missing, downloads the Microsoft Windows SDK BuildTools NuGet package once into
+`vendor/msix-tools/` and extracts it with a small zip reader (no extra npm dependency).
+`build-msix.mjs` packs with it and then verifies the archive with `makeappx unpack`.
 
 ### Debug handle
 
