@@ -43,19 +43,19 @@ Docs: `README.md` (users) · `docs/DEVELOPMENT.md` (architecture, IPC, data form
 | `lib/media-protocol.js` | 130 | seekable `media://` with HTTP Range (206) |
 | `lib/ffmpeg-locate.js` | 186 | custom → env → system → bundled resolution |
 | `lib/nsfw.js` | 389 | ONNX NSFW scanning (sampling, inference, `groupDetections`) |
-| `src/app.js` | 3934 | all renderer logic |
+| `src/app.js` | 4044 | all renderer logic |
 | `src/panel.html` | 177 | detached panel window markup (side panel + control center + timeline) |
-| `src/panel.js` | 616 | thin panel view: renders snapshots, forwards commands |
+| `src/panel.js` | 622 | thin panel view: renders snapshots, forwards commands |
 | `src/panel.css` | 119 | panel window chrome |
 | `src/job.js` | 380 | cut-job codec + **untrusted-input** validation (`sanitizeJob`) |
-| `src/i18n.js` | 1609 | 14-language UI dictionary, detection, `<html dir>` switching, `CU.i18n.extend` |
+| `src/i18n.js` | 1623 | 14-language UI dictionary, detection, `<html dir>` switching, `CU.i18n.extend` |
 | `src/guide-i18n.js` | 836 | user-guide strings (14 languages) |
 | `src/messages-i18n.js` | 700 | settings-page + notification strings (14 languages) |
 | `src/menu-i18n.js` | 92 | native menu labels (14 languages) |
 | `src/errors-i18n.js` | 573 | error/status strings (14 languages) |
 | `src/srt.js` | 157 | subtitle parse/serialise/remap + SRT text cleaning |
 | `src/util.js` | 46 | time formatting helpers |
-| `src/index.html` | 710 | UI markup (all modals incl. guide + import confirm, timeline, transport) |
+| `src/index.html` | 713 | UI markup (all modals incl. guide + import confirm, timeline, transport) |
 | `src/styles.css` | 2352 | theme (dark + light), RTL, timeline, modals, guide, status bar |
 | `build.ps1` | 248 | release script: version bump → tests → obfuscate+verify → builder/MSIX/APPX → signing |
 | `scripts/obfuscate.mjs` | 178 | stage `.build/app` with the renderer obfuscated |
@@ -73,12 +73,12 @@ Tests: `lib/selftest.js` (export graph, every format), `lib/test-locate.js`, `li
 | Area | Functions (approx. line) |
 | --- | --- |
 | Ranges | `keptRanges` 180 · `programRanges` 193 · `clipBaseOffset` 222 |
-| Subtitles | `activeSubtitleTrack` 212 · `remapTrack` 232 · `computeRemaps` 236 · `remapAllTracks` 257 · `applySubEventsState` 145 |
+| Subtitles | `activeSubtitleTrack` 212 · `remapTrack` 232 · `computeRemaps` 236 · `remapAllTracks` 257 · `applySubEventsState` 148 · `autoOpenSubEvents` 158 · `loadSubtitlesFromPaths` 589 |
 | Status/toast | `toast` 300 · `pushStatusHistory` 324 · `setStatus` 343 |
 | Media | `addVideos` 466 · `loadSubtitlesFromPaths` 574 · `loadSubtitleFromPath` 620 |
 | Rendering | `renderTimeline` 712 · `buildBase` 731 · `renderOverlays` 809 · `updateSubPanel` 969 · `updateSubtitleOverlay` 1088 |
 | Timeline input | `showContextMenu` 1268 · `onPointerDown` 1468 · `onPointerMove` 1523 · `onPointerUp` 1570 |
-| Jobs | `buildJob` 1599 · `applyJob` 1676 · `finishJobApply` 1731 · `requestJobImport` 1904 · `selectJobTab` 1939 · `openJobModal` 1949 |
+| Jobs | `buildJob` 1599 · `applyJob` 1676 · `finishJobApply` 1731 · `setJobFilePath` 1824 · `rememberedJobFile` 1840 · `saveJobFile` 1850 · `openJobFile` 1872 · `requestJobImport` 1982 · `selectJobTab` 2019 · `openJobModal` 2029 |
 | Guide | `openGuide` 1844 (topbar `?` / F1) |
 | NSFW | `openNsfwModal` 2002 · `startNsfwScan` 2025 |
 | Export | `EXPORT_FORMATS` 2133 · `currentSetup` 2198 · `updateExportSummary` 2245 · `openExportModal` 2283 · `startExport` 2296 |
@@ -169,9 +169,11 @@ state = {
     (renderer) — main-process code uses `lib/i18n-main.js`. No hardcoded user-facing strings.
 18. **Settings apply immediately** — no Save button; use `persistSettings()` and keep
     `state.settings` in sync (it refreshes `app:info`). The subtitle text list is collapsible
-    (`localStorage["cuci.subEvents"]`, **default collapsed**; it auto-opens when the clip gains a
-    track, a manual collapse sticks until another track appears) in both the sidebar and the
-    panel window.
+    (`localStorage["cuci.subEvents"]`, **default collapsed**; `autoOpenSubEvents()` compares
+    `clip.subtitles.length` with a per-clip `subTrackCounts[clip.id]` from the previous render,
+    so it opens on first load / an extra track / switching to a clip that has one, a manual
+    collapse sticks, and clicking a track row reveals its text) in both the sidebar and the
+    panel window. `clip.activeSubtitleId` defaults to `subtitles[0].id`.
 19. **`Ctrl+S` reuses the remembered job file** (`localStorage["cuci.jobFile"]`, scoped to the
     first clip's path); only the Job panel's *Save job file…* button (`saveJobFile({ask:true})`)
     always shows the dialog. `Ctrl+C`/`Ctrl+V` are renderer `onKeyDown` handlers outside text
@@ -185,7 +187,17 @@ state = {
 22. **Sidebar sizing is delicate**: the subtitle panel is `.panel.grow` and may overflow at
     800 px height. A compacting fix (commit `573f50a`: leftover-height panel, `.srt` export as
     a header icon, single-line summary) was **reverted at the user's request** (`91288da`). Do
-    not re-apply it unless asked.
+    not re-apply it unless asked. Actions sits **above** Media in the sidebar (`src/index.html`)
+    and in `src/panel.html` — keep that order.
+23. **The ffmpeg chip only speaks when something is wrong** (`refreshInfo()`): healthy sets
+    `hidden = true`, failure shows `ffmpeg ✗ not found` + `msgFfmpegMissing`. It starts
+    `hidden` in the markup. Settings still lists the full version/path.
+24. **Every dictionary must stay key-complete**: `src/i18n.js` (chrome), `guide-i18n.js`
+    (guide + import confirm), `messages-i18n.js` (settings + toasts), `menu-i18n.js` (native
+    menu), `errors-i18n.js` (errors/status) — 14 languages each, identical key sets per file
+    and no English fallbacks for new keys. `t()` returns the literal key for an unknown one
+    (that is how a missing `msgThumbsLoading` once leaked into the status bar), so after adding
+    UI text audit key parity across all five files and both markup files.
 
 ## Commands
 
@@ -217,7 +229,9 @@ Do **not** `npm install` for no reason — `postinstall` fetches ~110 MB ffmpeg 
   detached side panel / control center as real windows and checks the state/command relay,
   the guide modal (button + F1, 10 sections, 17 shortcut rows, translated title), the import
   confirmation (description shown, `<img onerror>` escaped, no injected nodes), theme
-  switching, language switching and the native menu state.
+  switching, language switching (15 entries incl. auto, Arabic RTL) and the native menu state.
+- `lib/e2e.js` also checks the subtitle list (`evOpenByDefault`, `evCollapsed`, `evReopened`)
+  and `subEventsEmpty` after `loadInfo` — keep both when touching the collapse logic.
 - `scripts/verify-build.cjs` runs against the obfuscated `.build/app` stage and its own
   preload/lib/ipc, so obfuscation breakage is caught before packaging.
 - Debug handle exposes: `state`, `api`, `CU`, `addVideos`, `addSubtitleToClip`,
@@ -230,6 +244,13 @@ Do **not** `npm install` for no reason — `postinstall` fetches ~110 MB ffmpeg 
   window (retry a few times).
 - When embedding renderer code in a Node template literal, avoid nested `\n`/regex escapes —
   build newlines with `String.fromCharCode(10)` (this caused a silent e2e hang once).
+- **Translation audit** (after touching any UI text): run `util.js` + `i18n.js` +
+  `guide-i18n.js`/`messages-i18n.js`/`menu-i18n.js`/`errors-i18n.js` inside `vm.runInContext`
+  with a stub `window`/`document`/`localStorage`, then (a) diff every language's key set
+  against `DICT.en` (must be empty both ways), (b) collect `t('…')`/`tf('…')` literals from
+  `src/app.js` + `src/panel.js` and `data-i18n*` keys from `index.html`/`panel.html` and check
+  each exists, (c) at runtime call `CU.i18n.apply(code)` + `renderAll()` per language and read
+  the strings back. Delete the throwaway script afterwards (they live at the repo root).
 
 ## Current status
 
@@ -237,11 +258,14 @@ Implemented and tested: timeline editing (drag select, I/O marks, double-click I
 right-click cut menu, cut-edge drag, undo/redo), multi-clip merge, frame-accurate export with
 progress + cancel, **8 export containers** (mp4/mov/mkv/webm/avi/wmv/flv/ts), subtitle sync
 with **multiple tracks per clip** (enable/remove, per-track `.srt` export, "track to burn",
-collapsible text list), Parent Assist (NSFW) scanning, cut jobs (file + compact share code,
-Export/Import tabs, description) with **safe import preview + confirmation**, status bar with
+collapsible text list that opens when a track appears), Parent Assist (NSFW) scanning, cut jobs
+(file + compact share code, Export/Import tabs, description, **remembered job file** so `Ctrl+S`
+re-saves silently after the first save, `Ctrl+C`/`Ctrl+V` share-code shortcuts) with **safe
+import preview + confirmation**, status bar with
 history, player/timeline splitter, context menu, **native translated menu** (File/Edit/View/Help
 mirroring the UI state), keyboard shortcuts, dark/light/system theme, **14-language UI** with
-system detection, translated notifications/errors, **internal user guide** (`?` / F1),
+system detection (all five dictionaries key-complete), translated notifications/errors,
+**internal user guide** (`?` / F1),
 workspace layout (per-pane **pin/peek/detach**: auto-hide + hover chevrons open a temporary
 peek drawer, the side panel / control center detach into their own OS windows, the timeline
 travels inside the control center window), obfuscated packaging, MSIX **and** APPX.
@@ -260,6 +284,17 @@ Known limitations / likely next work:
 - Release scripts are Windows-only (`build.ps1`, taskkill-based cancel, makeappx).
 - Bundled ffmpeg is GPLv3 — the licensing decision is documented in `docs/STORE-SUBMISSION.md`.
 - `docs/DEVELOPMENT.md` is the source of truth for schema/IPC changes — update it with this file.
+- The native *File ▸ Save job file…* label still has an ellipsis although `Ctrl+S` only prompts
+  the first time (or after the first clip changes); only the Job panel button always prompts.
+
+## Renderer state kept outside `state`
+
+- `localStorage` keys outside `state`: `cuci.timelineHeight`, `cuci.theme`, `cuci.lang`,
+  `cuci.subEvents` (subtitle list toggle) and **`cuci.jobFile`** = `{ path, clip }` — the
+  remembered job file; `rememberedJobFile()` returns it only while
+  `state.clips[0].path === clip`.
+- Debug handle (`window.__cuciApp`) exposes the renderer functions listed under *Testing notes*;
+  probes should drive it instead of clicking pixels.
 
 ## Conventions & cost-saving rules
 
