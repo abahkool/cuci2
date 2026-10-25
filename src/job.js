@@ -49,6 +49,13 @@
 
   const SHARE_PREFIX = 'CUCI-1';
 
+  /** Translate when the renderer dictionaries are loaded, else English. */
+  const msg = (key, fallback) => {
+    const i18n = window.CUCI && window.CUCI.i18n;
+    const value = i18n ? i18n.t(key) : '';
+    return value && value !== key ? value : fallback;
+  };
+
   /* ── primitives ──────────────────────────────────────────────── */
   function isObject(v) {
     return !!v && typeof v === 'object' && !Array.isArray(v);
@@ -132,7 +139,7 @@
         } catch {
           /* ignore */
         }
-        throw new Error('Share code expands to too much data.');
+        throw new Error(msg('errShareExpands', 'Share code expands to too much data.'));
       }
       chunks.push(value);
     }
@@ -172,9 +179,9 @@
   }
 
   function fromCompact(k) {
-    if (!isObject(k)) throw new Error('Share code has an unexpected format.');
+    if (!isObject(k)) throw new Error(msg('errShareFormat', 'Share code has an unexpected format.'));
     // 'CUCI2' is the pre-rename app id — old share codes still decode.
-    if (!['CUCI', 'CUCI2'].includes(k.a) && !['CUCI', 'CUCI2'].includes(k.app)) throw new Error('Share code has an unexpected format.');
+    if (!['CUCI', 'CUCI2'].includes(k.a) && !['CUCI', 'CUCI2'].includes(k.app)) throw new Error(msg('errShareFormat', 'Share code has an unexpected format.'));
     if (Array.isArray(k.clips)) return k; // already the verbose form
 
     const e = Array.isArray(k.e) ? k.e : null;
@@ -244,10 +251,10 @@
    * a fresh object containing only known, validated fields.
    */
   function sanitizeJob(raw) {
-    if (!isObject(raw)) throw new Error('Not a CUCI job.');
+    if (!isObject(raw)) throw new Error(msg('errNotCuciJob', 'Not a CUCI job.'));
     // Accept the pre-rename 'CUCI2' id so old job files keep working.
-    if (raw.app !== 'CUCI' && raw.app !== 'CUCI2') throw new Error('Not a CUCI job.');
-    if (!Array.isArray(raw.clips)) throw new Error('Job has no clips.');
+    if (raw.app !== 'CUCI' && raw.app !== 'CUCI2') throw new Error(msg('errNotCuciJob', 'Not a CUCI job.'));
+    if (!Array.isArray(raw.clips)) throw new Error(msg('errJobNoClips', 'Job has no clips.'));
 
     let cutTotal = 0;
     let eventTotal = 0;
@@ -310,7 +317,7 @@
       });
     }
 
-    if (!clips.length) throw new Error('Job contains no valid clips.');
+    if (!clips.length) throw new Error(msg('errJobNoValidClips', 'Job contains no valid clips.'));
 
     return {
       app: 'CUCI',
@@ -338,18 +345,18 @@
 
   C.decodeShareCode = async function (text) {
     const code = String(text == null ? '' : text).trim().replace(/\s+/g, '');
-    if (!code) throw new Error('Empty share code.');
-    if (code.length > LIMITS.codeChars) throw new Error('Share code is too long.');
+    if (!code) throw new Error(msg('errShareEmpty', 'Empty share code.'));
+    if (code.length > LIMITS.codeChars) throw new Error(msg('errShareTooLong', 'Share code is too long.'));
 
     // New codes are CUCI-1…; CUCI2-1… is the legacy prefix.
     const m = /^(?:CUCI|CUCI2)-1([zp])\.([A-Za-z0-9_-]+)$/.exec(code);
-    if (!m) throw new Error('This does not look like a CUCI share code.');
+    if (!m) throw new Error(msg('errNotShareCode', 'This does not look like a CUCI share code.'));
 
     const bytes = base64urlToBytes(m[2]);
-    if (bytes.length > LIMITS.compressedBytes) throw new Error('Share code is too large.');
+    if (bytes.length > LIMITS.compressedBytes) throw new Error(msg('errShareTooLarge', 'Share code is too large.'));
 
     const raw = m[1] === 'z' ? await inflateRawBytes(bytes, LIMITS.jsonBytes) : bytes;
-    if (raw.length > LIMITS.jsonBytes) throw new Error('Share code is too large.');
+    if (raw.length > LIMITS.jsonBytes) throw new Error(msg('errShareTooLarge', 'Share code is too large.'));
 
     const parsed = safeJsonParse(new TextDecoder().decode(raw));
     return sanitizeJob(fromCompact(parsed));
@@ -358,9 +365,9 @@
   /** Accept either a JSON job file body or a share code. Always sanitized. */
   C.parseJobText = async function (input) {
     const raw = String(input == null ? '' : input).replace(/^\uFEFF/, '').trim();
-    if (!raw) throw new Error('Empty job.');
+    if (!raw) throw new Error(msg('errJobEmpty', 'Empty job.'));
     if (raw.startsWith('{')) {
-      if (raw.length > LIMITS.jsonBytes) throw new Error('Job file is too large.');
+      if (raw.length > LIMITS.jsonBytes) throw new Error(msg('errJobFileTooLarge', 'Job file is too large.'));
       return sanitizeJob(safeJsonParse(raw));
     }
     return C.decodeShareCode(raw);

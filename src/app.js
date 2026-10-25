@@ -379,7 +379,7 @@
   function renderStatusLog() {
     els.statusLog.innerHTML = '';
     if (!statusHistory.length) {
-      els.statusLog.innerHTML = '<div class="status-log-empty">No messages yet.</div>';
+      els.statusLog.innerHTML = `<div class="status-log-empty">${CU.escapeHtml(t('msgNoMessages'))}</div>`;
       return;
     }
     for (let i = statusHistory.length - 1; i >= 0; i--) {
@@ -580,13 +580,13 @@
     for (const p of paths) {
       try {
         if (clip.subtitles.some((t) => t.path && t.path === p)) {
-          problems.push(`${CU.basename(p)}: already loaded`);
+          problems.push(`${CU.basename(p)}: ${t('errSubLoaded')}`);
           continue;
         }
         const text = await api.readText(p, { maxBytes: 64 * 1024 * 1024 });
         const parsed = CU.parseSubtitles(text);
         if (!parsed.events.length) {
-          problems.push(`${CU.basename(p)}: no subtitle events found`);
+          problems.push(`${CU.basename(p)}: ${t('errSubNoEvents')}`);
           continue;
         }
         clip.subtitles.push({
@@ -871,10 +871,10 @@
           ${clip.cuts.length ? `<span style="color:var(--danger)">${clip.cuts.length} cut${clip.cuts.length > 1 ? 's' : ''}</span>` : ''}
         </div>
         <div class="clip-actions">
-          <button class="btn tiny" data-act="up" title="Move earlier">↑</button>
-          <button class="btn tiny" data-act="down" title="Move later">↓</button>
-          <button class="btn tiny ghost" data-act="sub">Add sub</button>
-          <button class="btn tiny ghost" data-act="remove">Remove</button>
+          <button class="btn tiny" data-act="up" title="${t('msgMoveEarlier')}">↑</button>
+          <button class="btn tiny" data-act="down" title="${t('msgMoveLater')}">↓</button>
+          <button class="btn tiny ghost" data-act="sub">${t('msgClipAddSub')}</button>
+          <button class="btn tiny ghost" data-act="remove">${t('msgClipRemove')}</button>
         </div>`;
       el.addEventListener('click', async (e) => {
         const b = e.target.closest('button[data-act]');
@@ -996,7 +996,7 @@
       const keptCount = remapTrack(clip, t).length;
       const row = document.createElement('div');
       row.className = 'sub-track' + (t.id === active.id ? ' active' : '') + (t.enabled === false ? ' disabled' : '');
-      row.title = 'Click to show this track in the timeline and preview';
+      row.title = CU.i18n.t('msgShowTrack');
       row.innerHTML =
         `<input type="checkbox" class="sub-track-toggle" ${t.enabled !== false ? 'checked' : ''} title="Include this track when exporting" />` +
         `<span class="sub-track-name">${CU.escapeHtml(t.name)}</span>` +
@@ -1050,7 +1050,7 @@
     if (rows.length > max) {
       const more = document.createElement('div');
       more.className = 'sub-info';
-      more.textContent = `… ${rows.length - max} more events`;
+      more.textContent = tf('msgMoreEvents', { n: rows.length - max });
       els.subEventList.appendChild(more);
     }
   }
@@ -1058,13 +1058,13 @@
   function updateTransport() {
     scheduleTransportSync();
     const clip = activeClip();
-    const t = clip ? state.playhead : 0;
-    els.timecode.textContent = CU.fmt(t, 3);
+    const nowMs = clip ? state.playhead : 0;
+    els.timecode.textContent = CU.fmt(nowMs, 3);
     els.timeTotal.textContent = clip ? CU.fmt(clip.durationMs, 3) : '0:00.000';
     const { total } = programRanges();
     if (state.playMode === 'result') {
       els.resultTc.classList.remove('hidden');
-      els.resultTc.textContent = `preview ${CU.fmt(state.resultTime, 3)} / ${CU.fmt(total, 3)}`;
+      els.resultTc.textContent = `${t('preview').toLowerCase()} ${CU.fmt(state.resultTime, 3)} / ${CU.fmt(total, 3)}`;
     } else {
       els.resultTc.classList.add('hidden');
     }
@@ -1189,14 +1189,14 @@
     if (state.inPoint == null) {
       state.inPoint = t;
       state.outPoint = null;
-      setStatus(`In point ${CU.fmt(t, 3)} — double-click again to set the out point`, 'info', { timeout: 3500 });
+      setStatus(tf('msgInSet', { time: CU.fmt(t, 3) }), 'info', { timeout: 3500 });
     } else if (state.outPoint == null) {
       state.outPoint = t;
-      setStatus(`Out point ${CU.fmt(t, 3)} · ${CU.fmt(Math.abs(t - state.inPoint), 3)} selected`, 'info', { timeout: 3500 });
+      setStatus(tf('msgOutSet', { time: CU.fmt(t, 3), sel: CU.fmt(Math.abs(t - state.inPoint), 3) }), 'info', { timeout: 3500 });
     } else {
       state.inPoint = t;
       state.outPoint = null;
-      setStatus(`New in point ${CU.fmt(t, 3)}`, 'info', { timeout: 3000 });
+      setStatus(tf('msgNewIn', { time: CU.fmt(t, 3) }), 'info', { timeout: 3000 });
     }
     renderOverlays();
     updateIoReadout();
@@ -1699,7 +1699,7 @@
         .map((t) => ({
           id: CU.uid('sub'),
           path: '',
-          name: t.name || t('msgSharedSubs'),
+          name: t.name || CU.i18n.t('msgSharedSubs'),
           format: t.format === 'vtt' ? 'vtt' : 'srt',
           events: t.events.map((e) => ({ start: Number(e[0]) || 0, end: Number(e[1]) || 0, text: String(e[2] == null ? '' : e[2]) })),
           enabled: true,
@@ -1789,8 +1789,11 @@
     const bytes = new TextEncoder().encode(code).length;
     const cuts = job.clips.reduce((a, c) => a + c.cuts.length, 0);
     const hasSubs = job.clips.some((c) => (c.subtitles || []).some((t) => t.events && t.events.length));
-    const sizeHint = bytes <= 280 ? ' · tweet-sized' : '';
-    els.jobCodeInfo.textContent = `${bytes.toLocaleString()} chars · ${job.clips.length} clip(s) · ${cuts} cut(s)${hasSubs ? ' · includes subtitles' : ''}${sizeHint}`;
+    const sizeHint = bytes <= 280;
+    els.jobCodeInfo.textContent =
+      tf('msgShareInfo', { chars: bytes.toLocaleString(), clips: job.clips.length, cuts }) +
+      (hasSubs ? t('msgShareInfoSubs') : '') +
+      (sizeHint ? t('msgShareTweet') : '');
     els.jobCodeInfo.classList.toggle('warn', bytes > 4000);
   }
 
@@ -1977,7 +1980,7 @@
     const sec = nsfwIntervalSeconds();
     const frames = Math.max(1, Math.round(clip.durationMs / (sec * 1000)));
     const est = CU.fmt(frames * NSFW_SEC_PER_FRAME * 1000, 0);
-    els.nsfwEstimate.textContent = `≈ ${frames.toLocaleString()} frames to analyze · roughly ${est} of processing`;
+    els.nsfwEstimate.textContent = tf('msgNsfwEstimate', { frames: frames.toLocaleString(), est });
   }
 
   async function refreshNsfwModelInfo() {
@@ -1988,11 +1991,11 @@
         [
           `model   : ${s.repo}`,
           `input   : ${s.inputSize}×${s.inputSize} · labels: ${(s.labels || []).join(' / ')}`,
-          `status  : ${s.installed ? 'installed' + (s.vendored ? ' (bundled)' : '') : `will download on first scan (~${mb} MB)`}`,
+          `status  : ${s.installed ? t('msgNsfwInstalled') + (s.vendored ? ' ' + t('msgNsfwBundled') : '') : tf('msgNsfwWillDownload', { mb })}`,
         ].join('\n'),
       );
     } catch (err) {
-      els.nsfwModelInfo.textContent = 'Model status unavailable: ' + (err.message || err);
+      els.nsfwModelInfo.textContent = t('msgNsfwUnavailable') + ' ' + (err.message || err);
     }
   }
 
@@ -2008,7 +2011,7 @@
     els.nsfwResults.innerHTML = '';
     els.nsfwProgressWrap.classList.add('hidden');
     els.nsfwApply.disabled = true;
-    els.nsfwApply.textContent = 'Apply as cuts';
+    els.nsfwApply.textContent = t('applyCuts');
     state.nsfwSegments = [];
     els.nsfwModal.classList.remove('hidden');
     await refreshNsfwModelInfo();
@@ -2043,7 +2046,7 @@
     els.nsfwResults.innerHTML = '';
     els.nsfwProgressWrap.classList.remove('hidden');
     els.nsfwProgressBar.style.width = '0%';
-    els.nsfwStatus.textContent = 'Starting…';
+    els.nsfwStatus.textContent = t('msgStarting');
     setStatus(t('msgScanning'), 'busy', { progress: 0, log: false });
 
     const res = await api.nsfwScan({ videoPath: clip.path, durationMs: clip.durationMs, intervalMs, threshold, minDurationMs });
@@ -2054,9 +2057,9 @@
     els.nsfwClose.disabled = false;
 
     if (!res.ok) {
-      els.nsfwStatus.textContent = 'Failed.';
+      els.nsfwStatus.textContent = t('msgFailed');
       setStatus(t('msgNsfwFailed'), 'error');
-      toast(t('msgNsfwFailed') + ':\n' + (res.error || 'unknown error'), 'error', 10000);
+      toast(t('msgNsfwFailed') + ':\n' + (res.error || t('msgUnknownError')), 'error', 10000);
       return;
     }
     state.nsfwSegments = res.segments || [];
@@ -2069,11 +2072,11 @@
   function renderNsfwResults(res) {
     els.nsfwProgressBar.style.width = '100%';
     const clip = activeClip();
-    els.nsfwStatus.textContent = `Analyzed ${res.scannedFrames} frame(s) · ${res.positives} above threshold`;
+    els.nsfwStatus.textContent = tf('msgNsfwAnalyzed', { frames: res.scannedFrames, positives: res.positives });
     els.nsfwResults.innerHTML = '';
 
     if (!state.nsfwSegments.length) {
-      els.nsfwResults.innerHTML = `<div class="nsfw-none">No scenes scored above ${Number(res.threshold).toFixed(2)}. Try a lower sensitivity.</div>`;
+      els.nsfwResults.innerHTML = `<div class="nsfw-none">${CU.escapeHtml(tf('msgNsfwNoneAbove', { t: Number(res.threshold).toFixed(2) }))}</div>`;
       return;
     }
 
@@ -2081,7 +2084,7 @@
     const pct = clip ? ((total / clip.durationMs) * 100).toFixed(2) : '0';
     const head = document.createElement('div');
     head.className = 'job-info';
-    head.textContent = `${state.nsfwSegments.length} scene(s) · ${CU.fmt(total, 3)} of ${CU.fmt(clip ? clip.durationMs : 0, 3)} (${pct}%)`;
+    head.textContent = tf('msgNsfwSummary', { n: state.nsfwSegments.length, a: CU.fmt(total, 3), b: CU.fmt(clip ? clip.durationMs : 0, 3), p: pct });
     els.nsfwResults.appendChild(head);
 
     for (const seg of state.nsfwSegments) {
@@ -2094,7 +2097,7 @@
       els.nsfwResults.appendChild(row);
     }
     els.nsfwApply.disabled = false;
-    els.nsfwApply.textContent = `Apply ${state.nsfwSegments.length} cut(s)`;
+    els.nsfwApply.textContent = tf('msgNsfwApplyN', { n: state.nsfwSegments.length });
   }
 
   /** Add the given ranges as cuts on the active clip. Returns how many were added. */
@@ -2236,7 +2239,7 @@
   function resetExportConfirm() {
     exportConfirmArmed = false;
     els.expStart.classList.remove('armed');
-    if (!state.exporting) els.expStart.textContent = 'Start export';
+    if (!state.exporting) els.expStart.textContent = t('startExport');
   }
 
   function updateExportSummary() {
@@ -2303,7 +2306,7 @@
     if (removed < 1 && !exportConfirmArmed) {
       exportConfirmArmed = true;
       els.expStart.classList.add('armed');
-      els.expStart.textContent = '⚠ Click again to export full video';
+      els.expStart.textContent = t('expArm');
       toast(t('msgNoCutsConfirm'), 'warn', 7000);
       return;
     }
@@ -2355,7 +2358,7 @@
     els.expClose.disabled = true;
     els.expProgressWrap.classList.remove('hidden');
     els.expProgressBar.style.width = '0%';
-    els.expStatus.textContent = 'Starting ffmpeg…';
+    els.expStatus.textContent = t('msgExpStarting');
 
     const started = Date.now();
     const result = await api.exportVideo(req);
@@ -2365,14 +2368,14 @@
 
     if (result.ok) {
       els.expProgressBar.style.width = '100%';
-      els.expStatus.textContent = 'Done.';
+      els.expStatus.textContent = t('msgDone');
       setStatus(t('msgExportDone') + ': ' + CU.basename(result.outputPath), 'ok', { timeout: 9000 });
       const close = toast(t('msgExportDone') + ':\n' + result.outputPath, 'ok', 0);
       const el = els.toasts.lastElementChild;
       if (el) {
         const openBtn = document.createElement('button');
         openBtn.className = 'btn tiny';
-        openBtn.textContent = 'Open folder';
+        openBtn.textContent = t('msgOpenFolder');
         openBtn.style.marginTop = '8px';
         openBtn.addEventListener('click', () => api.showItem(result.outputPath));
         el.querySelector('.t-body').appendChild(document.createElement('br'));
@@ -2380,13 +2383,13 @@
       }
       updateExportSummary();
     } else if (result.cancelled) {
-      els.expStatus.textContent = 'Cancelled.';
+      els.expStatus.textContent = t('msgCancelled');
       setStatus(t('msgExportCancelled'), 'warn');
       toast(t('msgExportCancelled'), 'warn');
     } else {
-      els.expStatus.textContent = 'Failed.';
+      els.expStatus.textContent = t('msgFailed');
       setStatus(t('msgExportFailed'), 'error');
-      toast(t('msgExportFailed') + ':\n' + (result.error || 'unknown error'), 'error', 12000);
+      toast(t('msgExportFailed') + ':\n' + (result.error || t('msgUnknownError')), 'error', 12000);
     }
     els.expStart.disabled = false;
   }
@@ -3296,7 +3299,7 @@
     els.nsfwApply.addEventListener('click', applyNsfwCuts);
     els.nsfwCancel.addEventListener('click', async () => {
       await api.nsfwCancel();
-      els.nsfwStatus.textContent = 'Cancelling…';
+      els.nsfwStatus.textContent = t('msgCancelling');
     });
     els.nsfwThreshold.addEventListener('input', () => {
       els.nsfwThresholdVal.textContent = Number(els.nsfwThreshold.value).toFixed(2);
@@ -3480,14 +3483,14 @@
         state.inPoint = null;
         renderOverlays();
         updateIoReadout();
-        setStatus('In point cleared', 'info', { timeout: 2000 });
+        setStatus(t('msgInCleared'), 'info', { timeout: 2000 });
         return;
       }
       if (e.target.closest('#tlMarkerOut')) {
         state.outPoint = null;
         renderOverlays();
         updateIoReadout();
-        setStatus('Out point cleared', 'info', { timeout: 2000 });
+        setStatus(t('msgOutCleared'), 'info', { timeout: 2000 });
         return;
       }
       if (e.target.closest('.tl-cut')) return; // the cut handler removes the cut
@@ -3529,7 +3532,7 @@
     els.video.addEventListener('error', () => {
       const clip = activeClip();
       if (!clip) return;
-      els.playerNoticeText.textContent = `"${clip.name}" (${clip.videoCodec || 'unknown codec'}) cannot be decoded by the built-in player. You can still cut and export it — create a low-res proxy to preview.`;
+      els.playerNoticeText.textContent = tf('msgPlayerNotice', { name: clip.name, codec: clip.videoCodec || t('errUnknownCodec') });
       els.playerNotice.classList.remove('hidden');
     });
 
@@ -3593,7 +3596,7 @@
     els.expStart.addEventListener('click', startExport);
     els.expCancel.addEventListener('click', async () => {
       await api.cancelExport();
-      els.expStatus.textContent = 'Cancelling…';
+      els.expStatus.textContent = t('msgCancelling');
       // Cancel also stops background thumbnail/proxy ffmpeg jobs; rebuild them.
       setTimeout(retryMissingThumbs, 600);
     });
@@ -3678,7 +3681,7 @@
       thumbJobs.set(d.path, Math.max(0, Math.min(99, d.percent || 0)));
       const vals = [...thumbJobs.values()];
       const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
-      setStatus(`Loading keyframe snapshots… ${Math.round(avg)}%`, 'busy', { progress: avg / 100, log: false });
+      setStatus(`${t('msgThumbsLoading')} ${Math.round(avg)}%`, 'busy', { progress: avg / 100, log: false });
     });
 
     // status bar: click for history, dismiss errors/warnings

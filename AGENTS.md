@@ -51,6 +51,8 @@ Docs: `README.md` (users) · `docs/DEVELOPMENT.md` (architecture, IPC, data form
 | `src/i18n.js` | 1520 | 14-language UI dictionary, detection, `<html dir>` switching |
 | `src/guide-i18n.js` | 640 | user-guide + import-dialog strings (14 languages) |
 | `src/messages-i18n.js` | 700 | settings-page + notification strings (14 languages) |
+| `src/menu-i18n.js` | 60 | native menu labels (14 languages) |
+| `src/errors-i18n.js` | 260 | error/status strings shown in notifications (14 languages) |
 | `src/srt.js` | 157 | subtitle parse/serialise/remap + SRT text cleaning |
 | `src/util.js` | 46 | time formatting helpers |
 | `src/index.html` | 517 | UI markup (all modals, timeline, transport) |

@@ -132,10 +132,10 @@
           ${clip.cuts ? `<span style="color:var(--danger)">${clip.cuts} cut${clip.cuts > 1 ? 's' : ''}</span>` : ''}
         </div>
         <div class="clip-actions">
-          <button class="btn tiny" data-act="up" title="Move earlier">↑</button>
-          <button class="btn tiny" data-act="down" title="Move later">↓</button>
-          <button class="btn tiny ghost" data-act="sub">Add sub</button>
-          <button class="btn tiny ghost" data-act="remove">Remove</button>
+          <button class="btn tiny" data-act="up" title="${t('msgMoveEarlier')}">↑</button>
+          <button class="btn tiny" data-act="down" title="${t('msgMoveLater')}">↓</button>
+          <button class="btn tiny ghost" data-act="sub">${t('msgClipAddSub')}</button>
+          <button class="btn tiny ghost" data-act="remove">${t('msgClipRemove')}</button>
         </div>`;
       el.addEventListener('click', (e) => {
         const b = e.target.closest('button[data-act]');
@@ -204,7 +204,7 @@
     sub.tracks.forEach((t) => {
       const row = document.createElement('div');
       row.className = 'sub-track' + (t.active ? ' active' : '') + (t.enabled ? '' : ' disabled');
-      row.title = 'Click to show this track in the timeline and preview';
+      row.title = CU.i18n.t('msgShowTrack');
       row.innerHTML =
         `<input type="checkbox" class="sub-track-toggle" ${t.enabled ? 'checked' : ''} title="Include this track when exporting" />` +
         `<span class="sub-track-name">${CU.escapeHtml(t.name)}</span>` +
@@ -334,7 +334,7 @@
     } else {
       const hint = document.createElement('div');
       hint.className = 'tl-film-hint';
-      hint.textContent = 'Keyframe snapshots are off — enable them in Settings of the main window';
+      hint.textContent = t('msgPanelThumbsHint');
       film.appendChild(hint);
     }
 

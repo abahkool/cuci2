@@ -60,6 +60,8 @@ lib/
 src/i18n.js             UI translations (14 languages) + language detection
 src/guide-i18n.js       user-guide + import-confirmation strings (merged via CU.i18n.extend)
 src/messages-i18n.js    settings-page + notification strings (14 languages)
+src/menu-i18n.js        native menu labels (14 languages)
+src/errors-i18n.js      error/status strings shown in notifications (14 languages)
   selftest.js           export-pipeline test against real ffmpeg   (node)
   test-locate.js        verifies the tool resolution chain         (node)
   test-job.js           cut-job trust boundary: caps, bombs, XSS, SRT injection (node)
@@ -597,9 +599,13 @@ use those variables instead of hard-coded colours. Persisted in
   main window includes in every `panel:state` snapshot.
 - Adding a language: add it to `LANGS` + a `DICT` entry with all keys (the key set is
   `Object.keys(DICT.en)`), and add the code to the e2e appearance check if it is a big one.
-- `src/guide-i18n.js` adds the user-guide and import-dialog keys and `src/messages-i18n.js`
-  adds the settings-page/notification keys, both through `CU.i18n.extend({...})` (loaded after
-  `i18n.js`); keep their key sets in sync across all 14 languages too.
+- `src/guide-i18n.js`, `src/messages-i18n.js`, `src/menu-i18n.js` and `src/errors-i18n.js`
+  add the guide, settings/notification, menu and error keys through
+  `CU.i18n.extend({...})`; keep their key sets in sync across all 14 languages too.
+- Errors thrown by `src/job.js` are translated at throw time with a dictionary fallback
+  (`msg(key, 'English')`) so the Node tests still match the English text; main-process errors
+  (`lib/ipc.js`, `lib/nsfw.js`) use `lib/i18n-main.js`, which follows the UI language sent in
+  `menu:state`.
 - Renderer messages use `t('msg…')`; strings with values use `tf('msg…', { n, name })`
   (`{placeholder}` substitution). Missing keys fall back to English.
 
@@ -638,7 +644,7 @@ state or language changes.
 Accelerators are only registered for actions that are safe while typing (`Ctrl+O`,
 `Ctrl+Shift+A`, `Ctrl+E`, `Ctrl+S`, `Ctrl+Shift+O`, `Ctrl+,`, `Ctrl+=`/`Ctrl+-`, `F1`,
 `F11`). Undo/redo/marks/cuts keep their context-aware renderer shortcuts so text fields keep
-native editing. Developer Tools and Reload only appear in unpackaged builds.
+native editing. Developer Tools and Reload are not in the menu at all.
 
 ### Settings (auto-applied)
 

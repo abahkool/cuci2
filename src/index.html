@@ -120,7 +120,7 @@
         </section>
 
         <section class="transport" id="transportBar">
-          <div id="playerSplitter" class="player-splitter" title="Drag to resize the player and timeline"></div>
+          <div id="playerSplitter" class="player-splitter" title="Drag to resize the player and timeline" data-i18n-title="msgDragSplitter"></div>
           <div class="transport-row transport-main">
             <div class="transport-left">
               <button id="btnStop" class="btn icon" title="Stop" data-i18n-title="stop">■</button>
@@ -222,8 +222,8 @@
               </div>
               <div class="tl-overlay">
                 <div id="tlSelection" class="tl-selection hidden"></div>
-                <div id="tlMarkerIn" class="tl-marker in hidden" title="In point — double-click to remove"></div>
-                <div id="tlMarkerOut" class="tl-marker out hidden" title="Out point — double-click to remove"></div>
+                <div id="tlMarkerIn" class="tl-marker in hidden" title="In point — double-click to remove" data-i18n-title="msgMarkerIn"></div>
+                <div id="tlMarkerOut" class="tl-marker out hidden" title="Out point — double-click to remove" data-i18n-title="msgMarkerOut"></div>
                 <div id="tlPlayhead" class="tl-playhead"></div>
               </div>
             </div>
@@ -241,7 +241,7 @@
       </main>
     </div>
 
-    <footer id="statusbar" class="statusbar idle" title="Click to see recent messages">
+    <footer id="statusbar" class="statusbar idle" title="Click to see recent messages" data-i18n-title="msgStatusHint">
       <span id="statusIcon" class="status-icon">●</span>
       <span id="statusSpinner" class="status-spinner hidden"></span>
       <span id="statusText" class="status-text">Ready</span>
@@ -255,14 +255,14 @@
       <div class="modal-card wide">
         <div class="modal-head">
           <h2 data-i18n="export">Export</h2>
-          <button id="expClose" class="btn ghost icon">✕</button>
+          <button id="expClose" class="btn ghost icon" title="Close" data-i18n-title="close">✕</button>
         </div>
         <div class="modal-body">
           <div class="grid2">
             <label class="field wide">
               <span data-i18n="outputFile">Output file</span>
               <div class="input-row">
-                <input id="expPath" type="text" placeholder="Choose an output file…" spellcheck="false" />
+                <input id="expPath" type="text" placeholder="Choose an output file…" spellcheck="false" data-i18n-placeholder="msgChooseOutput" />
                 <button id="expBrowse" class="btn" data-i18n="browse">Browse…</button>
               </div>
             </label>
@@ -309,7 +309,7 @@
             <label class="field">
               <span data-i18n="resolution">Resolution</span>
               <select id="expRes">
-                <option value="source">Source</option>
+                <option value="source" data-i18n="source">Source</option>
                 <option value="2160">2160p (4K)</option>
                 <option value="1440">1440p</option>
                 <option value="1080">1080p</option>
@@ -320,7 +320,7 @@
             <label class="field">
               <span data-i18n="frameRate">Frame rate</span>
               <select id="expFps">
-                <option value="source">Source</option>
+                <option value="source" data-i18n="source">Source</option>
                 <option value="60">60 fps</option>
                 <option value="30">30 fps</option>
                 <option value="24">24 fps</option>
@@ -443,7 +443,7 @@
       <div class="modal-card wide">
         <div class="modal-head">
           <h2 data-i18n="jobTitle">Cut job</h2>
-          <button id="jobClose" class="btn ghost icon">✕</button>
+          <button id="jobClose" class="btn ghost icon" title="Close" data-i18n-title="close">✕</button>
         </div>
         <div class="modal-body">
           <div class="tabs" role="tablist">
@@ -468,7 +468,7 @@
                 class="desc"
                 rows="2"
                 maxlength="200"
-                placeholder="e.g. Remove the intro and the sponsor break; keep the interview."
+                placeholder="e.g. Remove the intro and the sponsor break; keep the interview." data-i18n-placeholder="msgJobDescPlaceholder"
               ></textarea>
             </label>
 
@@ -530,7 +530,7 @@
       <div class="modal-card wide">
         <div class="modal-head">
           <h2 data-i18n="paTitle">Auto-detect NSFW scenes</h2>
-          <button id="nsfwClose" class="btn ghost icon">✕</button>
+          <button id="nsfwClose" class="btn ghost icon" title="Close" data-i18n-title="close">✕</button>
         </div>
         <div class="modal-body">
           <p class="hint">
@@ -547,11 +547,11 @@
             <label class="field">
               <span data-i18n="minCuts">Minimum cut length</span>
               <select id="nsfwMinDur">
-                <option value="0">any</option>
-                <option value="1000">1 second</option>
-                <option value="2000">2 seconds</option>
-                <option value="3000">3 seconds</option>
-                <option value="5000" selected>5 seconds</option>
+                <option value="0" data-i18n="optAny">any</option>
+                <option value="1000" data-i18n="opt1s">1 second</option>
+                <option value="2000" data-i18n="opt2s">2 seconds</option>
+                <option value="3000" data-i18n="opt3s">3 seconds</option>
+                <option value="5000" selected data-i18n="opt5s">5 seconds</option>
               </select>
             </label>
           </div>
@@ -704,6 +704,7 @@
     <script src="i18n.js"></script>
     <script src="guide-i18n.js"></script>
     <script src="messages-i18n.js"></script>
+    <script src="errors-i18n.js"></script>
     <script src="app.js"></script>
   </body>
 </html>
