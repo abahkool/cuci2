@@ -188,6 +188,10 @@ The ⚙ button opens Settings:
 - **Prefer the bundled ffmpeg over a system install** — for reproducible output.
 - **Theme** — System (follows Windows, default), Dark or Light.
 - **Language** — System (auto-detect) or one of the 14 bundled languages.
+- **Real application menu** — File (add media, export, jobs, settings), Edit (undo/redo,
+  marks, cuts), View (source/preview, snap, zoom, panel pinning/detaching, theme, language,
+  full screen) and Help (user guide, shortcuts, about) — translated with the UI and with
+  live checkmarks; Electron’s default Reload/DevTools menu is gone.
 - **Settings apply immediately** — there is no Save button; theme, language, thumbnails and
   the ffmpeg paths are written as you change them (a small “Saved” flash confirms it).
 - **Load keyframe snapshots into the timeline** — **off by default**. When enabled, CUCI

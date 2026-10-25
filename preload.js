@@ -55,6 +55,14 @@ contextBridge.exposeInMainWorld('api', {
     return () => ipcRenderer.removeListener('proxy:log', handler);
   },
 
+  /* native application menu */
+  setMenuState: (ui) => ipcRenderer.send('menu:state', ui),
+  onMenuCommand: (cb) => {
+    const handler = (_e, action) => cb(action);
+    ipcRenderer.on('menu:command', handler);
+    return () => ipcRenderer.removeListener('menu:command', handler);
+  },
+
   /* detachable panel windows (side panel / control center) */
   panelOpen: (opts) => ipcRenderer.invoke('panel:open', opts),
   panelClose: (name) => ipcRenderer.invoke('panel:close', name),

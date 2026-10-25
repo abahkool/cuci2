@@ -36,6 +36,8 @@ Docs: `README.md` (users) · `docs/DEVELOPMENT.md` (architecture, IPC, data form
 | `panel-preload.js` | 40 | `window.panelAPI` for detached panel windows |
 | `lib/ipc.js` | 644 | all IPC handlers, settings, export orchestration, cancel, NSFW scan |
 | `lib/panels.js` | 240 | detached side panel / control center OS windows (lifecycle, bounds, relay) |
+| `lib/menu.js` | 250 | native File/Edit/View/Help menu + `menu:state`/`menu:command` sync |
+| `lib/i18n-main.js` | 80 | loads the renderer dictionaries in the main process (menu labels) |
 | `lib/exporter.js` | 100 | pure ffmpeg filtergraph/encoder builders (`buildFilterGraph`, `buildEncoderArgs`) |
 | `lib/formats.js` | 100 | export containers → encoders/muxer/audio (mirrored in `src/app.js`) |
 | `lib/media-protocol.js` | 130 | seekable `media://` with HTTP Range (206) |
@@ -157,7 +159,10 @@ state = {
 16. **Settings apply immediately** — no Save button; use `persistSettings()` and keep
     `state.settings` in sync (it refreshes `app:info`). The subtitle text list is collapsible
     (`cuci.subEvents`), default expanded.
-17. **Theme colours come from CSS variables** (`:root` dark + `:root[data-theme='light']`).
+17. **The native menu is translated and state-driven**: add actions in `lib/menu.js`, handle
+    them in `onMenuCommand` (`src/app.js`), and keep `sendMenuState()` after any change to
+    snap/mode/pins/detach/theme/language. Never register accelerators for text-editing keys.
+18. **Theme colours come from CSS variables** (`:root` dark + `:root[data-theme='light']`).
     Hard-coded hex values break the light theme — check it in Settings before shipping.
 
 ## Commands

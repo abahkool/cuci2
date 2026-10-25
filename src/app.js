@@ -84,6 +84,7 @@
     } catch {
       /* ignore */
     }
+    if (typeof sendMenuState === 'function' && layout) sendMenuState();
   }
 
   function storedTheme() {
@@ -98,6 +99,7 @@
     if (themeMode === 'system') applyTheme('system');
   });
   const els = {};
+  let layout = null; // pane state; filled by loadLayout() during init
 
   // Apply the saved theme as early as possible (the select is filled later).
   applyTheme(storedTheme());
@@ -1080,6 +1082,7 @@
     els.modeSource.classList.toggle('active', state.playMode === 'source');
     els.modeResult.classList.toggle('active', state.playMode === 'result');
     updateTransport();
+    sendMenuState();
   }
 
   function updateSubtitleOverlay() {
@@ -2461,6 +2464,7 @@
     updateTransport();
     updateIoReadout();
     if (!els.exportModal.classList.contains('hidden')) updateExportSummary();
+    sendMenuState();
     if (!statusState.text || statusState.text === t('ready') || statusState.text === 'Ready') {
       setStatus(t(state.clips.length ? 'ready' : 'readyHint'), 'idle', { log: false });
     }
@@ -2529,7 +2533,6 @@
   const PANEL_EL = { sidebar: 'sidebar', timeline: 'timelineWrap', transport: 'transportBar' };
   const WINDOWED_PANELS = new Set(['sidebar', 'transport']);
   const openPanels = { sidebar: false, transport: false };
-  let layout = null;
   let sidebarSyncTimer = null;
   let transportSyncTimer = null;
   let timelineSyncTimer = null;
@@ -2624,6 +2627,7 @@
     els.btnRevealSidebar.classList.toggle('hidden', !needSide);
     els.btnRevealTransport.classList.toggle('hidden', !needControls);
     if (!needSide && !needControls) els.revealBar.classList.remove('visible');
+    sendMenuState();
   }
 
   function setPinButton(btn, pinned, label) {
@@ -3103,6 +3107,82 @@
     }
   }
 
+  /* ─────────────── native menu: commands + state sync ─────────────── */
+  let menuStateTimer = null;
+
+  /** Tell the main process which menu items should be checked. */
+  function sendMenuState() {
+    clearTimeout(menuStateTimer);
+    menuStateTimer = setTimeout(() => {
+      try {
+        api.setMenuState({
+          snap: !!state.snap,
+          mode: state.playMode,
+          pinned: { sidebar: layout.sidebar.pinned, transport: layout.transport.pinned },
+          detached: { sidebar: layout.sidebar.detached, transport: layout.transport.detached },
+          theme: themeMode,
+          language: CU.i18n.stored(),
+          resolvedLanguage: CU.i18n.current(),
+        });
+      } catch {
+        /* ignore */
+      }
+    }, 40);
+  }
+
+  function bumpZoom(delta) {
+    const next = Math.max(1, Math.min(12, Math.round((state.zoom + delta) * 10) / 10));
+    els.zoomRange.value = String(next);
+    els.zoomRange.dispatchEvent(new Event('input'));
+  }
+
+  /** Actions coming from the application menu (File / Edit / View / Help). */
+  async function onMenuCommand(action) {
+    if (typeof action !== 'string') return;
+    if (action.startsWith('theme:')) {
+      const value = action.slice(6);
+      applyTheme(value);
+      if (els.setTheme) els.setTheme.value = themeMode;
+      persistSettings();
+    } else if (action.startsWith('lang:')) {
+      const value = action.slice(5);
+      applyLanguage(value === 'auto' ? 'auto' : value);
+      persistSettings();
+    } else {
+      switch (action) {
+        case 'add-video': els.btnAddVideo.click(); break;
+        case 'add-subtitle': els.btnAddSub.click(); break;
+        case 'export': els.btnExport.click(); break;
+        case 'save-job': await saveJobFile(); break;
+        case 'open-job': await openJobFile(); break;
+        case 'settings': openSettings(); break;
+        case 'undo': undo(); break;
+        case 'redo': redo(); break;
+        case 'set-in': els.btnSetIn.click(); break;
+        case 'set-out': els.btnSetOut.click(); break;
+        case 'cut': els.btnCut.click(); break;
+        case 'clear-marks': els.btnClearMarks.click(); break;
+        case 'clear-cuts': els.btnClearCuts.click(); break;
+        case 'mode-source': els.modeSource.click(); break;
+        case 'mode-result': els.modeResult.click(); break;
+        case 'toggle-snap':
+          els.chkSnap.checked = !els.chkSnap.checked;
+          els.chkSnap.dispatchEvent(new Event('change'));
+          break;
+        case 'zoom-in': bumpZoom(0.5); break;
+        case 'zoom-out': bumpZoom(-0.5); break;
+        case 'pin-sidebar': setPanelPinned('sidebar', !layout.sidebar.pinned); break;
+        case 'pin-transport': setPanelPinned('transport', !layout.transport.pinned); break;
+        case 'detach-sidebar': setPanelDetached('sidebar', !layout.sidebar.detached); break;
+        case 'detach-transport': setPanelDetached('transport', !layout.transport.detached); break;
+        case 'guide':
+        case 'guide-shortcuts': openGuide(); break;
+        default: break;
+      }
+    }
+    sendMenuState();
+  }
+
   /* Flat [pin][detach] pair in each pane header + the peek handles. */
   function wireLayout() {
     const bindPin = (btn, name) => {
@@ -3320,7 +3400,10 @@
       }
     });
 
-    els.chkSnap.addEventListener('change', () => (state.snap = els.chkSnap.checked));
+    els.chkSnap.addEventListener('change', () => {
+      state.snap = els.chkSnap.checked;
+      sendMenuState();
+    });
     els.zoomRange.addEventListener('input', () => {
       state.zoom = parseFloat(els.zoomRange.value) || 1;
       const center = state.playhead / (activeClip() ? activeClip().durationMs : 1);
@@ -3558,6 +3641,9 @@
     // keyboard
     window.addEventListener('keydown', onKeyDown);
     wireLayout();
+
+    // native application menu
+    api.onMenuCommand(onMenuCommand);
 
     // detached panel windows (side panel / control center)
     api.onPanelReady(onPanelReady);
@@ -3808,6 +3894,7 @@
       applyTimelineHeight(false);
     });
     restorePanelWindows();
+    sendMenuState();
     if (!statusState.text || statusState.text === 'Ready' || statusState.text === t('ready')) {
       setStatus(t('readyHint'), 'idle', { log: false });
     }

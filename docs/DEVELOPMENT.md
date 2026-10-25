@@ -50,6 +50,8 @@ src/
 lib/
   ipc.js                all ipcMain handlers, settings, export orchestration
   panels.js             detached panel windows: lifecycle, bounds, message relay
+  menu.js               native application menu (File/Edit/View/Help) + state sync
+  i18n-main.js          loads the renderer dictionaries in the main process (menu labels)
   formats.js            export containers: encoders, audio codec, muxer  ← shared
   exporter.js           pure ffmpeg filtergraph/encoder builders  ← unit-testable
   ffmpeg-locate.js      resolves custom/env/system/bundled ffmpeg+ffprobe
@@ -218,6 +220,9 @@ are `webContents.send` pushes. Channels live in `lib/ipc.js`; the renderer reach
 **Push events** (subscribe via preload):
 
 | Event | Payload |
+| --- | --- |
+| `menu:state` | renderer → main: `{ snap, mode, pinned, detached, theme, language, resolvedLanguage }` (notify changes) |
+| `menu:command` | main → renderer: action string (`add-video`, `export`, `pin-sidebar`, `theme:dark`, `lang:ms`, …) |
 | --- | --- |
 | `export:progress` | `{ percent, timeSec, totalSec, speed, fps }` |
 | `thumbs:progress` | `{ path, percent, frame, count }` |
@@ -619,6 +624,21 @@ obfuscate first as well, so no packaging path ships readable renderer code. Use
 missing, downloads the Microsoft Windows SDK BuildTools NuGet package once into
 `vendor/msix-tools/` and extracts it with a small zip reader (no extra npm dependency).
 `build-msix.mjs` packs with it and then verifies the archive with `makeappx unpack`.
+
+### Native application menu
+
+`lib/menu.js` replaces Electron's default menu with **File / Edit / View / Help** and is
+translated by `lib/i18n-main.js` (which evaluates `i18n.js` + the `*-i18n.js` files in a VM
+with a stub DOM). Items send a `menu:command` action to the renderer; `app.js`
+(`onMenuCommand`) routes it through the same functions the buttons use. The renderer reports
+`menu:state` (snap, source/preview, pane pin/detach, theme, language) after every change so
+checkboxes and theme/language radios stay accurate; the menu is rebuilt (30 ms debounce) when
+state or language changes.
+
+Accelerators are only registered for actions that are safe while typing (`Ctrl+O`,
+`Ctrl+Shift+A`, `Ctrl+E`, `Ctrl+S`, `Ctrl+Shift+O`, `Ctrl+,`, `Ctrl+=`/`Ctrl+-`, `F1`,
+`F11`). Undo/redo/marks/cuts keep their context-aware renderer shortcuts so text fields keep
+native editing. Developer Tools and Reload only appear in unpackaged builds.
 
 ### Settings (auto-applied)
 
