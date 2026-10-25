@@ -48,6 +48,7 @@ Docs: `README.md` (users) · `docs/DEVELOPMENT.md` (architecture, IPC, data form
 | `src/job.js` | 360 | cut-job codec + **untrusted-input** validation (`sanitizeJob`) |
 | `src/i18n.js` | 1520 | 14-language UI dictionary, detection, `<html dir>` switching |
 | `src/guide-i18n.js` | 640 | user-guide + import-dialog strings (14 languages) |
+| `src/messages-i18n.js` | 700 | settings-page + notification strings (14 languages) |
 | `src/srt.js` | 157 | subtitle parse/serialise/remap + SRT text cleaning |
 | `src/util.js` | 46 | time formatting helpers |
 | `src/index.html` | 517 | UI markup (all modals, timeline, transport) |
@@ -149,9 +150,14 @@ state = {
 16. MSIX/APPX must be packed with **makeappx** (Windows SDK or the NuGet BuildTools copy in
     `vendor/msix-tools/`); `build-msix.mjs` round-trips the package with `makeappx unpack`.
     Do not hand-roll a package writer.
-15. **New UI text must be translatable**: add a key to `DICT.en` in `src/i18n.js`, the
-    other 13 languages, and bind it with `data-i18n*` (static) or `t('key')` (renderer).
-16. **Theme colours come from CSS variables** (`:root` dark + `:root[data-theme='light']`).
+15. **New UI text must be translatable**: add a key to `DICT.en` in `src/i18n.js` (or
+    `guide-i18n.js` / `messages-i18n.js` for guide/settings/notifications), the other 13
+    languages, and bind it with `data-i18n*` (static) or `t('key')` / `tf('key', {vars})`
+    (renderer). No hardcoded user-facing strings.
+16. **Settings apply immediately** — no Save button; use `persistSettings()` and keep
+    `state.settings` in sync (it refreshes `app:info`). The subtitle text list is collapsible
+    (`cuci.subEvents`), default expanded.
+17. **Theme colours come from CSS variables** (`:root` dark + `:root[data-theme='light']`).
     Hard-coded hex values break the light theme — check it in Settings before shipping.
 
 ## Commands

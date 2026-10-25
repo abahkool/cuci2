@@ -34,7 +34,8 @@ subtitles** to the new length. Everything is powered by `ffmpeg`.
 - **Cut & merge** — remove as many ranges as you like from each clip, reorder clips, and
   CUCI joins the kept segments into one continuous output (sources with different
   resolutions/fps, or missing audio, are normalised automatically).
-- **Subtitle auto-sync, multiple tracks** — load one or more `.srt` / `.vtt` files per clip
+- **Subtitle auto-sync, multiple tracks** — the subtitle text list collapses (expanded by
+  default) so the sidebar stays short; load one or more `.srt` / `.vtt` files per clip
   and CUCI remaps every track through the cut list:
   - events after a cut shift earlier by exactly the removed duration,
   - events spanning a cut boundary are trimmed/split,
@@ -187,6 +188,8 @@ The ⚙ button opens Settings:
 - **Prefer the bundled ffmpeg over a system install** — for reproducible output.
 - **Theme** — System (follows Windows, default), Dark or Light.
 - **Language** — System (auto-detect) or one of the 14 bundled languages.
+- **Settings apply immediately** — there is no Save button; theme, language, thumbnails and
+  the ffmpeg paths are written as you change them (a small “Saved” flash confirms it).
 - **Load keyframe snapshots into the timeline** — **off by default**. When enabled, CUCI
   samples frames with ffmpeg to draw the filmstrip. On long videos this decodes the whole
   file, so it can take a while; the status bar shows progress. When off, the timeline shows

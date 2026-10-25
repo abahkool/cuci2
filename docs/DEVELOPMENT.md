@@ -57,6 +57,7 @@ lib/
   media-protocol.js     seekable media:// handler (HTTP range support)
 src/i18n.js             UI translations (14 languages) + language detection
 src/guide-i18n.js       user-guide + import-confirmation strings (merged via CU.i18n.extend)
+src/messages-i18n.js    settings-page + notification strings (14 languages)
   selftest.js           export-pipeline test against real ffmpeg   (node)
   test-locate.js        verifies the tool resolution chain         (node)
   test-job.js           cut-job trust boundary: caps, bombs, XSS, SRT injection (node)
@@ -591,9 +592,11 @@ use those variables instead of hard-coded colours. Persisted in
   main window includes in every `panel:state` snapshot.
 - Adding a language: add it to `LANGS` + a `DICT` entry with all keys (the key set is
   `Object.keys(DICT.en)`), and add the code to the e2e appearance check if it is a big one.
-- `src/guide-i18n.js` adds the user-guide and import-dialog keys through
-  `CU.i18n.extend({...})` (loaded after `i18n.js`); keep its key set in sync across all 14
-  languages too.
+- `src/guide-i18n.js` adds the user-guide and import-dialog keys and `src/messages-i18n.js`
+  adds the settings-page/notification keys, both through `CU.i18n.extend({...})` (loaded after
+  `i18n.js`); keep their key sets in sync across all 14 languages too.
+- Renderer messages use `t('msg…')`; strings with values use `tf('msg…', { n, name })`
+  (`{placeholder}` substitution). Missing keys fall back to English.
 
 ### Build script
 
@@ -616,6 +619,22 @@ obfuscate first as well, so no packaging path ships readable renderer code. Use
 missing, downloads the Microsoft Windows SDK BuildTools NuGet package once into
 `vendor/msix-tools/` and extracts it with a small zip reader (no extra npm dependency).
 `build-msix.mjs` packs with it and then verifies the archive with `makeappx unpack`.
+
+### Settings (auto-applied)
+
+`#settingsModal` is grouped into **Appearance** (theme, language), **Editor** (filmstrip
+thumbnails + hint) and **ffmpeg** (hint, paths, prefer-bundled, Re-detect/Fill, and a
+translated `ffmpeg`/`ffprobe`/`bundled` status table). There is **no Save button**:
+`persistSettings()` debounces 150 ms, calls `settings:set`, flashes `#setSaved` and refreshes
+`app:info` so `state.settings` stays current. Theme/language are applied instantly by their
+change handlers; the stored appearance is applied once in `refreshInfo()` (guarded by
+`appearanceApplied`) so a background refresh cannot undo a fresh choice.
+
+### Subtitle text list
+
+`#btnToggleSubEvents` collapses `#subEventList` (default expanded, persisted in
+`localStorage["cuci.subEvents"]`); the button carries `aria-expanded` and a translated
+Collapse/Expand title. The detached side panel has the same control (`panel.js`).
 
 ### User guide + job import confirmation
 

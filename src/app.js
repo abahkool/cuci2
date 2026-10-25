@@ -37,6 +37,7 @@
   let lastFocus = null;
 
   const t = (key) => CU.i18n.t(key);
+  const tf = (key, vars) => t(key).replace(/\{(\w+)\}/g, (m, k) => (vars && k in vars ? String(vars[k]) : m));
 
   /**
    * One-time move of the pre-rename (CUCI2) browser-storage keys so existing
@@ -67,6 +68,7 @@
   const THEME_MODES = ['system', 'dark', 'light'];
   const darkMq = window.matchMedia('(prefers-color-scheme: dark)');
   let themeMode = 'system';
+  let appearanceApplied = false;
 
   function resolveTheme(mode) {
     if (mode === 'dark' || mode === 'light') return mode;
@@ -107,6 +109,7 @@
       'clipList', 'clipCount', 'cutList', 'cutCount', 'ioReadout',
       'btnSetIn', 'btnSetOut', 'btnCut', 'btnClearCuts', 'btnClearMarks',
       'subInfo', 'subOffset', 'btnSubAdd', 'subTrackList', 'btnSubExport', 'subEventList',
+      'btnToggleSubEvents', 'subEventCount',
       'btnSidebarAddSub', 'btnSidebarAddVideo',
       'btnPlay', 'btnStop', 'btnPrevFrame', 'btnNextFrame', 'btnPrevSec', 'btnNextSec',
       'timecode', 'timeTotal', 'resultTc', 'seekRange', 'modeSource', 'modeResult', 'chkSnap', 'zoomRange',
@@ -119,7 +122,7 @@
       'expPreset', 'expRes', 'expFps', 'expAbitrate', 'expBurn', 'expBurnTrack', 'expSrt', 'expSummary',
       'expProgressWrap', 'expProgressBar', 'expStatus', 'expStart', 'expCancel', 'expClose', 'expClose2',
       'settingsModal', 'setFfmpeg', 'setFfprobe', 'setFfmpegBrowse', 'setFfprobeBrowse', 'setPreferBundled', 'setUseBundled', 'setTheme', 'setLanguage',
-      'setLoadThumbs', 'setDetect', 'setSave', 'setClose', 'setClose2', 'setStatus',
+      'setLoadThumbs', 'setDetect', 'setSaved', 'setClose', 'setClose2', 'setStatus',
       'btnJob', 'jobModal', 'jobClose', 'jobClose2', 'jobTabExport', 'jobTabImport', 'jobPanelExport', 'jobPanelImport',
       'jobSave', 'jobOpen', 'jobDesc', 'jobDescCount', 'jobIncludeSubs', 'jobCode',
       'btnGuide', 'guideModal', 'guideClose', 'guideClose2',
@@ -131,6 +134,30 @@
       'nsfwCancel', 'nsfwApply', 'nsfwStart',
       'ctxMenu', 'toasts',
     ].forEach((id) => (els[id] = $(id)));
+  }
+
+  /* ────────────── collapsible subtitle text list (default open) ────────────── */
+  const SUB_EVENTS_KEY = 'cuci.subEvents';
+  let subEventsOpen = true;
+
+  function applySubEventsState() {
+    if (!els.subEventList || !els.btnToggleSubEvents) return;
+    els.subEventList.classList.toggle('hidden', !subEventsOpen);
+    els.btnToggleSubEvents.setAttribute('aria-expanded', String(subEventsOpen));
+    els.btnToggleSubEvents.title = t(subEventsOpen ? 'collapse' : 'expand');
+  }
+
+  function wireSubEventsToggle() {
+    if (!els.btnToggleSubEvents) return;
+    els.btnToggleSubEvents.addEventListener('click', () => {
+      subEventsOpen = !subEventsOpen;
+      try {
+        localStorage.setItem(SUB_EVENTS_KEY, subEventsOpen ? '1' : '0');
+      } catch {
+        /* ignore */
+      }
+      applySubEventsState();
+    });
   }
 
   /* ───────────────────────────── helpers ───────────────────────────── */
@@ -289,7 +316,7 @@
   /* ───────────────────────────── status bar ───────────────────────────── */
   const STATUS_ICONS = { idle: '●', info: 'ℹ', busy: '●', ok: '✓', warn: '⚠', error: '✕' };
   const statusHistory = [];
-  let statusState = { text: 'Ready', level: 'idle', progress: null };
+  let statusState = { text: '', level: 'idle', progress: null };
   let statusTimer = null;
 
   function pushStatusHistory(text, level) {
@@ -303,7 +330,7 @@
     const { text, level, progress } = statusState;
     els.statusbar.className = 'statusbar ' + level;
     els.statusIcon.textContent = STATUS_ICONS[level] || '●';
-    els.statusText.textContent = text;
+    els.statusText.textContent = text || t('ready');
     els.statusSpinner.classList.toggle('hidden', level !== 'busy');
     const hasProgress = typeof progress === 'number';
     els.statusProgress.classList.toggle('hidden', !hasProgress);
@@ -313,7 +340,7 @@
 
   function setStatus(text, level = 'info', opts = {}) {
     statusState = {
-      text: text || 'Ready',
+      text: text || t('ready'),
       level: text ? level : 'idle',
       progress: typeof opts.progress === 'number' ? opts.progress : null,
     };
@@ -323,7 +350,7 @@
     const auto = opts.timeout != null ? opts.timeout : level === 'ok' ? 4000 : level === 'info' ? 6000 : 0;
     if (auto > 0) {
       statusTimer = setTimeout(() => {
-        statusState = { text: 'Ready', level: 'idle', progress: null };
+        statusState = { text: t('ready'), level: 'idle', progress: null };
         renderStatus();
       }, auto);
     }
@@ -332,7 +359,7 @@
 
   function clearStatus() {
     if (statusState.level === 'error' || statusState.level === 'warn') return;
-    setStatus('Ready', 'idle');
+    setStatus(t('ready'), 'idle');
   }
 
   function updateStatusInfo() {
@@ -423,12 +450,12 @@
     renderAll();
   }
   function undo() {
-    if (!state.undo.length) return toast('Nothing to undo', 'warn', 1600);
+    if (!state.undo.length) return toast(t('msgNothingUndo'), 'warn', 1600);
     state.redo.push(snapshot());
     applySnapshot(state.undo.pop());
   }
   function redo() {
-    if (!state.redo.length) return toast('Nothing to redo', 'warn', 1600);
+    if (!state.redo.length) return toast(t('msgNothingRedo'), 'warn', 1600);
     state.undo.push(snapshot());
     applySnapshot(state.redo.pop());
   }
@@ -438,10 +465,10 @@
     if (!paths || !paths.length) return;
     for (const p of paths) {
       try {
-        setStatus(`Analyzing ${CU.basename(p)}…`, 'busy', { log: false });
+        setStatus(tf('msgAnalyzing', { name: CU.basename(p) }), 'busy', { log: false });
         const info = await api.probe(p);
         if (!info.hasVideo) {
-          toast(`Skipped "${CU.basename(p)}" — no video stream found.`, 'warn');
+          toast(tf('msgSkippedNoVideo', { name: CU.basename(p) }), 'warn');
           continue;
         }
         const clip = {
@@ -467,7 +494,7 @@
         if (state.settings.loadThumbs) loadThumbs(clip);
         else clip.thumbs = { dir: '', files: [], stepMs: 1000 };
       } catch (err) {
-        toast(`Could not read "${CU.basename(p)}":\n${err.message || err}`, 'error', 7000);
+        toast(tf('msgCouldNotRead', { name: CU.basename(p) }) + '\n' + (err.message || err), 'error', 7000);
       }
     }
     invalidate();
@@ -482,7 +509,7 @@
       const n = paths.length;
       const label = `Added ${n} clip${n > 1 ? 's' : ''}`;
       if (state.settings.loadThumbs) setStatus(label, 'ok', { timeout: 3000 });
-      else setStatus(`${label} · keyframe snapshots are off`, 'info', { timeout: 4500 });
+      else setStatus(`${label} · ${t('msgThumbsAreOff')}`, 'info', { timeout: 4500 });
     }
   }
 
@@ -493,7 +520,7 @@
     }
     if (clip.thumbsLoading) return;
     clip.thumbsLoading = true;
-    setStatus(`Loading keyframe snapshots for ${clip.name}…`, 'busy', { progress: 0, log: false });
+    setStatus(tf('msgThumbsFor', { name: clip.name }), 'busy', { progress: 0, log: false });
     let failed = false;
     try {
       clip.thumbs = await api.thumbs(clip.path, { durationMs: clip.durationMs, height: 64, maxCount: 170 });
@@ -505,10 +532,10 @@
       thumbJobs.delete(clip.path);
     }
     if (state.activeClipId === clip.id) renderTimeline();
-    if (failed) setStatus(`Could not generate keyframe snapshots for ${clip.name}`, 'warn');
+    if (failed) setStatus(tf('msgThumbsFailed', { name: clip.name }), 'warn');
     else if (!thumbJobs.size) {
       const n = clip.thumbs && clip.thumbs.files ? clip.thumbs.files.length : 0;
-      if (n) setStatus(`Loaded ${n} keyframe snapshots`, 'ok', { timeout: 2500 });
+      if (n) setStatus(tf('msgThumbsLoaded', { n }), 'ok', { timeout: 2500 });
     }
   }
 
@@ -522,13 +549,13 @@
           started = true;
         }
       }
-      if (!started) setStatus('Keyframe snapshots enabled', 'info', { timeout: 3000 });
+      if (!started) setStatus(t('msgThumbsOn'), 'info', { timeout: 3000 });
     } else {
       for (const clip of state.clips) {
         clip.thumbs = { dir: '', files: [], stepMs: 1000 };
         thumbJobs.delete(clip.path);
       }
-      setStatus('Keyframe snapshots disabled', 'info', { timeout: 3000 });
+      setStatus(t('msgThumbsOff'), 'info', { timeout: 3000 });
     }
     renderTimeline();
     updateStatusInfo();
@@ -581,7 +608,7 @@
       }
       invalidate();
       renderAll();
-      setStatus(`Loaded ${added} subtitle file(s) · ${clip.subtitles.length} track(s) on ${clip.name}`, 'ok', { timeout: 3500 });
+      setStatus(tf('msgSubsLoaded', { n: added, tracks: clip.subtitles.length, name: clip.name }), 'ok', { timeout: 3500 });
     }
     if (problems.length) toast(problems.join('\n'), 'warn', 8000);
     return added;
@@ -738,8 +765,8 @@
       const hint = document.createElement('div');
       hint.className = 'tl-film-hint';
       hint.textContent = state.settings.loadThumbs
-        ? 'No keyframe snapshots'
-        : 'Keyframe snapshots are disabled — enable them in Settings';
+        ? t('msgNoKeyframes')
+        : t('msgThumbsHint');
       els.tlFilm.appendChild(hint);
     }
 
@@ -939,6 +966,8 @@
 
   function updateSubPanel() {
     scheduleSidebarSync();
+    if (els.subEventCount) els.subEventCount.textContent = '0';
+    applySubEventsState();
     const clip = activeClip();
     if (document.activeElement !== els.subOffset) els.subOffset.value = String(state.globalSubOffset);
     els.subEventList.innerHTML = '';
@@ -1015,6 +1044,7 @@
       el.addEventListener('click', () => seekTo(ev.start));
       els.subEventList.appendChild(el);
     });
+    if (els.subEventCount) els.subEventCount.textContent = String(rows.length);
     if (rows.length > max) {
       const more = document.createElement('div');
       more.className = 'sub-info';
@@ -1096,7 +1126,7 @@
     s = CU.clamp(s, 0, clip.durationMs);
     e = CU.clamp(e, 0, clip.durationMs);
     if (e - s < 1) {
-      toast('Selection is too short to cut.', 'warn', 2000);
+      toast(t('msgSelTooShort'), 'warn', 2000);
       return;
     }
     pushUndo();
@@ -1133,16 +1163,16 @@
 
   function cutSelection() {
     const clip = activeClip();
-    if (!clip) return toast('Add a video first.', 'warn', 2600);
+    if (!clip) return toast(t('msgAddVideo'), 'warn', 2600);
     const r = getEditRange();
     if (!r) {
       if (state.inPoint != null && state.outPoint == null)
-        return toast('Out point is not set. Move the playhead and press O, or drag across the filmstrip.', 'warn', 4200);
+        return toast(t('msgOutNotSet'), 'warn', 4200);
       if (state.outPoint != null && state.inPoint == null)
-        return toast('In point is not set. Move the playhead and press I, or drag across the filmstrip.', 'warn', 4200);
+        return toast(t('msgInNotSet'), 'warn', 4200);
       if (state.inPoint != null && state.outPoint != null)
-        return toast('In and Out are on the same frame — move the playhead between them.', 'warn', 4200);
-      return toast('Nothing selected. Drag across the filmstrip, or set In & Out with I / O.', 'warn', 4200);
+        return toast(t('msgInOutSame'), 'warn', 4200);
+      return toast(t('msgNothingSelected'), 'warn', 4200);
     }
     addCut(r.start, r.end);
   }
@@ -1342,7 +1372,7 @@
   async function programPlay(fromResultMs) {
     const { ranges, total } = programRanges();
     if (!ranges.length) {
-      toast('Nothing to preview — every frame is cut away.', 'warn');
+      toast(t('msgNothingPreview'), 'warn');
       return;
     }
     const target = CU.clamp(Number(fromResultMs) || 0, 0, total);
@@ -1666,7 +1696,7 @@
         .map((t) => ({
           id: CU.uid('sub'),
           path: '',
-          name: t.name || 'shared subtitles',
+          name: t.name || t('msgSharedSubs'),
           format: t.format === 'vtt' ? 'vtt' : 'srt',
           events: t.events.map((e) => ({ start: Number(e[0]) || 0, end: Number(e[1]) || 0, text: String(e[2] == null ? '' : e[2]) })),
           enabled: true,
@@ -1700,12 +1730,12 @@
     const desc = job.description ? `“${job.description}”\n` : '';
     if (res.missing.length) {
       state.pendingJob = job;
-      setJobStatus(`${desc}Applied to ${res.matched} clip(s)${label}. Waiting for ${res.missing.length} missing video(s): ${names}`, 'warn');
-      toast(`${desc}Job applied to ${res.matched} clip(s). Add the missing video(s) to finish:\n${names}`, 'warn', 9000);
+      setJobStatus(`${desc}${tf('msgJobAppliedMissing', { n: res.matched, names })}${label}`, 'warn');
+      toast(`${desc}${tf('msgJobAppliedMissing', { n: res.matched, names })}`, 'warn', 9000);
     } else {
       state.pendingJob = null;
-      setJobStatus(`${desc}Applied to ${res.matched} clip(s)${label}.`, 'ok');
-      toast(`${desc}Cut job applied.`, 'ok');
+      setJobStatus(`${desc}${tf('msgJobApplied', { n: res.matched })}${label}`, 'ok');
+      toast(`${desc}${t('msgJobAppliedToast')}`, 'ok');
     }
   }
 
@@ -1721,7 +1751,7 @@
       els.jobDescCount.textContent = `${len} / 200`;
       els.jobDescCount.classList.toggle('at-limit', len >= 190);
     }
-    if (els.btnJob) els.btnJob.title = state.jobDescription ? `Job: ${state.jobDescription}` : 'Save / open / share the cut job';
+    if (els.btnJob) els.btnJob.title = state.jobDescription ? `${t('job')}: ${state.jobDescription}` : t('jobHint');
   }
 
   function tryApplyPendingJob() {
@@ -1730,8 +1760,8 @@
       const res = applyJob(state.pendingJob, { silent: true });
       if (res.missing.length === 0) {
         state.pendingJob = null;
-        setJobStatus(`Job applied to ${res.matched} clip(s).`, 'ok');
-        toast('Cut job applied.', 'ok');
+        setJobStatus(tf('msgJobApplied', { n: res.matched }), 'ok');
+        toast(t('msgJobAppliedToast'), 'ok');
       }
     } catch {
       /* ignore */
@@ -1747,7 +1777,7 @@
   async function refreshShareCode() {
     if (!state.clips.length) {
       els.jobCode.value = '';
-      els.jobCodeInfo.textContent = 'No media loaded yet.';
+      els.jobCodeInfo.textContent = t('noMedia');
       return;
     }
     const job = buildJob(els.jobIncludeSubs.checked);
@@ -1762,46 +1792,46 @@
   }
 
   async function saveJobFile() {
-    if (!state.clips.length) return toast('Add a video first.', 'warn');
+    if (!state.clips.length) return toast(t('msgAddVideo'), 'warn');
     const first = state.clips[0];
     const def = pathJoin(CU.dirname(first.path), CU.stripExt(first.name) + '.cuci.json');
-    const p = await api.saveFile({ title: 'Save cut job', defaultPath: def, filters: [{ name: 'CUCI job', extensions: ['json'] }] });
+    const p = await api.saveFile({ title: t('jobTitle'), defaultPath: def, filters: [{ name: t('jobTitle'), extensions: ['json'] }] });
     if (!p) return;
     try {
       await api.writeText(p, JSON.stringify(buildJob(true), null, 2));
-      setJobStatus('Saved: ' + p, 'ok');
-      toast('Job saved:\n' + p, 'ok', 6000);
+      setJobStatus(t('msgJobSaved') + ' ' + p, 'ok');
+      toast(t('msgJobSaved') + ':\n' + p, 'ok', 6000);
     } catch (err) {
-      toast('Could not save job:\n' + (err.message || err), 'error', 8000);
+      toast(t('msgJobSaveFailed') + '\n' + (err.message || err), 'error', 8000);
     }
   }
 
   async function openJobFile() {
     const p = await api.openFile({
-      title: 'Open cut job',
-      filters: [{ name: 'CUCI job / share code', extensions: ['json', 'txt', 'cuci'] }, { name: 'All files', extensions: ['*'] }],
+      title: t('jobTitle'),
+      filters: [{ name: t('jobTitle'), extensions: ['json', 'txt', 'cuci'] }, { name: t('fltAllFiles'), extensions: ['*'] }],
     });
     if (!p) return;
     try {
       const text = await api.readText(p, { maxBytes: CU.JOB_LIMITS.jsonBytes });
       await requestJobImport(text, ` from ${CU.basename(p)}`);
     } catch (err) {
-      toast('Could not open job:\n' + (err.message || err), 'error', 9000);
+      toast(t('msgJobOpenFailed') + '\n' + (err.message || err), 'error', 9000);
     }
   }
 
   async function copyShareCode() {
     if (!els.jobCode.value) await refreshShareCode();
-    if (!els.jobCode.value) return toast('Nothing to share yet — add a video first.', 'warn');
+    if (!els.jobCode.value) return toast(t('msgNothingShare'), 'warn');
     await api.clipboardWrite(els.jobCode.value);
-    toast('Share code copied to clipboard.', 'ok', 3000);
+    toast(t('msgShareCopied'), 'ok', 3000);
   }
 
   async function pasteFromClipboard() {
     const text = await api.clipboardRead();
-    if (!text || !text.trim()) return toast('Clipboard is empty.', 'warn');
+    if (!text || !text.trim()) return toast(t('msgClipboardEmpty'), 'warn');
     els.jobPaste.value = text.trim();
-    toast('Pasted from clipboard.', 'ok', 2500);
+    toast(t('msgPasted'), 'ok', 2500);
   }
 
   /* ───────────────────────── user guide ───────────────────────── */
@@ -1872,7 +1902,7 @@
       job = await CU.parseJobText(text);
       job = CU.sanitizeJob(job); // plain, length-capped strings only
     } catch (err) {
-      toast('Could not import:\n' + (err.message || err), 'error', 9000);
+      toast(t('msgImportFailed') + '\n' + (err.message || err), 'error', 9000);
       return;
     }
     const used = new Set();
@@ -1895,7 +1925,7 @@
 
   async function importShareCode() {
     const text = (els.jobPaste.value || '').trim();
-    if (!text) return toast('Paste a share code first.', 'warn');
+    if (!text) return toast(t('msgPasteFirst'), 'warn');
     await requestJobImport(text, ' from share code');
   }
 
@@ -1965,7 +1995,7 @@
 
   async function openNsfwModal() {
     const clip = activeClip();
-    if (!clip) return toast('Add a video first.', 'warn');
+    if (!clip) return toast(t('msgAddVideo'), 'warn');
     if (state.nsfwScanning) return;
     els.nsfwInterval.value = String(((state.settings.nsfwIntervalMs || 2000) / 1000).toFixed(2).replace(/\.?0+$/, ''));
     els.nsfwMinDur.value = String(state.settings.nsfwMinDurationMs != null ? state.settings.nsfwMinDurationMs : 5000);
@@ -1989,7 +2019,7 @@
   async function startNsfwScan() {
     if (state.nsfwScanning) return;
     const clip = activeClip();
-    if (!clip) return toast('Add a video first.', 'warn');
+    if (!clip) return toast(t('msgAddVideo'), 'warn');
 
     const intervalMs = Math.round(nsfwIntervalSeconds() * 1000);
     els.nsfwInterval.value = String(nsfwIntervalSeconds());
@@ -2011,7 +2041,7 @@
     els.nsfwProgressWrap.classList.remove('hidden');
     els.nsfwProgressBar.style.width = '0%';
     els.nsfwStatus.textContent = 'Starting…';
-    setStatus('Scanning for NSFW scenes…', 'busy', { progress: 0, log: false });
+    setStatus(t('msgScanning'), 'busy', { progress: 0, log: false });
 
     const res = await api.nsfwScan({ videoPath: clip.path, durationMs: clip.durationMs, intervalMs, threshold, minDurationMs });
 
@@ -2022,15 +2052,15 @@
 
     if (!res.ok) {
       els.nsfwStatus.textContent = 'Failed.';
-      setStatus('NSFW scan failed', 'error');
-      toast('NSFW scan failed:\n' + (res.error || 'unknown error'), 'error', 10000);
+      setStatus(t('msgNsfwFailed'), 'error');
+      toast(t('msgNsfwFailed') + ':\n' + (res.error || 'unknown error'), 'error', 10000);
       return;
     }
     state.nsfwSegments = res.segments || [];
     renderNsfwResults(res);
-    if (res.cancelled) setStatus('NSFW scan cancelled', 'warn');
-    else if (state.nsfwSegments.length) setStatus(`${state.nsfwSegments.length} NSFW scene(s) detected`, 'warn');
-    else setStatus('No NSFW scenes detected', 'ok', { timeout: 4000 });
+    if (res.cancelled) setStatus(t('msgNsfwCancelled'), 'warn');
+    else if (state.nsfwSegments.length) setStatus(tf('msgNsfwDetected', { n: state.nsfwSegments.length }), 'warn');
+    else setStatus(t('msgNsfwNoScenes'), 'ok', { timeout: 4000 });
   }
 
   function renderNsfwResults(res) {
@@ -2086,9 +2116,9 @@
 
   function applyNsfwCuts() {
     const n = applyNsfwSegments(state.nsfwSegments);
-    if (!n) return toast('No detected scenes to apply.', 'warn');
-    setStatus(`Marked ${n} NSFW scene(s) as cuts`, 'ok', { timeout: 4500 });
-    toast(`Marked ${n} NSFW scene(s) as cuts.`, 'ok');
+    if (!n) return toast(t('msgNsfwNone'), 'warn');
+    setStatus(tf('msgNsfwMarked', { n }), 'ok', { timeout: 4500 });
+    toast(tf('msgNsfwMarked', { n }), 'ok');
     closeNsfwModal();
   }
 
@@ -2211,21 +2241,25 @@
     const completed = state.clips.reduce((a, c) => a + c.durationMs, 0);
     const removed = Math.max(0, completed - total);
     const noCuts = removed < 1;
+    const fmt = exportFormat(els.expContainer.value);
     const lines = [
-      `clips            : ${state.clips.length}`,
-      `segments to join : ${ranges.length}`,
-      `source duration  : ${CU.fmt(completed, 3)}`,
-      `output duration  : ${CU.fmt(total, 3)}`,
-      `removed          : ${CU.fmt(removed, 3)}`,
-      `video            : ${width}×${height} @ ${Number(fps).toFixed(3)} fps`,
-      `format           : ${exportFormat(els.expContainer.value).label} · ${codecLabel()} + ${exportFormat(els.expContainer.value).audio} · ${els.expAbitrate.value}`,
-      `subtitles        : ${tracks.length} track(s) · ${subs.length} events synced` + (els.expBurn.checked ? ' · burned in' : ''),
+      `${t('confirmClips')}: ${state.clips.length}`,
+      `${t('sumSegments')}: ${ranges.length}`,
+      `${t('sumSource')}: ${CU.fmt(completed, 3)}`,
+      `${t('sumOutput')}: ${CU.fmt(total, 3)}`,
+      `${t('sumRemoved')}: ${CU.fmt(removed, 3)}`,
+      `${t('sumVideo')}: ${width}×${height} @ ${Number(fps).toFixed(3)} fps`,
+      `${t('format')}: ${fmt.label} · ${codecLabel()} + ${fmt.audio} · ${els.expAbitrate.value}`,
+      `${t('sumSubtitles')}: ${tracks.length} · ${subs.length}`,
     ];
     let html = lines
-      .map((l) => CU.escapeHtml(l).replace(/^([a-z ]+):/, '<b>$1</b>:'))
+      .map((l) => {
+        const i = l.indexOf(': ');
+        return i > 0 ? `<b>${CU.escapeHtml(l.slice(0, i))}</b>: ${CU.escapeHtml(l.slice(i + 2))}` : CU.escapeHtml(l);
+      })
       .join('\n');
     if (noCuts) {
-      html += '\n\n<b style="color:var(--warn)">⚠ No cuts applied yet — the output would be the full source length.</b>';
+      html += '\n\n<b style="color:var(--warn)">⚠ ' + CU.escapeHtml(t('msgNoCutsSummary')) + '</b>';
     }
     els.expSummary.innerHTML = html;
     refreshBurnTrackOptions(tracks);
@@ -2241,7 +2275,7 @@
   }
 
   function openExportModal() {
-    if (!state.clips.length) return toast('Add a video first.', 'warn');
+    if (!state.clips.length) return toast(t('msgAddVideo'), 'warn');
     pause();
     if (!els.expPath.value) els.expPath.value = defaultOutputPath();
     updateExportSummary();
@@ -2256,10 +2290,10 @@
   async function startExport() {
     if (state.exporting) return;
     const outputPath = els.expPath.value.trim();
-    if (!outputPath) return toast('Choose an output file.', 'warn');
+    if (!outputPath) return toast(t('msgChooseOutput'), 'warn');
 
     const { ranges, total, width, height, fps, tracks, subs } = currentSetup();
-    if (!ranges.length) return toast('Nothing to export — the whole timeline is cut away.', 'warn');
+    if (!ranges.length) return toast(t('msgNothingExport'), 'warn');
 
     const completed = state.clips.reduce((a, c) => a + c.durationMs, 0);
     const removed = Math.max(0, completed - total);
@@ -2267,14 +2301,14 @@
       exportConfirmArmed = true;
       els.expStart.classList.add('armed');
       els.expStart.textContent = '⚠ Click again to export full video';
-      toast('No cuts applied — the output would be the full source length. Click Start again to confirm.', 'warn', 7000);
+      toast(t('msgNoCutsConfirm'), 'warn', 7000);
       return;
     }
     resetExportConfirm();
 
     const burnTrack = tracks.find((t) => t.trackId === els.expBurnTrack.value) || tracks[0] || null;
     const burn = els.expBurn.checked && !!burnTrack;
-    if (els.expBurn.checked && !burnTrack) toast('No subtitles to burn — continuing without them.', 'warn');
+    if (els.expBurn.checked && !burnTrack) toast(t('msgNoSubsBurn'), 'warn');
 
     // Write one synced .srt per enabled track next to the output.
     if (els.expSrt.checked && tracks.length) {
@@ -2286,9 +2320,9 @@
           const suffix = multi ? '.' + safeFileSuffix(t.name) : '';
           await api.writeText(pathJoin(dir, base + suffix + '.srt'), CU.serializeSrt(t.events));
         }
-        toast(`Wrote ${tracks.length} synced subtitle file(s) next to the output.`, 'ok', 6000);
+        toast(tf('msgSrtWritten', { n: tracks.length }), 'ok', 6000);
       } catch (err) {
-        toast('Could not write .srt:\n' + (err.message || err), 'error');
+        toast(t('msgFailedSave') + '\n' + (err.message || err), 'error');
       }
     }
 
@@ -2329,8 +2363,8 @@
     if (result.ok) {
       els.expProgressBar.style.width = '100%';
       els.expStatus.textContent = 'Done.';
-      setStatus(`Export complete: ${CU.basename(result.outputPath)}`, 'ok', { timeout: 9000 });
-      const close = toast('Export complete:\n' + result.outputPath, 'ok', 0);
+      setStatus(t('msgExportDone') + ': ' + CU.basename(result.outputPath), 'ok', { timeout: 9000 });
+      const close = toast(t('msgExportDone') + ':\n' + result.outputPath, 'ok', 0);
       const el = els.toasts.lastElementChild;
       if (el) {
         const openBtn = document.createElement('button');
@@ -2344,23 +2378,78 @@
       updateExportSummary();
     } else if (result.cancelled) {
       els.expStatus.textContent = 'Cancelled.';
-      setStatus('Export cancelled', 'warn');
-      toast('Export cancelled.', 'warn');
+      setStatus(t('msgExportCancelled'), 'warn');
+      toast(t('msgExportCancelled'), 'warn');
     } else {
       els.expStatus.textContent = 'Failed.';
-      setStatus('Export failed', 'error');
-      toast('Export failed:\n' + (result.error || 'unknown error'), 'error', 12000);
+      setStatus(t('msgExportFailed'), 'error');
+      toast(t('msgExportFailed') + ':\n' + (result.error || 'unknown error'), 'error', 12000);
     }
     els.expStart.disabled = false;
   }
 
   /* ───────────────────────────── ffmpeg / settings ───────────────────────────── */
-  const SOURCE_LABEL = { custom: 'custom', env: 'env var', system: 'system', bundled: 'bundled', sibling: 'next to ffmpeg', missing: 'missing' };
+  const SOURCE_KEY = { custom: 'srcCustom', env: 'srcEnv', system: 'srcSystem', bundled: 'srcBundled', sibling: 'srcSibling', missing: 'srcMissing' };
+  const sourceLabel = (src) => t(SOURCE_KEY[src] || 'srcMissing');
 
-  function toolLine(label, t) {
-    if (!t || !t.ok) return `${label.padEnd(8)}: not found`;
-    const meta = `${SOURCE_LABEL[t.source] || t.source}${t.version ? ' · ' + t.version : ''}${t.libass ? ' · libass ✓' : ''}`;
-    return `${label.padEnd(8)}: ${t.path}\n          ${meta}`;
+  /** ffmpeg/ffprobe/bundled rows for the settings page (translated labels). */
+  function renderToolStatus(info) {
+    const b = info.bundled || {};
+    els.setStatus.textContent = '';
+    const row = (label, value, cls) => {
+      const el = document.createElement('div');
+      el.className = 'ff-row';
+      const k = document.createElement('span');
+      k.className = 'ff-k';
+      k.textContent = label;
+      const v = document.createElement('span');
+      v.className = 'ff-v' + (cls ? ' ' + cls : '');
+      v.textContent = value;
+      el.append(k, v);
+      els.setStatus.appendChild(el);
+    };
+    const one = (label, tool) => {
+      if (!tool || !tool.ok) return row(label, t('stNotFound'), 'bad');
+      const meta = `${tool.version || '?'}${tool.libass ? ' · libass' : ''} · ${sourceLabel(tool.source)}`;
+      row(label, `${tool.path || ''}\n${meta}`, 'ok');
+    };
+    one('ffmpeg', info.ffmpeg);
+    one('ffprobe', info.ffprobe);
+    row(t('stBundled'), b.present ? t('stInstalled') : t('stNotInstalled'), b.present ? 'ok' : 'bad');
+  }
+
+  /* ───────────── settings: applied immediately, no Save button ───────────── */
+  let settingsTimer = null;
+  let savedTimer = null;
+
+  function flashSaved() {
+    if (!els.setSaved) return;
+    els.setSaved.classList.add('show');
+    clearTimeout(savedTimer);
+    savedTimer = setTimeout(() => els.setSaved.classList.remove('show'), 1600);
+  }
+
+  function persistSettings() {
+    clearTimeout(settingsTimer);
+    settingsTimer = setTimeout(
+      async () => {
+        try {
+          await api.setSettings({
+            ffmpegPath: els.setFfmpeg.value.trim(),
+            ffprobePath: els.setFfprobe.value.trim(),
+            loadThumbs: els.setLoadThumbs.checked,
+            preferBundled: els.setPreferBundled.checked,
+            theme: els.setTheme.value,
+            language: els.setLanguage.value,
+          });
+          flashSaved();
+          await refreshInfo();
+        } catch (err) {
+          toast(t('msgFailedSave') + '\n' + (err.message || err), 'error', 7000);
+        }
+      },
+      150,
+    );
   }
 
   /** Switch UI language (and re-render the strings this renderer owns). */
@@ -2372,7 +2461,7 @@
     updateTransport();
     updateIoReadout();
     if (!els.exportModal.classList.contains('hidden')) updateExportSummary();
-    if (!statusState.text || statusState.level === 'idle' || statusState.text === 'Ready') {
+    if (!statusState.text || statusState.text === t('ready') || statusState.text === 'Ready') {
       setStatus(t(state.clips.length ? 'ready' : 'readyHint'), 'idle', { log: false });
     }
     return lang;
@@ -2388,30 +2477,28 @@
       // the full build string stays in the tooltip.
       const shortVer = String(info.ffmpeg.version || '?').split(/[-_\s]/)[0];
       els.ffStatus.className = 'ff-status ok';
-      els.ffStatus.textContent = `ffmpeg ✓ ${shortVer} · ${SOURCE_LABEL[info.ffmpeg.source] || info.ffmpeg.source}`;
-      els.ffStatus.title = `${info.ffmpeg.version}\n${info.ffmpeg.path}\nsource: ${info.ffmpeg.source}\nlibass: ${info.ffmpeg.libass ? 'yes' : 'no'}`;
+      els.ffStatus.textContent = `ffmpeg ✓ ${shortVer} · ${sourceLabel(info.ffmpeg.source)}`;
+      els.ffStatus.title = `${info.ffmpeg.version}\n${info.ffmpeg.path}${info.ffmpeg.libass ? '\nlibass' : ''}`;
     } else {
       els.ffStatus.className = 'ff-status bad';
-      els.ffStatus.textContent = 'ffmpeg ✗ not found';
-      els.ffStatus.title = (info.ffmpeg.error || 'ffmpeg was not found') + '\nClick to configure.';
-      setStatus('ffmpeg was not found — thumbnails and export will not work. Open Settings to configure or fetch the bundled build.', 'error');
+      els.ffStatus.textContent = `ffmpeg ✗ ${t('stNotFound')}`;
+      els.ffStatus.title = info.ffmpeg.error || t('stNotFound');
+      setStatus(t('msgFfmpegMissing'), 'error');
     }
 
     els.setFfmpeg.value = info.settings.ffmpegPath || '';
     els.setFfprobe.value = info.settings.ffprobePath || '';
     els.setPreferBundled.checked = !!state.settings.preferBundled;
     els.setLoadThumbs.checked = !!state.settings.loadThumbs;
-    applyTheme(state.settings.theme || storedTheme());
-    applyLanguage(state.settings.language || 'auto', { silent: true });
+    // Apply the stored appearance once; later refreshes must not undo a choice
+    // the user just made in the (auto-applied) settings dialog.
+    if (!appearanceApplied) {
+      applyTheme(state.settings.theme || storedTheme());
+      applyLanguage(state.settings.language || 'auto', { silent: true });
+      appearanceApplied = true;
+    }
 
-    const b = info.bundled || {};
-    els.setStatus.innerHTML = CU.escapeHtml(
-      [
-        toolLine('ffmpeg', info.ffmpeg),
-        toolLine('ffprobe', info.ffprobe),
-        `bundled : ${b.present ? 'installed' : 'not installed'}${b.ffmpeg ? '\n          ' + b.ffmpeg : ''}`,
-      ].join('\n'),
-    );
+    renderToolStatus(info);
     return info;
   }
 
@@ -2663,7 +2750,7 @@
     pushPanelState(name);
     if (!pinned && !autoHideHintShown) {
       autoHideHintShown = true;
-      toast('Auto-hidden — move the mouse over the player to peek at the pane, or use its pin button to keep it.', 'info', 3800);
+      toast(t('msgAutoHidden'), 'info', 3800);
     }
   }
 
@@ -2678,7 +2765,7 @@
       if (WINDOWED_PANELS.has(name)) {
         const res = await api.panelOpen({ name });
         if (!res || !res.ok) {
-          toast((res && res.error) || 'Could not open the panel window.', 'error');
+          toast((res && res.error) || t('msgPanelOpenFailed'), 'error');
           return;
         }
         openPanels[name] = true;
@@ -2883,7 +2970,7 @@
     applyLayout();
     afterLayoutChange();
     saveLayout();
-    toast(`${PANEL_LABEL[name]} docked.`, 'info', 2400);
+    toast(tf('msgPanelDocked', { name: t(name === 'transport' ? 'controlCenter' : 'sidePanel') }), 'info', 2400);
   }
 
   const PANEL_CLICK_IDS = new Set([
@@ -3098,6 +3185,7 @@
   }
 
   function wire() {
+    wireSubEventsToggle();
     els.btnAddVideo.addEventListener('click', async () => addVideos(await api.openVideos()));
     els.btnAddVideo2.addEventListener('click', async () => addVideos(await api.openVideos()));
     // Sidebar quick actions mirror the topbar buttons.
@@ -3106,7 +3194,7 @@
 
     els.btnAddSub.addEventListener('click', async () => {
       const clip = activeClip();
-      if (!clip) return toast('Add a video first.', 'warn');
+      if (!clip) return toast(t('msgAddVideo'), 'warn');
       await addSubtitleToClip(clip);
     });
 
@@ -3251,13 +3339,13 @@
 
     els.btnSubAdd.addEventListener('click', async () => {
       const clip = activeClip();
-      if (!clip) return toast('Add a video first.', 'warn');
+      if (!clip) return toast(t('msgAddVideo'), 'warn');
       await addSubtitleToClip(clip);
     });
 
     els.btnSubExport.addEventListener('click', async () => {
       const tracks = remapAllTracks().filter((t) => t.events.length);
-      if (!tracks.length) return toast('No subtitles to export.', 'warn');
+      if (!tracks.length) return toast(t('msgNoSubsExport'), 'warn');
       const first = state.clips[0];
       const def = pathJoin(CU.dirname(first.path), CU.stripExt(first.name) + '.synced.srt');
       const p = await api.saveFile({ title: 'Save synced subtitles', defaultPath: def, filters: [{ name: 'SubRip', extensions: ['srt'] }] });
@@ -3270,9 +3358,9 @@
           const out = multi ? pathJoin(dir, base + '.' + safeFileSuffix(t.name) + '.srt') : p;
           await api.writeText(out, CU.serializeSrt(t.events));
         }
-        toast(`Saved ${tracks.length} synced subtitle file(s)${multi ? ' in ' + dir : ''}.`, 'ok', 6000);
+        toast(tf('msgSubsSaved', { n: tracks.length }) + (multi ? ' ' + dir : ''), 'ok', 6000);
       } catch (err) {
-        toast('Failed to save:\n' + (err.message || err), 'error');
+        toast(t('msgFailedSave') + '\n' + (err.message || err), 'error');
       }
     });
 
@@ -3366,8 +3454,8 @@
       const clip = activeClip();
       if (!clip) return;
       els.playerNotice.classList.add('hidden');
-      const close = toast('Generating preview proxy… this may take a while.', 'info', 0);
-      setStatus(`Generating preview proxy for ${clip.name}…`, 'busy', { log: false });
+      const close = toast(t('msgProxyGenerating'), 'info', 0);
+      setStatus(tf('msgProxyFor', { name: clip.name }), 'busy', { log: false });
       try {
         clip.proxyPath = await api.proxy(clip.path);
         videoFile = null;
@@ -3377,16 +3465,16 @@
           await seekVideo(state.playhead);
           els.playerNotice.classList.add('hidden');
           updateClipList();
-          setStatus('Preview proxy ready', 'ok', { timeout: 4000 });
-          toast('Preview proxy ready.', 'ok');
+          setStatus(t('msgProxyReady'), 'ok', { timeout: 4000 });
+          toast(t('msgProxyReady'), 'ok');
         } else {
-          setStatus('Proxy was created but could not be played', 'error');
-          toast('Proxy was created but could not be played.', 'error');
+          setStatus(t('msgProxyFailed'), 'error');
+          toast(t('msgProxyFailed'), 'error');
         }
       } catch (err) {
         close();
-        setStatus(`Proxy generation failed for ${clip.name}`, 'error');
-        toast('Proxy generation failed:\n' + (err.message || err), 'error', 9000);
+        setStatus(tf('msgProxyFailedFor', { name: clip.name }), 'error');
+        toast(t('msgProxyFailed') + ':\n' + (err.message || err), 'error', 9000);
       }
     });
     els.btnDismissNotice.addEventListener('click', () => els.playerNotice.classList.add('hidden'));
@@ -3400,7 +3488,7 @@
         { name: `${fmt.label} video`, extensions: [fmt.ext] },
         { name: 'All files', extensions: ['*'] },
       ];
-      const p = await api.saveFile({ title: 'Export video as', defaultPath: els.expPath.value || defaultOutputPath(), filters });
+      const p = await api.saveFile({ title: t('export'), defaultPath: els.expPath.value || defaultOutputPath(), filters });
       if (p) {
         els.expPath.value = p;
         updateExportSummary();
@@ -3430,27 +3518,28 @@
     // settings
     els.setClose.addEventListener('click', () => els.settingsModal.classList.add('hidden'));
     els.setClose2.addEventListener('click', () => els.settingsModal.classList.add('hidden'));
-    els.setSave.addEventListener('click', async () => {
-      await api.setSettings({
-        ffmpegPath: els.setFfmpeg.value.trim(),
-        ffprobePath: els.setFfprobe.value.trim(),
-        loadThumbs: els.setLoadThumbs.checked,
-        preferBundled: els.setPreferBundled.checked,
-        theme: els.setTheme.value,
-        language: els.setLanguage.value,
-      });
-      await refreshInfo();
-      applyThumbSetting();
-      toast('Settings saved.', 'ok', 2500);
+    els.setTheme.addEventListener('change', () => {
+      applyTheme(els.setTheme.value);
+      persistSettings();
     });
+    els.setLanguage.addEventListener('change', () => {
+      applyLanguage(els.setLanguage.value);
+      persistSettings();
+    });
+    els.setLoadThumbs.addEventListener('change', () => {
+      state.settings.loadThumbs = els.setLoadThumbs.checked;
+      applyThumbSetting();
+      persistSettings();
+    });
+    els.setPreferBundled.addEventListener('change', () => persistSettings());
+    els.setFfmpeg.addEventListener('change', () => persistSettings());
+    els.setFfprobe.addEventListener('change', () => persistSettings());
     els.setDetect.addEventListener('click', () => refreshInfo());
-    els.setTheme.addEventListener('change', () => applyTheme(els.setTheme.value));
-    els.setLanguage.addEventListener('change', () => applyLanguage(els.setLanguage.value));
 
     const pickBinary = async (input) => {
       const p = await api.openFile({
-        title: 'Select executable',
-        filters: [{ name: 'Executable', extensions: ['exe'] }, { name: 'All files', extensions: ['*'] }],
+        title: t('dlgExecutable'),
+        filters: [{ name: t('dlgExecutable'), extensions: ['exe'] }, { name: t('fltAllFiles'), extensions: ['*'] }],
       });
       if (p) input.value = p;
     };
@@ -3458,11 +3547,12 @@
     els.setFfprobeBrowse.addEventListener('click', () => pickBinary(els.setFfprobe));
     els.setUseBundled.addEventListener('click', () => {
       const b = (state.info && state.info.bundled) || {};
-      if (!b.ffmpeg) return toast('No bundled ffmpeg path is known.', 'warn');
+      if (!b.ffmpeg) return toast(t('msgNoBundledPath'), 'warn');
       els.setFfmpeg.value = b.ffmpeg;
       els.setFfprobe.value = b.ffprobe || '';
       els.setPreferBundled.checked = true;
-      toast('Bundled paths filled in — press Save to apply.', 'info', 3500);
+      persistSettings();
+      toast(t('msgBundledFilled'), 'info', 3000);
     });
 
     // keyboard
@@ -3485,7 +3575,7 @@
         eta = ` · ETA ${CU.fmt(secs * 1000, 0)}`;
       }
       els.expStatus.textContent = `${d.percent.toFixed(1)}% · ${CU.fmt(d.timeSec * 1000, 1)} / ${CU.fmt(d.totalSec * 1000, 1)}${sp ? ` · ${sp.toFixed(2)}x` : ''}${eta}`;
-      setStatus(`Exporting… ${d.percent.toFixed(0)}%${eta}`, 'busy', { progress: d.percent / 100, log: false });
+      setStatus(`${t('msgExporting')} ${d.percent.toFixed(0)}%${eta}`, 'busy', { progress: d.percent / 100, log: false });
     });
 
     // NSFW scan progress
@@ -3494,7 +3584,7 @@
       const pct = p.percent != null ? p.percent : 0;
       els.nsfwProgressBar.style.width = pct.toFixed(1) + '%';
       els.nsfwStatus.textContent = p.message || p.phase;
-      setStatus(p.phase === 'download' ? p.message : 'Scanning for NSFW scenes…', 'busy', { progress: pct / 100, log: false });
+      setStatus(p.phase === 'download' ? p.message : t('msgScanning'), 'busy', { progress: pct / 100, log: false });
     });
 
     // keyframe snapshot progress
@@ -3513,7 +3603,7 @@
     els.statusClear.addEventListener('click', (e) => {
       e.stopPropagation();
       hideStatusLog();
-      setStatus('Ready', 'idle');
+      setStatus(t('ready'), 'idle');
     });
     window.addEventListener(
       'pointerdown',
@@ -3693,6 +3783,11 @@
   /* ───────────────────────────── boot ───────────────────────────── */
   async function init() {
     cacheEls();
+    try {
+      subEventsOpen = localStorage.getItem(SUB_EVENTS_KEY) !== '0';
+    } catch {
+      subEventsOpen = true;
+    }
     refillCodecOptions();
     loadLayout();
     try {
@@ -3713,7 +3808,9 @@
       applyTimelineHeight(false);
     });
     restorePanelWindows();
-    if (!statusState.text || statusState.text === 'Ready') setStatus(t('readyHint'), 'idle', { log: false });
+    if (!statusState.text || statusState.text === 'Ready' || statusState.text === t('ready')) {
+      setStatus(t('readyHint'), 'idle', { log: false });
+    }
 
     // Debug / automation handle (also used by lib/e2e.js).
     window.__cuciApp = {

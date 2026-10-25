@@ -2230,3 +2230,123 @@ html[dir='rtl'] .guide-keys th {
   text-align: right;
   padding: 5px 0 5px 10px;
 }
+
+/* ─────────────── subtitle event list (collapsible) ─────────────── */
+.sub-events-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+.sub-events-toggle {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+  padding: 3px 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.sub-events-toggle:hover {
+  color: var(--text);
+  background: var(--panel-3);
+}
+.sub-events-toggle svg {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  transition: transform 0.15s;
+}
+.sub-events-toggle[aria-expanded='false'] svg {
+  transform: rotate(-90deg);
+}
+html[dir='rtl'] .sub-events-toggle {
+  text-align: right;
+}
+html[dir='rtl'] .sub-events-toggle svg {
+  transform: rotate(0deg);
+}
+html[dir='rtl'] .sub-events-toggle[aria-expanded='false'] svg {
+  transform: rotate(90deg);
+}
+
+/* ─────────────── settings: grouped + auto-applied ─────────────── */
+.settings-card {
+  width: 560px;
+}
+.settings-group {
+  padding: 0 0 14px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.settings-group:last-child {
+  border-bottom: 0;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+.settings-group > h3 {
+  margin: 0 0 9px;
+  font-size: 11px;
+  letter-spacing: 0.9px;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.settings-group .field,
+.settings-group .check {
+  margin-bottom: 10px;
+}
+.settings-group .job-row {
+  margin-top: 2px;
+}
+.tool-status {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  background: var(--panel-2);
+  font: 11px/1.45 var(--mono);
+}
+.tool-status:empty {
+  display: none;
+}
+.ff-row {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+}
+.ff-k {
+  flex: 0 0 68px;
+  color: var(--muted-2);
+}
+.ff-v {
+  color: var(--muted);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.ff-v.ok {
+  color: var(--ok);
+}
+.ff-v.bad {
+  color: var(--danger);
+}
+.settings-saved {
+  font-size: 11px;
+  color: var(--ok);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.settings-saved.show {
+  opacity: 1;
+}

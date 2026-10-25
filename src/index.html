@@ -66,13 +66,23 @@
           <div class="row">
             <button id="btnSubExport" class="btn tiny" data-i18n="exportSrt">Export synced .srt files…</button>
           </div>
-          <div id="subEventList" class="sub-event-list"></div>
+          <div class="sub-events-head">
+            <button id="btnToggleSubEvents" class="sub-events-toggle" aria-expanded="true" aria-controls="subEventList"
+                    data-i18n-title="collapse" title="Collapse">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+              <span data-i18n="subEvents">Subtitle text</span>
+            </button>
+            <span id="subEventCount" class="pill">0</span>
+          </div>
+          <div id="subEventList" class="sub-event-list" aria-live="off"></div>
         </section>
 
         <section class="panel quick-actions">
           <h3 data-i18n="actions">Actions</h3>
           <div class="action-grid">
-            <button id="btnJob" class="btn tiny" title="Save / open / share the cut job" data-i18n="job">Job</button>
+            <button id="btnJob" class="btn tiny" title="Save / open / share the cut job" data-i18n-title="jobHint" data-i18n="job">Job</button>
             <button id="btnNsfw" class="btn tiny" title="Parent Assist — on-device AI that flags non-child-friendly scenes" data-i18n="parentAssist">Parent Assist</button>
             <button id="btnSidebarAddSub" class="btn tiny" data-i18n="addSubtitle">Add Subtitle</button>
             <button id="btnSidebarAddVideo" class="btn tiny" data-i18n="addVideo">Add Video</button>
@@ -356,71 +366,74 @@
 
     <!-- ─────────────────────── Settings modal ─────────────────────── -->
     <div id="settingsModal" class="modal hidden">
-      <div class="modal-card">
+      <div class="modal-card settings-card">
         <div class="modal-head">
           <h2 data-i18n="settings">Settings</h2>
-          <button id="setClose" class="btn ghost icon">✕</button>
+          <button id="setClose" class="btn ghost icon" title="Close">✕</button>
         </div>
         <div class="modal-body">
-          <p class="hint">
-            CUCI uses ffmpeg for probing, thumbnails and encoding. It prefers your own
-            <b>system</b> install and falls back to a <b>bundled</b> copy when none is found.
-          </p>
-          <label class="field wide">
-            <span data-i18n="setFfmpegPath">ffmpeg path — leave empty to auto-detect (system, then bundled)</span>
-            <div class="input-row">
-              <input id="setFfmpeg" type="text" spellcheck="false" placeholder="auto" />
-              <button id="setFfmpegBrowse" class="btn">Browse…</button>
+          <!-- appearance -->
+          <section class="settings-group">
+            <h3 data-i18n="setAppearance">Appearance</h3>
+            <div class="grid2">
+              <label class="field">
+                <span data-i18n="theme">Theme</span>
+                <select id="setTheme">
+                  <option value="system" data-i18n="themeSystem">System (follow Windows)</option>
+                  <option value="dark" data-i18n="themeDark">Dark</option>
+                  <option value="light" data-i18n="themeLight">Light</option>
+                </select>
+              </label>
+              <label class="field">
+                <span data-i18n="language">Language</span>
+                <select id="setLanguage"></select>
+              </label>
             </div>
-          </label>
-          <label class="field wide">
-            <span data-i18n="setFfprobePath">ffprobe path — leave empty to auto-detect</span>
-            <div class="input-row">
-              <input id="setFfprobe" type="text" spellcheck="false" placeholder="auto" />
-              <button id="setFfprobeBrowse" class="btn">Browse…</button>
+          </section>
+
+          <!-- editor -->
+          <section class="settings-group">
+            <h3 data-i18n="setEditing">Editor</h3>
+            <label class="check">
+              <input id="setLoadThumbs" type="checkbox" />
+              <span data-i18n="loadThumbs">Load keyframe snapshots into the timeline (filmstrip)</span>
+            </label>
+            <p class="hint sub" data-i18n="setThumbsHint"></p>
+          </section>
+
+          <!-- ffmpeg -->
+          <section class="settings-group">
+            <h3 data-i18n="setFfmpegSection">ffmpeg</h3>
+            <p class="hint" data-i18n="setHint"></p>
+            <label class="field wide">
+              <span data-i18n="setFfmpegPath">ffmpeg path</span>
+              <div class="input-row">
+                <input id="setFfmpeg" type="text" spellcheck="false" placeholder="auto" />
+                <button id="setFfmpegBrowse" class="btn" data-i18n="browse">Browse…</button>
+              </div>
+            </label>
+            <label class="field wide">
+              <span data-i18n="setFfprobePath">ffprobe path</span>
+              <div class="input-row">
+                <input id="setFfprobe" type="text" spellcheck="false" placeholder="auto" />
+                <button id="setFfprobeBrowse" class="btn" data-i18n="browse">Browse…</button>
+              </div>
+            </label>
+            <label class="check">
+              <input id="setPreferBundled" type="checkbox" />
+              <span data-i18n="preferBundled">Prefer the bundled ffmpeg over a system install</span>
+            </label>
+            <div class="job-row">
+              <button id="setDetect" class="btn" data-i18n="redetect">Re-detect</button>
+              <button id="setUseBundled" class="btn tiny ghost" data-i18n="fillBundled">Fill bundled paths</button>
             </div>
-          </label>
-          <label class="check">
-            <input id="setPreferBundled" type="checkbox" />
-            <span data-i18n="preferBundled">Prefer the bundled ffmpeg over a system install</span>
-          </label>
-          <div class="job-row">
-            <button id="setDetect" class="btn" data-i18n="redetect">Re-detect</button>
-            <button id="setUseBundled" class="btn tiny ghost" data-i18n="fillBundled">Fill bundled paths</button>
-          </div>
-
-          <div class="job-sep"></div>
-
-          <div class="grid2">
-            <label class="field">
-              <span data-i18n="theme">Theme</span>
-              <select id="setTheme">
-                <option value="system" data-i18n="themeSystem">System (follow Windows)</option>
-                <option value="dark" data-i18n="themeDark">Dark</option>
-                <option value="light" data-i18n="themeLight">Light</option>
-              </select>
-            </label>
-            <label class="field">
-              <span data-i18n="language">Language</span>
-              <select id="setLanguage"></select>
-            </label>
-          </div>
-
-          <label class="check">
-            <input id="setLoadThumbs" type="checkbox" />
-            <span data-i18n="loadThumbs">Load keyframe snapshots into the timeline (filmstrip)</span>
-          </label>
-          <p class="hint sub">
-            Off by default. When enabled, CUCI samples frames with ffmpeg to draw the filmstrip — on long videos this
-            decodes the whole file, so it can take a while.
-          </p>
-
-          <div id="setStatus" class="summary"></div>
+            <div id="setStatus" class="tool-status"></div>
+          </section>
         </div>
         <div class="modal-foot">
+          <span id="setSaved" class="settings-saved" data-i18n="setSaved">Saved</span>
           <div class="spacer"></div>
-          <button id="setClose2" class="btn ghost" data-i18n="close">Close</button>
-          <button id="setSave" class="btn primary" data-i18n="save">Save</button>
+          <button id="setClose2" class="btn primary" data-i18n="close">Close</button>
         </div>
       </div>
     </div>
@@ -690,6 +703,7 @@
     <script src="job.js"></script>
     <script src="i18n.js"></script>
     <script src="guide-i18n.js"></script>
+    <script src="messages-i18n.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

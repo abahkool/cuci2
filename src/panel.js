@@ -78,7 +78,22 @@
   }
 
   /* ───────────────────────── side panel ───────────────────────── */
+  let subEventsOpen = true;
+
+  function applySubEventsState() {
+    const list = $('subEventList');
+    const btn = $('btnToggleSubEvents');
+    if (!list || !btn) return;
+    list.classList.toggle('hidden', !subEventsOpen);
+    btn.setAttribute('aria-expanded', String(subEventsOpen));
+    btn.title = t(subEventsOpen ? 'collapse' : 'expand');
+  }
+
   function wireSidebar() {
+    $('btnToggleSubEvents').addEventListener('click', () => {
+      subEventsOpen = !subEventsOpen;
+      applySubEventsState();
+    });
     $('btnSubAdd').addEventListener('click', () => send('click', { id: 'btnSubAdd' }));
     $('btnSubExport').addEventListener('click', () => send('click', { id: 'btnSubExport' }));
     for (const id of ['btnJob', 'btnNsfw', 'btnSidebarAddSub', 'btnSidebarAddVideo']) {
@@ -171,8 +186,11 @@
     const info = $('subInfo');
     const trackList = $('subTrackList');
     const eventList = $('subEventList');
+    const count = $('subEventCount');
     trackList.innerHTML = '';
     eventList.innerHTML = '';
+    if (count) count.textContent = '0';
+    applySubEventsState();
 
     if (!s.clipName) {
       info.textContent = t('selectClipSubs');
@@ -213,6 +231,7 @@
       `${sub.eventCount} events · <span class="ok">${kept} kept</span>` +
       (sub.dropped ? ` · <span class="warn">${sub.dropped} dropped inside cuts</span>` : '');
 
+    if (count) count.textContent = String(sub.eventCount);
     sub.rows.forEach((r) => {
       const el = document.createElement('div');
       el.className = 'sub-event' + (r.dropped ? ' dropped' : '');
