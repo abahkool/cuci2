@@ -63,6 +63,9 @@
           <div class="row">
             <label class="field"><span data-i18n="globalOffset">Global offset (ms)</span><input id="subOffset" type="number" step="10" value="0" /></label>
           </div>
+          <div class="row">
+            <button id="btnSubExport" class="btn tiny" data-i18n="exportSrt">Export synced .srt files…</button>
+          </div>
           <div class="sub-events-head">
             <button id="btnToggleSubEvents" class="sub-events-toggle" aria-expanded="true" aria-controls="subEventList"
                     data-i18n-title="collapse" title="Collapse">
@@ -72,11 +75,6 @@
               <span data-i18n="subEvents">Subtitle text</span>
             </button>
             <span id="subEventCount" class="pill">0</span>
-            <button id="btnSubExport" class="sub-events-export" title="Export synced .srt files…" data-i18n-title="exportSrt" aria-label="Export synced .srt files">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M12 4v10" /><path d="M8 10l4 4 4-4" /><path d="M5 19h14" />
-              </svg>
-            </button>
           </div>
           <div id="subEventList" class="sub-event-list" aria-live="off"></div>
         </section>
