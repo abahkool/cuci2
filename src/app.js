@@ -1026,11 +1026,14 @@
     const rows = buildSubRows(active.events, ranges, state.globalSubOffset);
     const droppedCount = rows.filter((r) => r.dropped).length;
     const keptCount = rows.length - droppedCount;
+    // Compact single line: the sidebar has limited height and the details are
+    // already visible in the event list / track rows.
     els.subInfo.innerHTML =
-      `<b>${tracks.length} track${tracks.length > 1 ? 's' : ''}</b> · ` +
-      `<b>${CU.escapeHtml(active.name)}</b>${active.enabled === false ? ' (excluded from export)' : ''}<br>` +
-      `${rows.length} events · <span class="ok">${keptCount} kept</span>` +
-      (droppedCount ? ` · <span class="warn">${droppedCount} dropped inside cuts</span>` : '');
+      `<b>${tracks.length}×</b> ${CU.escapeHtml(active.name)}` +
+      (active.enabled === false ? ' <span class="warn">(×)</span>' : '') +
+      ` · <span class="ok">${keptCount}/${rows.length}</span>` +
+      (droppedCount ? ` · <span class="warn">${droppedCount}</span>` : '');
+    els.subInfo.title = `${active.name} · ${keptCount}/${rows.length}${droppedCount ? ` · ${droppedCount}` : ''}`;
 
     const max = 400;
     rows.slice(0, max).forEach((row) => {

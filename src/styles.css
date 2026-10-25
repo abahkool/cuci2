@@ -355,14 +355,20 @@ body {
   padding: 11px;
 }
 .panel.grow {
-  /* grow into spare space but never shrink below its content: long subtitle
-     lists scroll inside the panel instead of sliding under the next section */
-  flex: 1 0 auto;
-  min-height: 140px;
+  /* Take exactly the leftover height (basis 0) so the subtitle panel can never
+     push the Actions panel off-screen; the event list absorbs the difference. */
+  flex: 1 1 0;
+  min-height: 240px;
+  overflow: hidden;
+  padding-bottom: 8px;
 }
-.panel.grow > .sub-event-list {
-  flex: 1 1 auto;
-  min-height: 120px;
+/* Everything except the event list keeps its natural height while shrinking. */
+.panel.grow > h3,
+.panel.grow > .row,
+.panel.grow > .sub-info,
+.panel.grow > .sub-track-list,
+.panel.grow > .sub-events-head {
+  flex: 0 0 auto;
 }
 .panel h3 {
   margin: 0 0 9px;
@@ -1305,16 +1311,24 @@ html[dir='rtl'] .sidebar {
 .clip-list,
 .cut-list {
   flex: 0 1 auto;
-  min-height: 64px;
-  max-height: 30vh;
+  max-height: min(26vh, 240px);
 }
 
 /* Long subtitle listings scroll inside the panel (never behind the next one). */
 .panel.grow > .sub-event-list {
-  flex: 0 1 auto;
-  min-height: 120px;
-  max-height: min(34vh, 360px);
-  margin-top: 9px;
+  flex: 1 1 auto;
+  min-height: 36px;
+  max-height: none;
+  margin-top: 6px;
+}
+/* keep the summary to one compact line so the list gets the space */
+.panel.grow > .sub-info {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 10px;
+  line-height: 1.4;
+  margin-top: 6px;
 }
 
 .sub-track-list {
@@ -2236,7 +2250,31 @@ html[dir='rtl'] .guide-keys th {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-top: 10px;
+  margin-top: 8px;
+}
+.sub-events-export {
+  appearance: none;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted-2);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.sub-events-export svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+.sub-events-export:hover {
+  background: var(--panel-3);
+  color: var(--text);
 }
 .sub-events-toggle {
   appearance: none;
