@@ -646,6 +646,20 @@ Accelerators are only registered for actions that are safe while typing (`Ctrl+O
 `F11`). Undo/redo/marks/cuts keep their context-aware renderer shortcuts so text fields keep
 native editing. Developer Tools and Reload are not in the menu at all.
 
+Job sharing follows the same split: `Ctrl+S` is the menu accelerator for *File ▸ Save job
+file* (`save-job` → `saveJobFile()`), while `Ctrl+C` / `Ctrl+V` are handled inside `onKeyDown`
+(`copyShareCode()` / `pasteJobCode()`) so they only act outside text fields — inside an
+input/textarea the browser's own copy/paste still runs. `Ctrl+V` goes through
+`requestJobImport()`, i.e. the same preview + confirmation gate as the import tab.
+
+The job file path is remembered (`localStorage["cuci.jobFile"]` = `{ path, clip }`, written by
+`setJobFilePath()`): the first `Ctrl+S` asks for a location, later presses overwrite that same
+file and only toast *Job saved*. `saveJobFile({ ask: true })` — the **Save job file…** button in
+the Job panel — always shows the dialog. Opening a job file (*Open job file…*) remembers it too,
+but only after the import is confirmed. The memory is scoped to the first clip's path
+(`rememberedJobFile()`), so working on another video asks again instead of clobbering it; a
+failed write forgets the path so the next `Ctrl+S` asks.
+
 ### Settings (auto-applied)
 
 `#settingsModal` is grouped into **Appearance** (theme, language), **Editor** (filmstrip
@@ -658,9 +672,16 @@ change handlers; the stored appearance is applied once in `refreshInfo()` (guard
 
 ### Subtitle text list
 
-`#btnToggleSubEvents` collapses `#subEventList` (default expanded, persisted in
-`localStorage["cuci.subEvents"]`); the button carries `aria-expanded` and a translated
-Collapse/Expand title. The detached side panel has the same control (`panel.js`).
+`#btnToggleSubEvents` collapses `#subEventList` (**default collapsed**); `autoOpenSubEvents()`
+opens it when the active clip gains a subtitle track — first load, an extra track, or switching
+to a clip that has one (it compares `clip.subtitles.length` against `subTrackCounts[clip.id]`,
+the count seen on the previous render). A manual collapse therefore sticks until another track
+appears, and clicking a track row sets `subEventsOpen = true` to reveal the text of the track
+that was just chosen. The first loaded track is the active one by default
+(`clip.activeSubtitleId` is set to `subtitles[0].id` when it is missing, and
+`activeSubtitleTrack()` falls back to `subtitles[0]`). The button carries `aria-expanded` and a
+translated Collapse/Expand title. The detached side panel has the same control (`panel.js`,
+collapsed until the snapshot reports a track, with the same per-clip count map).
 
 ### User guide + job import confirmation
 

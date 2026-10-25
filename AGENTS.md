@@ -169,14 +169,20 @@ state = {
     (renderer) — main-process code uses `lib/i18n-main.js`. No hardcoded user-facing strings.
 18. **Settings apply immediately** — no Save button; use `persistSettings()` and keep
     `state.settings` in sync (it refreshes `app:info`). The subtitle text list is collapsible
-    (`localStorage["cuci.subEvents"]`, default expanded) in both the sidebar and the panel window.
-19. **The native menu is translated and state-driven**: add actions in `lib/menu.js`, handle
+    (`localStorage["cuci.subEvents"]`, **default collapsed**; it auto-opens when the clip gains a
+    track, a manual collapse sticks until another track appears) in both the sidebar and the
+    panel window.
+19. **`Ctrl+S` reuses the remembered job file** (`localStorage["cuci.jobFile"]`, scoped to the
+    first clip's path); only the Job panel's *Save job file…* button (`saveJobFile({ask:true})`)
+    always shows the dialog. `Ctrl+C`/`Ctrl+V` are renderer `onKeyDown` handlers outside text
+    fields; `Ctrl+V` goes through `requestJobImport()` (preview + confirmation).
+20. **The native menu is translated and state-driven**: add actions in `lib/menu.js`, handle
     them in `onMenuCommand` (`src/app.js`), and keep `sendMenuState()` after any change to
     snap/mode/pins/detach/theme/language. Never register accelerators for text-editing keys;
     DevTools/Reload stay out of production menus.
-20. **Theme colours come from CSS variables** (`:root` dark + `:root[data-theme='light']`).
+21. **Theme colours come from CSS variables** (`:root` dark + `:root[data-theme='light']`).
     Hard-coded hex values break the light theme — check it in Settings before shipping.
-21. **Sidebar sizing is delicate**: the subtitle panel is `.panel.grow` and may overflow at
+22. **Sidebar sizing is delicate**: the subtitle panel is `.panel.grow` and may overflow at
     800 px height. A compacting fix (commit `573f50a`: leftover-height panel, `.srt` export as
     a header icon, single-line summary) was **reverted at the user's request** (`91288da`). Do
     not re-apply it unless asked.
@@ -209,7 +215,7 @@ Do **not** `npm install` for no reason — `postinstall` fetches ~110 MB ffmpeg 
 - `lib/e2e.js` drives the real renderer with `window.__cuciApp` and prints structured JSON;
   it uses an isolated temp `userData` (never touches real settings). It also opens the
   detached side panel / control center as real windows and checks the state/command relay,
-  the guide modal (button + F1, 10 sections, 14 shortcut rows, translated title), the import
+  the guide modal (button + F1, 10 sections, 17 shortcut rows, translated title), the import
   confirmation (description shown, `<img onerror>` escaped, no injected nodes), theme
   switching, language switching and the native menu state.
 - `scripts/verify-build.cjs` runs against the obfuscated `.build/app` stage and its own

@@ -218,6 +218,9 @@ Settings are stored in your Electron user-data folder (`settings.json`).
 | `Ctrl` + `Shift` + `Z` / `Ctrl` + `Y` | Redo |
 | `Ctrl` + `1` / `2` | Pin (show) or auto-hide the side panel · control center (timeline follows) |
 | `Ctrl` + `Shift` + `1` / `2` | Detach / re-dock the side panel · control center |
+| `Ctrl` + `S` | Save the cut job to a file (re-saves the same file once one is known) |
+| `Ctrl` + `C` | Copy the share code of the current cuts |
+| `Ctrl` + `V` | Import a share code from the clipboard (asks for confirmation) |
 | Right-click | Cut context menu at the pointer |
 | Double-click ruler / filmstrip | Set In, then Out, then start a new range |
 | Double-click In/Out marker | Remove that marker |

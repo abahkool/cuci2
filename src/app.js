@@ -138,15 +138,32 @@
     ].forEach((id) => (els[id] = $(id)));
   }
 
-  /* ────────────── collapsible subtitle text list (default open) ────────────── */
+  /* ──────── collapsible subtitle text list (collapsed until a track is chosen) ──────── */
   const SUB_EVENTS_KEY = 'cuci.subEvents';
-  let subEventsOpen = true;
+  let subEventsOpen = false;
+  // Track count seen on the previous render, per clip: the list opens when a clip
+  // first shows subtitles or when a new track is added, but a manual collapse sticks.
+  const subTrackCounts = Object.create(null);
 
   function applySubEventsState() {
     if (!els.subEventList || !els.btnToggleSubEvents) return;
     els.subEventList.classList.toggle('hidden', !subEventsOpen);
     els.btnToggleSubEvents.setAttribute('aria-expanded', String(subEventsOpen));
     els.btnToggleSubEvents.title = t(subEventsOpen ? 'collapse' : 'expand');
+  }
+
+  /** Open the subtitle text list as soon as a subtitle track is available (first
+   *  load, an extra track, or switching to a clip that has one). A manual collapse
+   *  sticks until another track shows up. */
+  function autoOpenSubEvents() {
+    const clip = activeClip();
+    if (!clip) return;
+    const count = Array.isArray(clip.subtitles) ? clip.subtitles.length : 0;
+    if (count > (subTrackCounts[clip.id] || 0)) {
+      subEventsOpen = true;
+      applySubEventsState();
+    }
+    subTrackCounts[clip.id] = count;
   }
 
   function wireSubEventsToggle() {
@@ -969,6 +986,7 @@
   function updateSubPanel() {
     scheduleSidebarSync();
     if (els.subEventCount) els.subEventCount.textContent = '0';
+    autoOpenSubEvents();
     applySubEventsState();
     const clip = activeClip();
     if (document.activeElement !== els.subOffset) els.subOffset.value = String(state.globalSubOffset);
@@ -1018,6 +1036,7 @@
       row.addEventListener('click', (e) => {
         if (e.target.closest('input, button')) return;
         clip.activeSubtitleId = t.id;
+        subEventsOpen = true; // choosing a track reveals its text
         renderAll();
       });
       els.subTrackList.appendChild(row);
@@ -1797,17 +1816,55 @@
     els.jobCodeInfo.classList.toggle('warn', bytes > 4000);
   }
 
-  async function saveJobFile() {
+  /* ─────────── job file: remembered path for the Ctrl+S shortcut ─────────── */
+  const JOB_FILE_KEY = 'cuci.jobFile';
+  let jobFilePath = null;
+  let jobFileClipPath = null; // first clip the remembered file belongs to
+
+  function setJobFilePath(p, clipPath) {
+    jobFilePath = p || null;
+    jobFileClipPath = jobFilePath ? clipPath || null : null;
+    try {
+      if (jobFilePath) {
+        localStorage.setItem(JOB_FILE_KEY, JSON.stringify({ path: jobFilePath, clip: jobFileClipPath }));
+      } else {
+        localStorage.removeItem(JOB_FILE_KEY);
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  /** The remembered job file — only when the current project is still the one it
+   *  was saved from, so working on another video never overwrites it silently. */
+  function rememberedJobFile() {
+    if (!jobFilePath) return null;
+    const first = state.clips[0];
+    if (jobFileClipPath && first && first.path !== jobFileClipPath) return null;
+    return jobFilePath;
+  }
+
+  /** Write the job file. `ask: true` (the Job panel button) always shows the save
+   *  dialog; otherwise the remembered path is reused so a second Ctrl+S only
+   *  overwrites the same file and reports it as saved. */
+  async function saveJobFile({ ask = false } = {}) {
     if (!state.clips.length) return toast(t('msgAddVideo'), 'warn');
     const first = state.clips[0];
-    const def = pathJoin(CU.dirname(first.path), CU.stripExt(first.name) + '.cuci.json');
-    const p = await api.saveFile({ title: t('jobTitle'), defaultPath: def, filters: [{ name: t('jobTitle'), extensions: ['json'] }] });
-    if (!p) return;
+    let target = !ask ? rememberedJobFile() : null;
+    if (!target) {
+      const def = jobFilePath || pathJoin(CU.dirname(first.path), CU.stripExt(first.name) + '.cuci.json');
+      target = await api.saveFile({ title: t('jobTitle'), defaultPath: def, filters: [{ name: t('jobTitle'), extensions: ['json'] }] });
+      if (!target) return;
+    }
     try {
-      await api.writeText(p, JSON.stringify(buildJob(true), null, 2));
-      setJobStatus(t('msgJobSaved') + ' ' + p, 'ok');
-      toast(t('msgJobSaved') + ':\n' + p, 'ok', 6000);
+      await api.writeText(target, JSON.stringify(buildJob(true), null, 2));
+      setJobFilePath(target, first.path);
+      setJobStatus(t('msgJobSaved') + ' ' + target, 'ok');
+      toast(t('msgJobSaved') + ':\n' + target, 'ok', 6000);
     } catch (err) {
+      // A remembered path that no longer works (drive unplugged, file moved) falls
+      // back to the dialog on the next save instead of failing forever.
+      if (!ask && jobFilePath) setJobFilePath(null);
       toast(t('msgJobSaveFailed') + '\n' + (err.message || err), 'error', 8000);
     }
   }
@@ -1820,17 +1877,38 @@
     if (!p) return;
     try {
       const text = await api.readText(p, { maxBytes: CU.JOB_LIMITS.jsonBytes });
-      await requestJobImport(text, ` from ${CU.basename(p)}`);
+      // Remember the file only once the user confirms the import.
+      await requestJobImport(text, ` from ${CU.basename(p)}`, p);
     } catch (err) {
       toast(t('msgJobOpenFailed') + '\n' + (err.message || err), 'error', 9000);
     }
   }
 
+  /** Copy the share code for the current cuts. Used by the Job panel button and by
+   *  the global Ctrl+C shortcut, so the code is regenerated from the live state. */
   async function copyShareCode() {
-    if (!els.jobCode.value) await refreshShareCode();
+    if (!state.clips.length) return toast(t('msgAddVideo'), 'warn');
+    try {
+      await refreshShareCode();
+    } catch (err) {
+      return toast(t('msgJobSaveFailed') + '\n' + (err.message || err), 'error', 8000);
+    }
     if (!els.jobCode.value) return toast(t('msgNothingShare'), 'warn');
     await api.clipboardWrite(els.jobCode.value);
     toast(t('msgShareCopied'), 'ok', 3000);
+  }
+
+  /** Ctrl+V outside a text field: import whatever share code the clipboard holds.
+   *  Goes through the normal preview + confirmation prompt (untrusted input). */
+  async function pasteJobCode() {
+    let text = '';
+    try {
+      text = (await api.clipboardRead()) || '';
+    } catch {
+      /* ignore */
+    }
+    if (!text.trim()) return toast(t('msgClipboardEmpty'), 'warn');
+    await requestJobImport(text.trim(), ' from clipboard');
   }
 
   async function pasteFromClipboard() {
@@ -1901,7 +1979,7 @@
   }
 
   /** Decode → sanitize → preview → confirm → apply (never trusts the payload). */
-  async function requestJobImport(text, sourceLabel) {
+  async function requestJobImport(text, sourceLabel, sourcePath) {
     let job;
     try {
       // parseJobText enforces the byte caps, bounded inflate and sanitizeJob.
@@ -1926,6 +2004,8 @@
     const ok = await askImportConfirm(job, matched, missing);
     if (!ok) return;
     const res = applyJob(job);
+    // Opening a job file makes it the Ctrl+S target for this project.
+    if (sourcePath) setJobFilePath(sourcePath, state.clips[0] ? state.clips[0].path : null);
     finishJobApply(res.job, res, sourceLabel);
   }
 
@@ -2480,13 +2560,15 @@
     state.settings = { loadThumbs: false, preferBundled: false, ...(info.settings || {}) };
 
     if (info.ffmpeg.ok) {
-      // Keep the chip short ("8.0" rather than "8.0-essentials_build-www.gyan.dev");
-      // the full build string stays in the tooltip.
+      // Healthy ffmpeg stays silent: the chip is only a problem indicator, so it
+      // is hidden unless resolution fails (details live in Settings).
       const shortVer = String(info.ffmpeg.version || '?').split(/[-_\s]/)[0];
       els.ffStatus.className = 'ff-status ok';
       els.ffStatus.textContent = `ffmpeg ✓ ${shortVer} · ${sourceLabel(info.ffmpeg.source)}`;
       els.ffStatus.title = `${info.ffmpeg.version}\n${info.ffmpeg.path}${info.ffmpeg.libass ? '\nlibass' : ''}`;
+      els.ffStatus.hidden = true;
     } else {
+      els.ffStatus.hidden = false;
       els.ffStatus.className = 'ff-status bad';
       els.ffStatus.textContent = `ffmpeg ✗ ${t('stNotFound')}`;
       els.ffStatus.title = info.ffmpeg.error || t('stNotFound');
@@ -3311,7 +3393,7 @@
     });
     els.jobClose.addEventListener('click', closeJobModal);
     els.jobClose2.addEventListener('click', closeJobModal);
-    els.jobSave.addEventListener('click', saveJobFile);
+    els.jobSave.addEventListener('click', () => saveJobFile({ ask: true }));
     els.jobOpen.addEventListener('click', openJobFile);
     els.jobCopy.addEventListener('click', copyShareCode);
     els.jobRefresh.addEventListener('click', refreshShareCode);
@@ -3803,6 +3885,20 @@
       return;
     }
 
+    // Job shortcuts. Ctrl+S keeps its native-menu accelerator (File ▸ Save job
+    // file); Ctrl+C / Ctrl+V are handled here only when the focus is not a text
+    // field (see the early return above), so editing still copies/pastes text.
+    if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'c') {
+      e.preventDefault();
+      copyShareCode();
+      return;
+    }
+    if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'v') {
+      e.preventDefault();
+      pasteJobCode();
+      return;
+    }
+
     if (mod && /^Digit[12]$/.test(e.code)) {
       e.preventDefault();
       const name = e.code === 'Digit1' ? 'sidebar' : 'transport';
@@ -3873,9 +3969,23 @@
   async function init() {
     cacheEls();
     try {
-      subEventsOpen = localStorage.getItem(SUB_EVENTS_KEY) !== '0';
+      subEventsOpen = localStorage.getItem(SUB_EVENTS_KEY) === '1';
     } catch {
-      subEventsOpen = true;
+      subEventsOpen = false;
+    }
+    try {
+      jobFilePath = localStorage.getItem(JOB_FILE_KEY) || null;
+    } catch {
+      jobFilePath = null;
+    }
+    if (jobFilePath) {
+      try {
+        const rec = JSON.parse(jobFilePath);
+        jobFilePath = rec && rec.path ? rec.path : null;
+        jobFileClipPath = rec && rec.clip ? rec.clip : null;
+      } catch {
+        jobFileClipPath = null; // legacy/plain string entry
+      }
     }
     refillCodecOptions();
     loadLayout();

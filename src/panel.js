@@ -78,7 +78,10 @@
   }
 
   /* ───────────────────────── side panel ───────────────────────── */
-  let subEventsOpen = true;
+  // Collapsed until the clip has subtitles; a manual toggle keeps until a new
+  // track appears (track count seen per clip on the previous snapshot).
+  let subEventsOpen = false;
+  const subTrackCounts = Object.create(null);
 
   function applySubEventsState() {
     const list = $('subEventList');
@@ -190,6 +193,9 @@
     trackList.innerHTML = '';
     eventList.innerHTML = '';
     if (count) count.textContent = '0';
+    const prevTracks = subTrackCounts[s.activeClipId] || 0;
+    if (sub.tracks.length > prevTracks) subEventsOpen = true;
+    subTrackCounts[s.activeClipId] = sub.tracks.length;
     applySubEventsState();
 
     if (!s.clipName) {

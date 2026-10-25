@@ -222,7 +222,7 @@ Run on a clean Windows 10/11 x64 machine (no dev tools installed).
 
 **No ffmpeg installed** (the important one for bulk users)
 
-- [ ] App launches; status bar shows `ffmpeg ✓ <version> · bundled`
+- [ ] App launches; the Actions panel shows **no** ffmpeg chip (it only appears on problems); Settings shows `ffmpeg ✓ <version> · bundled`
 - [ ] Settings shows the resolved path, source and `libass ✓`
 - [ ] A full cut + export works end to end
 - [ ] **With `--no-ffmpeg`**: status bar shows a clear "ffmpeg not found" error and Settings offers the Browse / config path — no crash

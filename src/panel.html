@@ -29,6 +29,16 @@
 
     <!-- ───────────── side panel (media / cuts / subtitles) ───────────── -->
     <div id="panelSidebar" class="panel-body" hidden>
+      <section class="panel quick-actions">
+        <h3 data-i18n="actions">Actions</h3>
+        <div class="action-grid">
+          <button id="btnJob" class="btn tiny" data-i18n="job">Job</button>
+          <button id="btnNsfw" class="btn tiny" data-i18n="parentAssist">Parent Assist</button>
+          <button id="btnSidebarAddSub" class="btn tiny" data-i18n="addSubtitle">Add Subtitle</button>
+          <button id="btnSidebarAddVideo" class="btn tiny" data-i18n="addVideo">Add Video</button>
+        </div>
+      </section>
+
       <section class="panel">
         <h3><span data-i18n="media">Media</span> <span id="clipCount" class="pill">0</span></h3>
         <div id="clipList" class="clip-list"></div>
@@ -53,8 +63,8 @@
           <button id="btnSubExport" class="btn tiny" data-i18n="exportSrt">Export synced .srt files…</button>
         </div>
         <div class="sub-events-head">
-          <button id="btnToggleSubEvents" class="sub-events-toggle" aria-expanded="true" aria-controls="subEventList"
-                  data-i18n-title="collapse" title="Collapse">
+          <button id="btnToggleSubEvents" class="sub-events-toggle" aria-expanded="false" aria-controls="subEventList"
+                  data-i18n-title="expand" title="Expand">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M6 9l6 6 6-6" />
             </svg>
@@ -62,17 +72,7 @@
           </button>
           <span id="subEventCount" class="pill">0</span>
         </div>
-        <div id="subEventList" class="sub-event-list"></div>
-      </section>
-
-      <section class="panel quick-actions">
-        <h3 data-i18n="actions">Actions</h3>
-        <div class="action-grid">
-          <button id="btnJob" class="btn tiny" data-i18n="job">Job</button>
-          <button id="btnNsfw" class="btn tiny" data-i18n="parentAssist">Parent Assist</button>
-          <button id="btnSidebarAddSub" class="btn tiny" data-i18n="addSubtitle">Add Subtitle</button>
-          <button id="btnSidebarAddVideo" class="btn tiny" data-i18n="addVideo">Add Video</button>
-        </div>
+        <div id="subEventList" class="sub-event-list hidden"></div>
       </section>
     </div>
 
