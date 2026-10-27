@@ -46,7 +46,7 @@
         <section class="panel quick-actions">
           <h3 data-i18n="actions">Actions</h3>
           <div class="action-grid">
-            <button id="btnJob" class="btn tiny" title="Save / open / share the cut job" data-i18n-title="jobHint" data-i18n="job">Job</button>
+            <button id="btnJob" class="btn tiny" title="Save / open / share the cut job" data-i18n-title="jobHint" data-i18n="job">Current Job</button>
             <button id="btnNsfw" class="btn tiny" title="Parent Assist — on-device AI that flags non-child-friendly scenes" data-i18n="parentAssist">Parent Assist</button>
             <button id="btnSidebarAddSub" class="btn tiny" data-i18n="addSubtitle">Add Subtitle</button>
             <button id="btnSidebarAddVideo" class="btn tiny" data-i18n="addVideo">Add Video</button>
@@ -399,6 +399,16 @@
               <span data-i18n="loadThumbs">Load keyframe snapshots into the timeline (filmstrip)</span>
             </label>
             <p class="hint sub" data-i18n="setThumbsHint"></p>
+          </section>
+
+          <!-- export -->
+          <section class="settings-group">
+            <h3 data-i18n="setExportSection">Export</h3>
+            <p class="hint" data-i18n="setExportHint"></p>
+            <div class="job-row">
+              <button id="setExportPage" class="btn" data-i18n="openExportPage">Open the export page</button>
+              <button id="setExportReset" class="btn tiny ghost" data-i18n="alwaysExportPage">Always show the export page</button>
+            </div>
           </section>
 
           <!-- ffmpeg -->

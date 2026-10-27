@@ -351,6 +351,30 @@ real `ffmpeg.exe` as a child, so `child.kill()` only kills the shim. Cancellatio
 
 `export:cancel` also stops concurrent thumbnail/proxy jobs so no ffmpeg keeps running.
 
+### Export page vs. quick export (`requestExport`)
+
+The export page is shown **only the first time**. `startExport()` stores the configuration it
+actually ran with in `localStorage["cuci.exportConfig"]`:
+
+```js
+{ container, vcodec, crf, preset, res, fps, abitrate, burn, srt, burnTrack, outPath, clip }
+```
+
+- `btnExport` / *File ▸ Export* / `Ctrl+E` call `requestExport()`: no remembered config →
+  `openExportModal()`; otherwise the controls are refilled (`applyExportConfig()`) and the
+  export starts immediately (same zero-cut guard: the first click only arms the button).
+- `readExportConfig()` re-validates every field against the tables `EXPORT_FORMATS`,
+  `EXPORT_PRESETS`, `EXPORT_RES`, `EXPORT_FPS`, `EXPORT_ABITRATE` (unknown container → `mp4`,
+  crf clamped to 12…34, unknown codec → the container's default), so a hand-edited or stale
+  value can never reach ffmpeg.
+- `outPath` is reused **only while `cfg.clip` still equals `state.clips[0].path`** — a new
+  first clip gets a fresh `defaultOutputPath()` instead of overwriting the previous result.
+- Settings ▸ *Export* holds **Open the export page** (`setExportPage`) and **Always show the
+  export page** (`setExportReset`, drops `cuci.exportConfig`). `openExportModal()` also applies
+  the remembered config, so the page always shows what a quick export would do.
+- `sendMenuState()` reports `exportReady` so the native *File ▸ Export* item drops its ellipsis
+  once the page is no longer used.
+
 ---
 
 ## NSFW scene detection (`lib/nsfw.js`)
@@ -597,6 +621,11 @@ use those variables instead of hard-coded colours. Persisted in
   `settings.json` (`language`) is the durable value shown in Settings.
 - Detached panel windows apply `localStorage` on boot and follow the `lang` field that the
   main window includes in every `panel:state` snapshot.
+- Panel windows follow the **main window's resolved theme**, never the OS alone: `panel:open`
+  carries `theme` (used for `BrowserWindow.backgroundColor` and the `?theme=` query so the
+  first paint is right), and every `main` snapshot repeats `theme`; `src/panel.js`
+  (`applyPanelTheme`) writes it to `<html data-theme>` — the same attribute `styles.css` keys
+  the light palette off. `applyTheme()` re-pushes both pane snapshots.
 - Adding a language: add it to `LANGS` + a `DICT` entry with all keys (the key set is
   `Object.keys(DICT.en)`), and add the code to the e2e appearance check if it is a big one.
 - `src/guide-i18n.js`, `src/messages-i18n.js`, `src/menu-i18n.js` and `src/errors-i18n.js`
@@ -663,8 +692,10 @@ failed write forgets the path so the next `Ctrl+S` asks.
 ### Settings (auto-applied)
 
 `#settingsModal` is grouped into **Appearance** (theme, language), **Editor** (filmstrip
-thumbnails + hint) and **ffmpeg** (hint, paths, prefer-bundled, Re-detect/Fill, and a
-translated `ffmpeg`/`ffprobe`/`bundled` status table). There is **no Save button**:
+thumbnails + hint), **Export** (open the export page / forget the remembered export
+configuration — the page itself is first-run only, see *Export page vs. quick export*) and
+**ffmpeg** (hint, paths, prefer-bundled, Re-detect/Fill, and a translated
+`ffmpeg`/`ffprobe`/`bundled` status table). There is **no Save button**:
 `persistSettings()` debounces 150 ms, calls `settings:set`, flashes `#setSaved` and refreshes
 `app:info` so `state.settings` stays current. Theme/language are applied instantly by their
 change handlers; the stored appearance is applied once in `refreshInfo()` (guarded by

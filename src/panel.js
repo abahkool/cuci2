@@ -564,6 +564,14 @@
   }
 
   /* ───────────────────────────── boot ───────────────────────────── */
+  // Detached windows are their own BrowserWindows, so they must be told the
+  // resolved theme of the main window — following the OS alone was wrong.
+  function applyPanelTheme(theme) {
+    if (theme !== 'light' && theme !== 'dark') return;
+    document.documentElement.dataset.theme = theme;
+    document.body.dataset.theme = theme;
+  }
+
   function applyPanelLanguage(lang) {
     const current = CU.i18n.current();
     if (lang && lang !== current) CU.i18n.apply(lang);
@@ -577,6 +585,7 @@
 
   function init() {
     document.body.dataset.panel = NAME;
+    applyPanelTheme(params.get('theme') || 'dark');
     CU.i18n.apply(CU.i18n.stored());
     $('panelSub').textContent = t(TITLE_KEYS[NAME]);
     document.title = `CUCI — ${t(TITLE_KEYS[NAME])}`;
@@ -595,6 +604,7 @@
         renderTimelineBase();
         return;
       }
+      if (payload.data.theme) applyPanelTheme(payload.data.theme);
       if (payload.data.lang && payload.data.lang !== CU.i18n.current()) applyPanelLanguage(payload.data.lang);
       last = payload.data;
       if (NAME === 'transport') {
