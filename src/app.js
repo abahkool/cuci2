@@ -134,7 +134,6 @@
       'expProgressWrap', 'expProgressBar', 'expStatus', 'expStart', 'expCancel', 'expClose', 'expClose2',
       'settingsModal', 'setFfmpeg', 'setFfprobe', 'setFfmpegBrowse', 'setFfprobeBrowse', 'setPreferBundled', 'setUseBundled', 'setTheme', 'setLanguage',
       'setLoadThumbs', 'setDetect', 'setSaved', 'setClose', 'setClose2', 'setStatus',
-      'setExportPage', 'setExportReset',
       'btnJob', 'jobModal', 'jobClose', 'jobClose2', 'jobTabExport', 'jobTabImport', 'jobPanelExport', 'jobPanelImport',
       'jobSave', 'jobOpen', 'jobDesc', 'jobDescCount', 'jobIncludeSubs', 'jobCode',
       'btnGuide', 'guideModal', 'guideClose', 'guideClose2',
@@ -2373,125 +2372,9 @@
   function openExportModal() {
     if (!state.clips.length) return toast(t('msgAddVideo'), 'warn');
     pause();
-    resetExportConfirm();
-    // Show the settings that the next quick export would use.
-    const cfg = readExportConfig();
-    if (cfg) applyExportConfig(cfg);
-    else if (!els.expPath.value) els.expPath.value = defaultOutputPath();
+    if (!els.expPath.value) els.expPath.value = defaultOutputPath();
     updateExportSummary();
-    if (cfg) applyBurnTrack(cfg.burnTrack);
     els.exportModal.classList.remove('hidden');
-  }
-
-  /* ─────────────── remembered export configuration ───────────────
-   * The export page is a first-run thing: once an export has actually been
-   * started, its settings are remembered and the Export button reuses them and
-   * begins immediately. The Settings page has a button that opens the page on
-   * demand (and one that forgets the configuration again). The output path is
-   * re-derived when the first clip changed, so a quick export never silently
-   * overwrites another video's result. */
-  const EXPORT_KEY = 'cuci.exportConfig';
-  const EXPORT_FIELDS = {
-    container: 'expContainer',
-    vcodec: 'expVcodec',
-    crf: 'expCrf',
-    preset: 'expPreset',
-    res: 'expRes',
-    fps: 'expFps',
-    abitrate: 'expAbitrate',
-  };
-  const EXPORT_PRESETS = ['ultrafast', 'veryfast', 'faster', 'medium', 'slow', 'slower'];
-  const EXPORT_RES = ['source', '2160', '1440', '1080', '720', '480'];
-  const EXPORT_FPS = ['source', '60', '30', '24'];
-  const EXPORT_ABITRATE = ['128k', '192k', '256k', '320k'];
-
-  function captureExportConfig() {
-    const cfg = {
-      outPath: els.expPath.value.trim(),
-      clip: state.clips[0] ? state.clips[0].path : '',
-      burn: !!els.expBurn.checked,
-      srt: !!els.expSrt.checked,
-      burnTrack: els.expBurnTrack.value || '',
-    };
-    for (const [key, id] of Object.entries(EXPORT_FIELDS)) cfg[key] = els[id].value;
-    return cfg;
-  }
-
-  function saveExportConfig(cfg) {
-    try {
-      localStorage.setItem(EXPORT_KEY, JSON.stringify(cfg || captureExportConfig()));
-    } catch {
-      /* ignore */
-    }
-  }
-
-  /** Remembered configuration, validated against the tables (never trusted blindly). */
-  function readExportConfig() {
-    let raw = null;
-    try {
-      raw = JSON.parse(localStorage.getItem(EXPORT_KEY) || 'null');
-    } catch {
-      raw = null;
-    }
-    if (!raw || typeof raw !== 'object') return null;
-    const container = Object.prototype.hasOwnProperty.call(EXPORT_FORMATS, raw.container) ? raw.container : 'mp4';
-    const fmt = exportFormat(container);
-    const crf = Number(raw.crf);
-    return {
-      container,
-      vcodec: fmt.video.some(([v]) => v === raw.vcodec) ? raw.vcodec : fmt.defaultVideo,
-      crf: String(Math.min(34, Math.max(12, Number.isFinite(crf) ? Math.round(crf) : 20))),
-      preset: EXPORT_PRESETS.includes(raw.preset) ? raw.preset : 'medium',
-      res: EXPORT_RES.includes(String(raw.res)) ? String(raw.res) : 'source',
-      fps: EXPORT_FPS.includes(String(raw.fps)) ? String(raw.fps) : 'source',
-      abitrate: EXPORT_ABITRATE.includes(String(raw.abitrate)) ? String(raw.abitrate) : '192k',
-      burn: raw.burn === true,
-      srt: raw.srt !== false,
-      burnTrack: typeof raw.burnTrack === 'string' ? raw.burnTrack : '',
-      outPath: typeof raw.outPath === 'string' ? raw.outPath : '',
-      clip: typeof raw.clip === 'string' ? raw.clip : '',
-    };
-  }
-
-  /** True while the export page still has to be visited (nothing remembered yet). */
-  function exportNeedsConfig() {
-    return !readExportConfig();
-  }
-
-  /** Fill the export controls from a remembered configuration. */
-  function applyExportConfig(cfg) {
-    els.expContainer.value = cfg.container;
-    for (const [key, id] of Object.entries(EXPORT_FIELDS)) els[id].value = cfg[key];
-    refillCodecOptions(cfg.vcodec);
-    els.expCrfVal.textContent = els.expCrf.value;
-    els.expBurn.checked = !!cfg.burn;
-    els.expSrt.checked = cfg.srt !== false;
-    // A different first clip gets a fresh output path instead of overwriting the
-    // result of the previous video.
-    const first = state.clips[0];
-    els.expPath.value = first && cfg.clip === first.path && cfg.outPath ? cfg.outPath : defaultOutputPath();
-  }
-
-  /** Reselect a remembered burn track once the options have been rebuilt. */
-  function applyBurnTrack(id) {
-    if (!id) return;
-    if ([...els.expBurnTrack.options].some((o) => o.value === id)) els.expBurnTrack.value = id;
-  }
-
-  /** Export button / menu / shortcut: first visit opens the page, then it just runs. */
-  function requestExport() {
-    if (!state.clips.length) return toast(t('msgAddVideo'), 'warn');
-    if (state.exporting) return;
-    const cfg = readExportConfig();
-    if (!cfg) return openExportModal();
-    // A quick export with no cuts would re-encode the whole source: keep that
-    // decision on the export page, where the guard is visible.
-    if (!state.clips.some((c) => c.cuts && c.cuts.length)) return openExportModal();
-    pause();
-    applyExportConfig(cfg);
-    updateExportSummary();
-    applyBurnTrack(cfg.burnTrack);
-    startExport();
   }
 
   function closeExportModal() {
@@ -2517,9 +2400,6 @@
       return;
     }
     resetExportConfirm();
-    // Remember what actually runs, so a later Export click skips the page.
-    saveExportConfig();
-    sendMenuState();
 
     const burnTrack = tracks.find((t) => t.trackId === els.expBurnTrack.value) || tracks[0] || null;
     const burn = els.expBurn.checked && !!burnTrack;
@@ -3340,7 +3220,6 @@
           theme: themeMode,
           language: CU.i18n.stored(),
           resolvedLanguage: CU.i18n.current(),
-          exportReady: !exportNeedsConfig(),
         });
       } catch {
         /* ignore */
@@ -3496,7 +3375,7 @@
       await addSubtitleToClip(clip);
     });
 
-    els.btnExport.addEventListener('click', requestExport);
+    els.btnExport.addEventListener('click', openExportModal);
     els.btnSettings.addEventListener('click', openSettings);
     els.btnGuide.addEventListener('click', openGuide);
     els.guideClose.addEventListener('click', closeGuide);
@@ -3833,20 +3712,6 @@
       persistSettings();
     });
     els.setPreferBundled.addEventListener('change', () => persistSettings());
-    els.setExportPage.addEventListener('click', () => {
-      if (state.exporting) return toast(t('msgExporting'), 'warn');
-      els.settingsModal.classList.add('hidden');
-      openExportModal();
-    });
-    els.setExportReset.addEventListener('click', () => {
-      try {
-        localStorage.removeItem(EXPORT_KEY);
-      } catch {
-        /* ignore */
-      }
-      toast(t('msgExportConfigReset'), 'ok');
-      sendMenuState();
-    });
     els.setFfmpeg.addEventListener('change', () => persistSettings());
     els.setFfprobe.addEventListener('change', () => persistSettings());
     els.setDetect.addEventListener('click', () => refreshInfo());
@@ -4184,11 +4049,6 @@
       currentSetup,
       setPanelPinned,
       setPanelDetached,
-      requestExport,
-      openExportModal,
-      readExportConfig,
-      saveExportConfig,
-      exportNeedsConfig,
     };
   }
 

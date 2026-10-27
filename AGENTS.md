@@ -139,12 +139,6 @@ state = {
    height persists in `localStorage["cuci.timelineHeight"]`.
 7. **Export guard**: exporting with 0 cuts requires a second click (prevents accidental
    full-length re-encodes).
-7b. **The export page is first-run only**: `startExport()` saves
-   `localStorage["cuci.exportConfig"]`; `requestExport()` (Export button, menu, `Ctrl+E`)
-   reuses it and starts immediately, and Settings ▸ Export offers *Open the export page* /
-   *Always show the export page*. `readExportConfig()` re-validates every field against the
-   format tables (never trust localStorage). The output path is reused only while the first
-   clip is unchanged.
 8. **Detached panels are real OS windows** (`lib/panels.js` + `src/panel.*`). The main
    renderer is the only source of truth: panels get snapshots (`panel:state`, `kind: main |
    timeline`) and reply with validated commands (`panel:cmd`). They use `panel-preload.js`,
@@ -237,10 +231,8 @@ Do **not** `npm install` for no reason — `postinstall` fetches ~110 MB ffmpeg 
   detached side panel / control center as real windows and checks the state/command relay,
   the guide modal (button + F1, 10 sections, 17 shortcut rows, translated title), the import
   confirmation (description shown, `<img onerror>` escaped, no injected nodes), theme
-  switching, language switching (15 entries incl. auto, Arabic RTL), the native menu state,
-  the remembered export configuration (`exportNeedsConfig`, first click opens the page, garbage
-  values sanitised) and that a detached window flips to `data-theme="light"` with the main
-  theme.
+  switching, language switching (15 entries incl. auto, Arabic RTL), the native menu state, and
+  that a detached window flips to `data-theme="light"` with the main theme.
 - `lib/e2e.js` also checks the subtitle list (`evOpenByDefault`, `evCollapsed`, `evReopened`)
   and `subEventsEmpty` after `loadInfo` — keep both when touching the collapse logic.
 - `scripts/verify-build.cjs` runs against the obfuscated `.build/app` stage and its own
@@ -267,8 +259,7 @@ Do **not** `npm install` for no reason — `postinstall` fetches ~110 MB ffmpeg 
 
 Implemented and tested: timeline editing (drag select, I/O marks, double-click In/Out,
 right-click cut menu, cut-edge drag, undo/redo), multi-clip merge, frame-accurate export with
-progress + cancel (**export page only on the first run** — later Exports reuse the remembered
-configuration and start immediately; revisit the page from Settings), **8 export containers** (mp4/mov/mkv/webm/avi/wmv/flv/ts), subtitle sync
+progress + cancel, **8 export containers** (mp4/mov/mkv/webm/avi/wmv/flv/ts), subtitle sync
 with **multiple tracks per clip** (enable/remove, per-track `.srt` export, "track to burn",
 collapsible text list that opens when a track appears), Parent Assist (NSFW) scanning, cut jobs
 (file + compact share code, Export/Import tabs, description, **remembered job file** so `Ctrl+S`
@@ -302,9 +293,8 @@ Known limitations / likely next work:
 ## Renderer state kept outside `state`
 
 - `localStorage` keys outside `state`: `cuci.timelineHeight`, `cuci.theme`, `cuci.lang`,
-  `cuci.subEvents` (subtitle list toggle), **`cuci.exportConfig`** (remembered export page
-  settings — its presence is what makes Export skip the page) and **`cuci.jobFile`** =
-  `{ path, clip }` — the remembered job file; `rememberedJobFile()` returns it only while
+  `cuci.subEvents` (subtitle list toggle) and **`cuci.jobFile`** = `{ path, clip }` — the
+  remembered job file; `rememberedJobFile()` returns it only while
   `state.clips[0].path === clip`.
 - Debug handle (`window.__cuciApp`) exposes the renderer functions listed under *Testing notes*;
   probes should drive it instead of clicking pixels.
