@@ -24,6 +24,7 @@
     "predist": "node scripts/fetch-ffmpeg.mjs --strict",
     "dist": "node scripts/obfuscate.mjs && node node_modules/electron-builder/cli.js --config.directories.app=.build/app",
     "store:assets": "node scripts/make-store-assets.mjs",
+    "store:screenshots": "electron scripts/make-screenshots.cjs",
     "store:stage": "node scripts/obfuscate.mjs && node scripts/build-msix.mjs --stage-only --app-dir .build/app",
     "store:package": "node scripts/obfuscate.mjs && node scripts/build-msix.mjs --app-dir .build/app",
     "store:appx": "node scripts/obfuscate.mjs && node scripts/build-msix.mjs --appx --app-dir .build/app"

@@ -412,13 +412,21 @@ First Microsoft Store release.
 | Screenshots | ≥ 1366×768, up to 10 | required (at least 1) |
 | Hero / promotional art | 1920×1080 (optional) | shown on the Store page if provided |
 
-Suggested screenshots (capture at 1920×1080):
+Screenshots are generated, not hand-captured: `npm run store:screenshots` boots the real
+renderer in an isolated profile and writes five 1920×1080 PNGs per UI language into
+`Sample/msstore/screenshots/<store-locale>/` (14 locales × 5 views = 70 files, local only —
+`Sample/` is gitignored). Upload one set per listing language; the captions/filenames per view:
 
-1. Main window with a loaded video, several deletes on the timeline and the status bar visible.
-2. The Subtitles panel showing *original → new* timings beside a delete.
-3. The export dialog showing "removed 9:34.000" and the progress bar.
-4. The NSFW scan modal with detected scenes listed.
-5. A Job panel showing the share code and description field.
+| View | Content |
+| --- | --- |
+| `01-editor` | Main window: filmstrip + deletions, two 0:18/0:15 delete rows, selected range, synced subtitle track and overlay |
+| `02-export` | Export dialog (container, codec, quality, subtitle burn-in) |
+| `03-parent-assist` | Parent Assist dialog with the on-device model status |
+| `04-job` | Delete job dialog with a share code and description |
+| `05-guide` | Built-in user guide |
+
+The generator uses `Sample/bbb.mp4` (Big Buck Bunny, CC-BY 3.0, © Blender Foundation) with
+generated captions — credit Blender Foundation in the listing notes if the Store asks.
 
 ### MSIX package artwork (in `store/Assets/`)
 
