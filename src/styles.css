@@ -2524,7 +2524,7 @@ html[dir='rtl'] .sub-events-toggle[aria-expanded='false'] svg {
   color: var(--text);
   border-color: var(--border-strong);
 }
-.share-fb:hover { color: #1877f2; }
+.share-wa:hover { color: #25d366; }
 .share-tg:hover { color: #2aabee; }
 .share-rd:hover { color: #ff4500; }
 .rate-status {

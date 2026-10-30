@@ -140,7 +140,7 @@
       'tourRoot', 'tourDim', 'tourSpot', 'tourCard', 'tourTitle', 'tourBody', 'tourNext', 'tourBack', 'tourSkip',
       'rateModal', 'rateClose', 'rateGo', 'rateDone', 'rateLater', 'rateStatus',
       'confirmModal', 'confirmClose', 'confirmCancel', 'confirmOk', 'confirmRows',
-      'jobCopy', 'jobShareFb', 'jobShareTg', 'jobShareRd', 'jobCodeInfo', 'jobPaste', 'jobImport', 'jobPasteClip', 'jobStatus',
+      'jobCopy', 'jobShareWa', 'jobShareTg', 'jobShareRd', 'jobCodeInfo', 'jobPaste', 'jobImport', 'jobPasteClip', 'jobStatus',
       'statusbar', 'statusIcon', 'statusSpinner', 'statusText', 'statusInfo', 'statusClear', 'statusProgress', 'statusProgressBar', 'statusLog',
       'btnNsfw', 'nsfwModal', 'nsfwClose', 'nsfwClose2', 'nsfwInterval', 'nsfwMinDur', 'nsfwEstimate', 'nsfwThreshold',
       'nsfwThresholdVal', 'nsfwModelInfo', 'nsfwProgressWrap', 'nsfwProgressBar', 'nsfwStatus', 'nsfwResults',
@@ -1909,7 +1909,7 @@
     toast(t('msgShareCopied'), 'ok', 3000);
   }
 
-  /** Web listing used when a share post needs a URL (Facebook drops text). */
+  /** Web listing used when a share post needs a URL. */
   const STORE_WEB_URL = 'https://apps.microsoft.com/detail/9NSMJN6FDMV8';
 
   /** Post body for the sharers: what it is, the code itself, where to get CUCI. */
@@ -1918,7 +1918,7 @@
     const desc = String(state.jobDescription || '').trim();
     if (desc) parts.push(desc);
     parts.push(t('shareIntro'));
-    // Telegram and Reddit cap long posts; the clipboard always has the code
+    // the sharers cap long posts; the clipboard always carries the code
     parts.push(code.length <= 3000 ? code : t('shareLongCode'));
     parts.push('CUCI — ' + STORE_WEB_URL);
     return parts.join('\n');
@@ -1926,19 +1926,19 @@
 
   function shareUrl(target, code) {
     const enc = encodeURIComponent;
-    if (target === 'facebook') {
-      // the sharer only honours `u`; the code is on the clipboard instead
-      return `https://www.facebook.com/sharer/sharer.php?u=${enc(STORE_WEB_URL)}`;
-    }
     const body = shareBody(code);
     if (target === 'telegram') {
       return `https://t.me/share/url?url=${enc(STORE_WEB_URL)}&text=${enc(body)}`;
+    }
+    if (target === 'whatsapp') {
+      // wa.me pre-fills the message; the store link is part of the body
+      return `https://wa.me/?text=${enc(body)}`;
     }
     const title = (String(state.jobDescription || '').trim() || t('shareTitle')).slice(0, 240);
     return `https://www.reddit.com/r/cuci/submit?selftext=true&title=${enc(title)}&text=${enc(body)}`;
   }
 
-  /** Share the current share code on Facebook / Telegram / r/cuci (main opens it). */
+  /** Share the current share code on Telegram / WhatsApp / r/cuci (main opens it). */
   async function shareCode(target) {
     if (!state.clips.length) return toast(t('msgAddVideo'), 'warn');
     try {
@@ -3724,7 +3724,7 @@
     els.jobSave.addEventListener('click', () => saveJobFile({ ask: true }));
     els.jobOpen.addEventListener('click', openJobFile);
     els.jobCopy.addEventListener('click', copyShareCode);
-    els.jobShareFb.addEventListener('click', () => shareCode('facebook'));
+    els.jobShareWa.addEventListener('click', () => shareCode('whatsapp'));
     els.jobShareTg.addEventListener('click', () => shareCode('telegram'));
     els.jobShareRd.addEventListener('click', () => shareCode('reddit'));
     els.jobIncludeSubs.addEventListener('change', refreshShareCode);

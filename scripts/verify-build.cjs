@@ -141,7 +141,7 @@ app.whenReady().then(async () => {
 
     // ---- social share buttons
     const shareProbe = await win.webContents.executeJavaScript(`(() => {
-      const ids = ['jobShareFb', 'jobShareTg', 'jobShareRd'];
+      const ids = ['jobShareWa', 'jobShareTg', 'jobShareRd'];
       return {
         buttons: ids.filter((id) => document.getElementById(id)).length,
         titles: ids.map((id) => (document.getElementById(id) || {}).title || ''),

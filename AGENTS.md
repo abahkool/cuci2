@@ -211,11 +211,11 @@ state = {
     The rating prompt is a modal with **no backdrop/Escape dismissal**, opens 5 s after load, and
     only *I already rated it* sets `cuci.rated`: opening the Store page must not stop the prompt.
 
-26. **Share links are allowlisted in the main process.** The Job panel's Facebook /
-    Telegram / Reddit (r/cuci) buttons call `shareCode(target)` and `shareUrl()` in
+26. **Share links are allowlisted in the main process.** The Job panel's Telegram /
+    WhatsApp / Reddit (r/cuci) buttons call `shareCode(target)` and `shareUrl()` in
     `src/app.js`; the URL goes through IPC `share:open`, which re-parses it and only opens
     `https` on a host listed in `SHARE_HOSTS` (`lib/ipc.js`, at most 8000 chars). The code is
-    copied to the clipboard first because Facebook's sharer ignores text; Reddit posts to
+    copied to the clipboard first; `wa.me/?text=` pre-fills the WhatsApp message; Reddit posts to
     `https://www.reddit.com/r/cuci/submit?selftext=true`. Strings: `share*`,
     `msgShareCopiedPaste`, `msgShareOpenFailed`. The old manual *Refresh* button is gone --
     the code refreshes on open, on description edits and right before copying.
