@@ -136,7 +136,9 @@
       'setLoadThumbs', 'setDetect', 'setSaved', 'setClose', 'setClose2', 'setStatus',
       'btnJob', 'jobModal', 'jobClose', 'jobClose2', 'jobTabExport', 'jobTabImport', 'jobPanelExport', 'jobPanelImport',
       'jobSave', 'jobOpen', 'jobDesc', 'jobDescCount', 'jobIncludeSubs', 'jobCode',
-      'btnGuide', 'guideModal', 'guideClose', 'guideClose2',
+      'btnGuide', 'guideModal', 'guideClose', 'guideClose2', 'guideTour',
+      'tourRoot', 'tourDim', 'tourSpot', 'tourCard', 'tourTitle', 'tourBody', 'tourNext', 'tourBack', 'tourSkip',
+      'rateModal', 'rateClose', 'rateGo', 'rateDone', 'rateLater',
       'confirmModal', 'confirmClose', 'confirmCancel', 'confirmOk', 'confirmRows',
       'jobCopy', 'jobRefresh', 'jobCodeInfo', 'jobPaste', 'jobImport', 'jobPasteClip', 'jobStatus',
       'statusbar', 'statusIcon', 'statusSpinner', 'statusText', 'statusInfo', 'statusClear', 'statusProgress', 'statusProgressBar', 'statusLog',
@@ -1937,6 +1939,214 @@
     els.guideModal.classList.add('hidden');
   }
 
+  /* ─────────────────────── product tour ─────────────────────── */
+  const TOUR_KEY = 'cuci.tour';
+  const LAUNCH_KEY = 'cuci.launches';
+  const RATED_KEY = 'cuci.rated';
+  const STORE_PRODUCT_URL = 'ms-windows-store://pdp/?productid=9NSMJN6FDMV8';
+
+  // Only what is needed to finish a job: load a video, mark the bad parts,
+  // check the result, sync subtitles, export. Copy lives in the dictionaries.
+  const TOUR_STEPS = [
+    { sel: '#btnAddVideo', title: 'tourS1Title', body: 'tourS1Body' },
+    { sel: '#timelineWrap', title: 'tourS2Title', body: 'tourS2Body' },
+    { sel: '#modeResult', title: 'tourS3Title', body: 'tourS3Body' },
+    { sel: '#btnAddSub', title: 'tourS4Title', body: 'tourS4Body' },
+    { sel: '#btnExport', title: 'tourS5Title', body: 'tourS5Body' },
+  ];
+
+  let tourIndex = 0;
+  let ratingOpen = false;
+
+  function tourVisible() {
+    return !!els.tourRoot && !els.tourRoot.classList.contains('hidden');
+  }
+
+  function tourTarget(step) {
+    const el = step && step.sel ? document.querySelector(step.sel) : null;
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    if (r.width < 4 || r.height < 4) return null;
+    if (r.right < 8 || r.bottom < 8 || r.left > window.innerWidth - 8 || r.top > window.innerHeight - 8) return null;
+    return el;
+  }
+
+  function centerTourCard() {
+    const card = els.tourCard;
+    els.tourSpot.classList.add('hidden');
+    card.style.left = `${Math.max(12, (window.innerWidth - card.offsetWidth) / 2)}px`;
+    card.style.top = `${Math.max(12, (window.innerHeight - card.offsetHeight) / 2)}px`;
+  }
+
+  function placeTour(el) {
+    const PAD = 6;
+    const GAP = 14;
+    const MARGIN = 12;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    // No clamping: the ring must sit exactly on the control even when it hugs
+    // an edge, and the giant box-shadow covers the rest of the screen anyway.
+    const r = el.getBoundingClientRect();
+    const x = r.left - PAD;
+    const y = r.top - PAD;
+    const w = Math.max(24, r.width + PAD * 2);
+    const h = Math.max(24, r.height + PAD * 2);
+    els.tourSpot.style.left = `${x}px`;
+    els.tourSpot.style.top = `${y}px`;
+    els.tourSpot.style.width = `${w}px`;
+    els.tourSpot.style.height = `${h}px`;
+    els.tourSpot.classList.remove('hidden');
+
+    const card = els.tourCard;
+    const cardW = card.offsetWidth || 360;
+    const cardH = card.offsetHeight || 170;
+    let top = y + h + GAP;
+    if (top + cardH > vh - MARGIN) {
+      const above = y - GAP - cardH;
+      top = above >= MARGIN ? above : Math.max(MARGIN, Math.min(vh - cardH - MARGIN, top));
+    }
+    const left = Math.max(MARGIN, Math.min(vw - cardW - MARGIN, x + w / 2 - cardW / 2));
+    card.style.left = `${left}px`;
+    card.style.top = `${top}px`;
+  }
+
+  function showTourStep() {
+    if (!tourVisible()) return;
+    // Skip steps whose control is not on screen (a detached pane, for example).
+    while (tourIndex < TOUR_STEPS.length && !tourTarget(TOUR_STEPS[tourIndex])) tourIndex += 1;
+    if (tourIndex >= TOUR_STEPS.length) return endTour(true);
+    const step = TOUR_STEPS[tourIndex];
+    els.tourTitle.textContent = t(step.title);
+    els.tourBody.textContent = t(step.body);
+    els.tourBack.classList.toggle('hidden', tourIndex === 0);
+    els.tourNext.textContent = t(tourIndex === TOUR_STEPS.length - 1 ? 'tourDone' : 'tourNext');
+    const el = tourTarget(step);
+    if (el) placeTour(el);
+    else centerTourCard();
+    els.tourNext.focus({ preventScroll: true });
+  }
+
+  function startTour() {
+    if (!els.tourRoot) return;
+    tourIndex = 0;
+    els.tourRoot.classList.remove('hidden');
+    // The tour points at panes that may be auto-hidden; reveal them first.
+    peekPane('sidebar');
+    peekPane('transport');
+    // Render now, not in rAF: a hidden/occluded window (tests, minimised start)
+    // never fires animation frames and the card would stay empty.
+    showTourStep();
+    setTimeout(() => {
+      if (tourVisible()) showTourStep();
+    }, 150);
+  }
+
+  function endTour(remember) {
+    if (!els.tourRoot) return;
+    els.tourRoot.classList.add('hidden');
+    els.tourSpot.classList.add('hidden');
+    if (remember) {
+      try {
+        localStorage.setItem(TOUR_KEY, '1');
+      } catch (err) {
+        /* storage may be unavailable */
+      }
+    }
+  }
+
+  function tourNext() {
+    if (tourIndex >= TOUR_STEPS.length - 1) return endTour(true);
+    tourIndex += 1;
+    showTourStep();
+  }
+
+  function tourBack() {
+    if (tourIndex === 0) return;
+    tourIndex -= 1;
+    showTourStep();
+  }
+
+  /* ─────────────────────── rating prompt ─────────────────────── */
+  function launchCount() {
+    let n = 0;
+    try {
+      n = Math.max(0, Number(localStorage.getItem(LAUNCH_KEY)) || 0) + 1;
+      localStorage.setItem(LAUNCH_KEY, String(n));
+      return { launches: n, rated: localStorage.getItem(RATED_KEY) === '1' };
+    } catch (err) {
+      return { launches: n, rated: false };
+    }
+  }
+
+  function tourSeen() {
+    try {
+      return localStorage.getItem(TOUR_KEY) === '1';
+    } catch (err) {
+      return false;
+    }
+  }
+
+  function openRating() {
+    if (ratingOpen || !els.rateModal || tourVisible()) return;
+    ratingOpen = true;
+    els.rateModal.classList.remove('hidden');
+    els.rateGo.focus({ preventScroll: true });
+  }
+
+  function closeRating() {
+    if (!els.rateModal) return;
+    ratingOpen = false;
+    els.rateModal.classList.add('hidden');
+  }
+
+  function markRated() {
+    try {
+      localStorage.setItem(RATED_KEY, '1');
+    } catch (err) {
+      /* storage may be unavailable */
+    }
+  }
+
+  async function openStoreListing() {
+    let res = null;
+    try {
+      res = api.openStoreListing ? await api.openStoreListing() : null;
+    } catch (err) {
+      res = null;
+    }
+    if (!res || !res.ok) {
+      toast(tf('msgStoreFailed', { url: STORE_PRODUCT_URL }), 'warn', 8000);
+      return;
+    }
+    markRated();
+    closeRating();
+    toast(t('msgStoreOpened'), 'ok', 3000);
+  }
+
+  function onTourKey(event) {
+    if (!tourVisible()) return;
+    if (event.key !== 'Escape') return;
+    event.preventDefault();
+    event.stopPropagation();
+    endTour(true);
+  }
+
+  /* ─────────────────────── launch prompts ─────────────────────── */
+  function scheduleLaunchPrompts() {
+    const launch = launchCount();
+    if (!tourSeen()) {
+      setTimeout(() => {
+        if (!document.hidden && !tourSeen()) startTour();
+      }, 700);
+      return;
+    }
+    if (launch.rated) return;
+    if (launch.launches % 5 !== 0) return;
+    setTimeout(() => {
+      if (!document.hidden) openRating();
+    }, 900);
+  }
+
   /* ─────────── job import: summary + confirmation prompt ─────────── */
   let importResolve = null;
 
@@ -3380,6 +3590,34 @@
     els.btnGuide.addEventListener('click', openGuide);
     els.guideClose.addEventListener('click', closeGuide);
     els.guideClose2.addEventListener('click', closeGuide);
+    els.guideTour.addEventListener('click', () => {
+      closeGuide();
+      startTour();
+    });
+
+    // Product tour
+    els.tourSkip.addEventListener('click', () => endTour(true));
+    els.tourNext.addEventListener('click', tourNext);
+    els.tourBack.addEventListener('click', tourBack);
+    document.addEventListener('keydown', onTourKey, true);
+    window.addEventListener('resize', () => {
+      if (tourVisible()) showTourStep();
+    });
+    document.addEventListener('cuci:lang', () => {
+      if (tourVisible()) showTourStep();
+    });
+
+    // Rating prompt
+    els.rateGo.addEventListener('click', openStoreListing);
+    els.rateDone.addEventListener('click', () => {
+      markRated();
+      closeRating();
+    });
+    els.rateLater.addEventListener('click', closeRating);
+    els.rateClose.addEventListener('click', closeRating);
+    els.rateModal.addEventListener('click', (event) => {
+      if (event.target === els.rateModal) closeRating();
+    });
     els.confirmOk.addEventListener('click', () => closeImportConfirm(true));
     els.confirmCancel.addEventListener('click', () => closeImportConfirm(false));
     els.confirmClose.addEventListener('click', () => closeImportConfirm(false));
@@ -4049,7 +4287,16 @@
       currentSetup,
       setPanelPinned,
       setPanelDetached,
+      startTour,
+      endTour,
+      tourVisible,
+      tourStep: () => ({ index: tourIndex, total: TOUR_STEPS.length }),
+      openRating,
+      closeRating,
+      markRated,
     };
+
+    scheduleLaunchPrompts();
   }
 
   window.addEventListener('DOMContentLoaded', init);

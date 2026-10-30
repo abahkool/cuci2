@@ -25,6 +25,7 @@ contextBridge.exposeInMainWorld('api', {
   cancelExport: () => ipcRenderer.invoke('export:cancel'),
 
   showItem: (p) => ipcRenderer.invoke('shell:showItem', p),
+  openStoreListing: () => ipcRenderer.invoke('store:open'),
 
   mediaUrl: (p) => 'media://local/' + encodeURIComponent(p),
 

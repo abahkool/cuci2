@@ -195,6 +195,7 @@ are `webContents.send` pushes. Channels live in `lib/ipc.js`; the renderer reach
 | `fs:readText` | `path` | file contents |
 | `fs:writeText` | `path, content` | `true` |
 | `shell:showItem` | `path` | `true` |
+| `store:open` | — | `{ ok, url, error? }` — opens `ms-windows-store://pdp/?productid=9NSMJN6FDMV8` |
 | `clipboard:write` | `text` | `true` |
 | `clipboard:read` | — | `string` |
 | `media:probe` | `path` | `{ name, size, durationMs, fps, width, height, hasVideo, hasAudio, videoCodec, audioCodec, rotation }` |
@@ -573,6 +574,29 @@ Seeking in result mode:
 - `programPlay(fromResultMs)` must **keep** the requested output position inside the found
   range (`resultTime = clamp(target, outStart, outEnd)`). It used to snap to `outStart`, which
   made every seek restart from 0:00 — the e2e "result seek" case guards this.
+
+### First-run product tour and rating prompt
+
+Both are renderer-only (`src/app.js`, section *product tour*), driven by three
+`localStorage` keys: `cuci.tour` (`'1'` = dismissed), `cuci.launches` (integer, incremented
+once per boot in `scheduleLaunchPrompts()`) and `cuci.rated` (`'1'` = rated).
+
+- **Tour**: `TOUR_STEPS` is an ordered list of `{ sel, title, body }` — `sel` targets a
+  control a first job needs (`#btnAddVideo`, `#timelineWrap`, `#modeResult`,
+  `#btnAddSub`, `#btnExport`), the copy lives in `src/i18n.js` (`tour*` keys). `startTour()`
+  reveals auto-hidden panes with `peekPane()` and renders **synchronously** — a hidden or
+  occluded window never fires `requestAnimationFrame`, so deferring the first render to rAF
+  leaves an empty card (the e2e runs with a hidden window).
+  The spotlight is one absolutely positioned box whose `box-shadow: 0 0 0 9999px` paints the
+  dimming; its rect is **not** clamped to the viewport so the ring stays glued to
+  edge-hugging targets. Steps whose control is missing or off-screen are skipped.
+- **Persistence**: *Skip tour* and *Done* both set `cuci.tour`, so the tour re-appears on
+  every launch until it is dismissed and never again afterwards. The guide's *Show tour*
+  button (`#guideTour`) bypasses the flag and is the only way back.
+- **Rating**: shown when `cuci.launches % 5 === 0` and `cuci.rated` is unset, at most once
+  per launch and never while the tour is visible. *Rate CUCI* calls `api.openStoreListing()`
+  (IPC `store:open`, so the renderer never builds a URL); *I already rated it* sets
+  `cuci.rated`; *Maybe later* just closes — the next prompt is the following multiple of five.
 
 ### Appearance: theme & language
 

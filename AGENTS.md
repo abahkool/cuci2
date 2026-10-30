@@ -201,6 +201,14 @@ state = {
     (that is how a missing `msgThumbsLoading` once leaked into the status bar), so after adding
     UI text audit key parity across all five files and both markup files.
 
+25. **The first-run tour and the rating prompt are renderer-only.** State lives in 
+    `localStorage["cuci.tour"]` (dismissed), `cuci.launches` (boot counter) and `cuci.rated`;
+    the steps are `TOUR_STEPS` in `src/app.js` (section *product tour*) and the copy is in
+    `src/i18n.js` (`tour*`, `rate*`, `msgStore*`). Render the first tour card **synchronously**
+    (hidden windows never fire `requestAnimationFrame`, so an empty card would show) and never
+    clamp the spotlight rect. The Store link goes through IPC `store:open` — the renderer must
+    not build URLs.
+
 ## Commands
 
 ```bash
@@ -268,7 +276,9 @@ import preview + confirmation**, status bar with
 history, player/timeline splitter, context menu, **native translated menu** (File/Edit/View/Help
 mirroring the UI state), keyboard shortcuts, dark/light/system theme, **14-language UI** with
 system detection (all five dictionaries key-complete), translated notifications/errors,
-**internal user guide** (`?` / F1),
+**internal user guide** (`?` / F1) with a *Show tour* button, a **first-run product tour**
+(5 workflow steps, *Skip tour* persists, never shown again unless asked) and a **Store rating
+prompt every fifth launch**,
 workspace layout (per-pane **pin/peek/detach**: auto-hide + hover chevrons open a temporary
 peek drawer, the side panel / control center detach into their own OS windows, the timeline
 travels inside the control center window), obfuscated packaging, MSIX **and** APPX.
@@ -293,7 +303,8 @@ Known limitations / likely next work:
 ## Renderer state kept outside `state`
 
 - `localStorage` keys outside `state`: `cuci.timelineHeight`, `cuci.theme`, `cuci.lang`,
-  `cuci.subEvents` (subtitle list toggle) and **`cuci.jobFile`** = `{ path, clip }` — the
+  `cuci.subEvents` (subtitle list toggle), `cuci.tour` (tour dismissed), `cuci.launches`,
+`cuci.rated` and **`cuci.jobFile`** = `{ path, clip }` — the
   remembered job file; `rememberedJobFile()` returns it only while
   `state.clips[0].path === clip`.
 - Debug handle (`window.__cuciApp`) exposes the renderer functions listed under *Testing notes*;

@@ -107,6 +107,20 @@ app.whenReady().then(async () => {
     check('scripts present', (boot.scripts || []).length >= 5, (boot.scripts || []).join(','));
     check('no renderer errors', errors.length === 0, errors.slice(0, 3).join(' | '));
 
+    const tourProbe = await win.webContents.executeJavaScript(`(() => {
+      const a = window.__cuciApp;
+      const root = document.getElementById('tourRoot');
+      const shown = !!root && !root.classList.contains('hidden');
+      const steps = a && a.tourStep ? a.tourStep().total : 0;
+      window.CUCI.i18n.apply('ms');
+      const malay = window.CUCI.i18n.t('tourS1Title');
+      window.CUCI.i18n.apply('en');
+      if (a && a.endTour) a.endTour(true);
+      return { shown, steps, malay, hidden: root ? root.classList.contains('hidden') : false };
+    })()`);
+    check('product tour shipped', tourProbe.shown === true && tourProbe.steps === 5 && tourProbe.hidden === true, JSON.stringify(tourProbe));
+    check('tour strings translated', tourProbe.malay === 'Tambah video anda', tourProbe.malay);
+
     // Obfuscated files must not still contain readable markers from the source.
     const appJs = fs.readFileSync(path.join(appDir, 'src', 'app.js'), 'utf8');
     const leaked = ['function renderTimeline', 'function buildFilterGraph', 'CUCI renderer'].filter((m) => appJs.includes(m));

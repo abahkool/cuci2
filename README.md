@@ -71,6 +71,11 @@ subtitles** to the new length. Everything is powered by `ffmpeg`.
 - **Built-in user guide** — press **F1** (or the **?** button) for a translated walkthrough:
   deleting, preview, subtitles, Parent Assist, export, jobs, the workspace and every keyboard
   shortcut, plus a tips section.
+- **Guided tour on first run** — five steps from *Add video* to *Export*, each one pointing
+  at the control it describes. *Skip tour* (or finishing it) means it will not come back;
+  reopen it any time from the guide's *Show tour* button.
+- **Rate the app** — CUCI asks for a Microsoft Store rating on every fifth launch (and
+  stops for good once you rate it or say you already did).
 - **Dark / Light / System theme** — the default follows Windows; pick one in Settings.
 - Undo/redo and keyboard shortcuts throughout.
 

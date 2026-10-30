@@ -672,6 +672,7 @@
           </section>
         </div>
         <div class="modal-foot">
+          <button id="guideTour" class="btn ghost" data-i18n="guideShowTour">Show tour</button>
           <div class="spacer"></div>
           <button id="guideClose2" class="btn primary" data-i18n="close">Close</button>
         </div>
@@ -693,6 +694,40 @@
           <div class="spacer"></div>
           <button id="confirmCancel" class="btn ghost" data-i18n="confirmCancel">Cancel</button>
           <button id="confirmOk" class="btn primary" data-i18n="confirmImport">Import</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ───────────────────────── Product tour ───────────────────────── -->
+    <div id="tourRoot" class="tour hidden">
+      <div id="tourDim" class="tour-dim"></div>
+      <div id="tourSpot" class="tour-spot" aria-hidden="true"></div>
+      <div id="tourCard" class="tour-card" role="dialog" aria-labelledby="tourTitle">
+        <h3 id="tourTitle" class="tour-title"></h3>
+        <p id="tourBody" class="tour-body"></p>
+        <div class="tour-foot">
+          <button id="tourSkip" class="tour-skip" data-i18n="tourSkip">Skip tour</button>
+          <div class="spacer"></div>
+          <button id="tourBack" class="btn hidden" data-i18n="tourBack">Back</button>
+          <button id="tourNext" class="btn primary" data-i18n="tourNext">Next</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ───────────────────────── Rating prompt ───────────────────────── -->
+    <div id="rateModal" class="modal hidden">
+      <div class="modal-card rate-card">
+        <button id="rateClose" class="btn ghost icon rate-close" data-i18n-title="close" title="Close">✕</button>
+        <div class="rate-body">
+          <img class="rate-logo" src="logo.png" alt="" aria-hidden="true" />
+          <div class="rate-stars" aria-hidden="true">
+            <span>★</span><span>★</span><span>★</span><span>★</span><span>★</span>
+          </div>
+          <h2 class="rate-title" data-i18n="rateTitle">Help a small team grow!</h2>
+          <p class="rate-text" data-i18n="rateBody"></p>
+          <button id="rateGo" class="btn primary rate-cta" data-i18n="rateGo">Rate CUCI</button>
+          <button id="rateDone" class="btn rate-cta" data-i18n="rateDone">I already rated it</button>
+          <button id="rateLater" class="rate-later" data-i18n="rateLater">Maybe later</button>
         </div>
       </div>
     </div>

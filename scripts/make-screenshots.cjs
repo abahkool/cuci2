@@ -198,11 +198,15 @@ app.whenReady().then(async () => {
 
     const js = (code) => win.webContents.executeJavaScript(code, true);
 
-    // light theme, English start, thumbnails on
+    // light theme, English start, thumbnails on; never the first-run tour or
+    // the rating prompt in a Store screenshot
     await js(`(() => {
       localStorage.setItem('cuci.theme', 'light');
       localStorage.setItem('cuci.lang', 'en');
       localStorage.setItem('cuci.timelineHeight', '300');
+      localStorage.setItem('cuci.tour', '1');
+      localStorage.setItem('cuci.launches', '1');
+      localStorage.setItem('cuci.rated', '1');
       return true;
     })()`);
     await win.webContents.reload();

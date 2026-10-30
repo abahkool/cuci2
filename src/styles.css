@@ -2353,3 +2353,154 @@ html[dir='rtl'] .sub-events-toggle[aria-expanded='false'] svg {
 .settings-saved.show {
   opacity: 1;
 }
+
+/* ───────────────────────── product tour ───────────────────────── */
+.tour {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+}
+.tour.hidden {
+  display: none;
+}
+/* Blocks the app behind the tour without painting anything itself. */
+.tour-dim {
+  position: absolute;
+  inset: 0;
+  background: transparent;
+}
+/* The "hole": a huge box-shadow paints the dimming around the target. */
+.tour-spot {
+  position: absolute;
+  border-radius: 10px;
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 0 9999px rgba(4, 6, 10, 0.74), 0 0 0 5px rgba(108, 140, 255, 0.18);
+  pointer-events: none;
+  transition: left 0.18s ease, top 0.18s ease, width 0.18s ease, height 0.18s ease;
+}
+.tour-spot.hidden {
+  display: none;
+}
+.tour-card {
+  position: absolute;
+  width: 360px;
+  max-width: calc(100vw - 24px);
+  padding: 16px 18px 14px;
+  background: linear-gradient(180deg, var(--panel-3), var(--panel-2));
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  transition: left 0.18s ease, top 0.18s ease;
+}
+.tour-title {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.tour-body {
+  margin: 0 0 14px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text);
+}
+.tour-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tour-skip {
+  border: 0;
+  background: none;
+  padding: 4px 2px;
+  font: inherit;
+  font-size: 11.5px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.tour-skip:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+.tour-foot .btn {
+  padding: 6px 14px;
+}
+
+:root[data-theme='light'] .tour-spot {
+  box-shadow: 0 0 0 9999px rgba(18, 26, 44, 0.55), 0 0 0 5px rgba(60, 96, 230, 0.14);
+}
+:root[data-theme='light'] .tour-card {
+  background: #fff;
+  border-color: rgba(20, 30, 60, 0.12);
+  box-shadow: 0 20px 60px rgba(20, 30, 60, 0.28);
+}
+:root[data-theme='light'] .tour-title {
+  color: #3a5bd0;
+}
+
+/* ───────────────────────── rating prompt ───────────────────────── */
+.rate-card {
+  width: 420px;
+  position: relative;
+  text-align: center;
+}
+.rate-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1;
+}
+.rate-body {
+  padding: 26px 30px 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.rate-logo {
+  width: 68px;
+  height: 68px;
+  border-radius: 16px;
+  object-fit: cover;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+.rate-stars {
+  display: flex;
+  gap: 4px;
+  font-size: 22px;
+  line-height: 1;
+  color: #f5b133;
+}
+.rate-title {
+  margin: 2px 0 0;
+  font-size: 18px;
+}
+.rate-text {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--muted);
+  max-width: 330px;
+}
+.rate-cta {
+  width: 100%;
+  justify-content: center;
+  margin-top: 6px;
+  padding: 9px 16px;
+}
+.rate-later {
+  margin-top: 4px;
+  border: 0;
+  background: none;
+  padding: 4px;
+  font: inherit;
+  font-size: 11.5px;
+  color: var(--muted-2);
+  cursor: pointer;
+}
+.rate-later:hover {
+  color: var(--text);
+}
+:root[data-theme='light'] .rate-text {
+  color: #55607a;
+}
