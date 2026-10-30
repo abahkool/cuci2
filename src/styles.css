@@ -2370,6 +2370,25 @@ html[dir='rtl'] .sub-events-toggle[aria-expanded='false'] svg {
   background: transparent;
 }
 /* The "hole": a huge box-shadow paints the dimming around the target. */
+/* the welcome card dims the whole app (no ring, nothing to point at) */
+.tour.welcome .tour-dim {
+  background: rgba(4, 6, 10, 0.74);
+  backdrop-filter: blur(3px);
+}
+
+/* the welcome card is the only one without a ring: give it more room */
+.tour.welcome .tour-card {
+  width: 420px;
+  padding: 22px 24px 18px;
+}
+.tour.welcome .tour-title {
+  font-size: 17px;
+}
+.tour.welcome .tour-body {
+  margin-bottom: 18px;
+  font-size: 13px;
+}
+
 .tour-spot {
   position: absolute;
   border-radius: 10px;
@@ -2487,6 +2506,14 @@ html[dir='rtl'] .sub-events-toggle[aria-expanded='false'] svg {
   justify-content: center;
   margin-top: 6px;
   padding: 9px 16px;
+}
+.rate-status {
+  margin: 0;
+  max-width: 330px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--accent);
+  text-align: center;
 }
 .rate-later {
   margin-top: 4px;

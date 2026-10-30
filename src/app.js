@@ -138,7 +138,7 @@
       'jobSave', 'jobOpen', 'jobDesc', 'jobDescCount', 'jobIncludeSubs', 'jobCode',
       'btnGuide', 'guideModal', 'guideClose', 'guideClose2', 'guideTour',
       'tourRoot', 'tourDim', 'tourSpot', 'tourCard', 'tourTitle', 'tourBody', 'tourNext', 'tourBack', 'tourSkip',
-      'rateModal', 'rateClose', 'rateGo', 'rateDone', 'rateLater',
+      'rateModal', 'rateClose', 'rateGo', 'rateDone', 'rateLater', 'rateStatus',
       'confirmModal', 'confirmClose', 'confirmCancel', 'confirmOk', 'confirmRows',
       'jobCopy', 'jobRefresh', 'jobCodeInfo', 'jobPaste', 'jobImport', 'jobPasteClip', 'jobStatus',
       'statusbar', 'statusIcon', 'statusSpinner', 'statusText', 'statusInfo', 'statusClear', 'statusProgress', 'statusProgressBar', 'statusLog',
@@ -1943,11 +1943,14 @@
   const TOUR_KEY = 'cuci.tour';
   const LAUNCH_KEY = 'cuci.launches';
   const RATED_KEY = 'cuci.rated';
+  const RATING_DELAY_MS = 5000;
   const STORE_PRODUCT_URL = 'ms-windows-store://pdp/?productid=9NSMJN6FDMV8';
 
   // Only what is needed to finish a job: load a video, mark the bad parts,
   // check the result, sync subtitles, export. Copy lives in the dictionaries.
+  // The first entry has no target: it is the welcome card that opens the tour.
   const TOUR_STEPS = [
+    { sel: null, title: 'tourWelcomeTitle', body: 'tourWelcomeBody' },
     { sel: '#btnAddVideo', title: 'tourS1Title', body: 'tourS1Body' },
     { sel: '#timelineWrap', title: 'tourS2Title', body: 'tourS2Body' },
     { sel: '#modeResult', title: 'tourS3Title', body: 'tourS3Body' },
@@ -2012,14 +2015,21 @@
 
   function showTourStep() {
     if (!tourVisible()) return;
-    // Skip steps whose control is not on screen (a detached pane, for example).
-    while (tourIndex < TOUR_STEPS.length && !tourTarget(TOUR_STEPS[tourIndex])) tourIndex += 1;
+    // Skip steps whose control is not on screen (a detached pane, for example);
+    // the welcome card needs no control, so it is never skipped.
+    while (tourIndex < TOUR_STEPS.length) {
+      const candidate = TOUR_STEPS[tourIndex];
+      if (!candidate.sel || tourTarget(candidate)) break;
+      tourIndex += 1;
+    }
     if (tourIndex >= TOUR_STEPS.length) return endTour(true);
     const step = TOUR_STEPS[tourIndex];
     els.tourTitle.textContent = t(step.title);
     els.tourBody.textContent = t(step.body);
     els.tourBack.classList.toggle('hidden', tourIndex === 0);
     els.tourNext.textContent = t(tourIndex === TOUR_STEPS.length - 1 ? 'tourDone' : 'tourNext');
+    // Without a target (the welcome card) the whole screen dims instead of a ring.
+    els.tourRoot.classList.toggle('welcome', !step.sel);
     const el = tourTarget(step);
     if (el) placeTour(el);
     else centerTourCard();
@@ -2086,9 +2096,16 @@
     }
   }
 
+  function setRateStatus(text) {
+    if (!els.rateStatus) return;
+    els.rateStatus.textContent = text || '';
+    els.rateStatus.classList.toggle('hidden', !text);
+  }
+
   function openRating() {
     if (ratingOpen || !els.rateModal || tourVisible()) return;
     ratingOpen = true;
+    setRateStatus('');
     els.rateModal.classList.remove('hidden');
     els.rateGo.focus({ preventScroll: true });
   }
@@ -2107,6 +2124,8 @@
     }
   }
 
+  // Opening the Store page is not a review: the prompt keeps coming back until the
+  // user says they already rated it, and the card only closes on an explicit choice.
   async function openStoreListing() {
     let res = null;
     try {
@@ -2115,12 +2134,10 @@
       res = null;
     }
     if (!res || !res.ok) {
-      toast(tf('msgStoreFailed', { url: STORE_PRODUCT_URL }), 'warn', 8000);
+      setRateStatus(tf('msgStoreFailed', { url: STORE_PRODUCT_URL }));
       return;
     }
-    markRated();
-    closeRating();
-    toast(t('msgStoreOpened'), 'ok', 3000);
+    setRateStatus(t('msgStoreOpened'));
   }
 
   function onTourKey(event) {
@@ -2142,9 +2159,17 @@
     }
     if (launch.rated) return;
     if (launch.launches % 5 !== 0) return;
-    setTimeout(() => {
-      if (!document.hidden) openRating();
-    }, 900);
+    let attempts = 0;
+    const ask = () => {
+      if (document.hidden) return;
+      // never stack the two prompts; the tour ends on its own, so just wait
+      if (tourVisible()) {
+        if (attempts++ < 10) setTimeout(ask, 2000);
+        return;
+      }
+      openRating();
+    };
+    setTimeout(ask, RATING_DELAY_MS);
   }
 
   /* ─────────── job import: summary + confirmation prompt ─────────── */
@@ -3608,16 +3633,15 @@
     });
 
     // Rating prompt
-    els.rateGo.addEventListener('click', openStoreListing);
+    els.rateGo.addEventListener('click', () => openStoreListing());
     els.rateDone.addEventListener('click', () => {
       markRated();
       closeRating();
     });
     els.rateLater.addEventListener('click', closeRating);
     els.rateClose.addEventListener('click', closeRating);
-    els.rateModal.addEventListener('click', (event) => {
-      if (event.target === els.rateModal) closeRating();
-    });
+    // Deliberately no backdrop/Escape dismissal: the prompt is a decision, not a
+    // dialog you can wave away, and only X / Maybe later / already-rated close it.
     els.confirmOk.addEventListener('click', () => closeImportConfirm(true));
     els.confirmCancel.addEventListener('click', () => closeImportConfirm(false));
     els.confirmClose.addEventListener('click', () => closeImportConfirm(false));

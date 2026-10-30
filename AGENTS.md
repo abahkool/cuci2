@@ -204,10 +204,12 @@ state = {
 25. **The first-run tour and the rating prompt are renderer-only.** State lives in 
     `localStorage["cuci.tour"]` (dismissed), `cuci.launches` (boot counter) and `cuci.rated`;
     the steps are `TOUR_STEPS` in `src/app.js` (section *product tour*) and the copy is in
-    `src/i18n.js` (`tour*`, `rate*`, `msgStore*`). Render the first tour card **synchronously**
-    (hidden windows never fire `requestAnimationFrame`, so an empty card would show) and never
-    clamp the spotlight rect. The Store link goes through IPC `store:open` — the renderer must
-    not build URLs.
+    `src/i18n.js` (`tour*`, `rate*`, `msgStore*`). The first step is the welcome card (`sel: null`,
+    dims the whole window, never skipped). Render the first card **synchronously** (hidden windows
+    never fire `requestAnimationFrame`, so an empty card would show) and never clamp the spotlight
+    rect. The Store link goes through IPC `store:open` — the renderer must not build URLs.
+    The rating prompt is a modal with **no backdrop/Escape dismissal**, opens 5 s after load, and
+    only *I already rated it* sets `cuci.rated`: opening the Store page must not stop the prompt.
 
 ## Commands
 
@@ -277,7 +279,7 @@ history, player/timeline splitter, context menu, **native translated menu** (Fil
 mirroring the UI state), keyboard shortcuts, dark/light/system theme, **14-language UI** with
 system detection (all five dictionaries key-complete), translated notifications/errors,
 **internal user guide** (`?` / F1) with a *Show tour* button, a **first-run product tour**
-(5 workflow steps, *Skip tour* persists, never shown again unless asked) and a **Store rating
+(welcome card + 5 workflow steps, *Skip tour* persists, never shown again unless asked) and a **Store rating
 prompt every fifth launch**,
 workspace layout (per-pane **pin/peek/detach**: auto-hide + hover chevrons open a temporary
 peek drawer, the side panel / control center detach into their own OS windows, the timeline

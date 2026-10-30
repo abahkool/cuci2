@@ -135,6 +135,8 @@
       applyDeletes: 'Apply as deletions',
     
       tourSkip: 'Skip tour',
+      tourWelcomeTitle: 'Welcome to CUCI',
+      tourWelcomeBody: 'A quick tour of the key controls to get you started.',
       tourBack: 'Back',
       tourNext: 'Next',
       tourDone: 'Done',
@@ -265,6 +267,8 @@
       applyDeletes: 'Guna sebagai pemadaman',
     
       tourSkip: 'Langkau lawatan',
+      tourWelcomeTitle: 'Selamat datang ke CUCI',
+      tourWelcomeBody: 'Lawatan pantas tentang kawalan utama untuk memulakan anda.',
       tourBack: 'Kembali',
       tourNext: 'Seterusnya',
       tourDone: 'Selesai',
@@ -395,6 +399,8 @@
       applyDeletes: 'Terapkan sebagai penghapusan',
     
       tourSkip: 'Lewati tur',
+      tourWelcomeTitle: 'Selamat datang ke CUCI',
+      tourWelcomeBody: 'Tur singkat kontrol utama agar Anda bisa langsung mulai.',
       tourBack: 'Kembali',
       tourNext: 'Berikutnya',
       tourDone: 'Selesai',
@@ -525,6 +531,8 @@
       applyDeletes: '应用为删除片段',
     
       tourSkip: '跳过引导',
+      tourWelcomeTitle: '欢迎使用 CUCI',
+      tourWelcomeBody: '快速了解几个关键控件，马上开始。',
       tourBack: '上一步',
       tourNext: '下一步',
       tourDone: '完成',
@@ -655,6 +663,8 @@
       applyDeletes: 'Aplicar como eliminaciones',
     
       tourSkip: 'Saltar el recorrido',
+      tourWelcomeTitle: 'Te damos la bienvenida a CUCI',
+      tourWelcomeBody: 'Un recorrido rápido por los controles clave para que empieces.',
       tourBack: 'Atrás',
       tourNext: 'Siguiente',
       tourDone: 'Listo',
@@ -785,6 +795,8 @@
       applyDeletes: 'Appliquer comme suppressions',
     
       tourSkip: 'Passer la visite',
+      tourWelcomeTitle: 'Bienvenue dans CUCI',
+      tourWelcomeBody: 'Une visite rapide des commandes essentielles pour démarrer.',
       tourBack: 'Retour',
       tourNext: 'Suivant',
       tourDone: 'Terminer',
@@ -915,6 +927,8 @@
       applyDeletes: 'Als Löschungen übernehmen',
     
       tourSkip: 'Tour überspringen',
+      tourWelcomeTitle: 'Willkommen bei CUCI',
+      tourWelcomeBody: 'Ein kurzer Rundgang durch die wichtigsten Bedienelemente für den Anfang.',
       tourBack: 'Zurück',
       tourNext: 'Weiter',
       tourDone: 'Fertig',
@@ -1045,6 +1059,8 @@
       applyDeletes: 'Aplicar como exclusões',
     
       tourSkip: 'Pular o tour',
+      tourWelcomeTitle: 'Bem-vindo ao CUCI',
+      tourWelcomeBody: 'Um tour rápido pelos controles principais para você começar.',
       tourBack: 'Voltar',
       tourNext: 'Avançar',
       tourDone: 'Concluir',
@@ -1175,6 +1191,8 @@
       applyDeletes: 'Применить как удаления',
     
       tourSkip: 'Пропустить тур',
+      tourWelcomeTitle: 'Добро пожаловать в CUCI',
+      tourWelcomeBody: 'Короткий обзор основных элементов управления для старта.',
       tourBack: 'Назад',
       tourNext: 'Далее',
       tourDone: 'Готово',
@@ -1305,6 +1323,8 @@
       applyDeletes: '削除として適用',
     
       tourSkip: 'ツアーをスキップ',
+      tourWelcomeTitle: 'CUCI へようこそ',
+      tourWelcomeBody: '主要な操作をさっと確認して、すぐに始めましょう。',
       tourBack: '戻る',
       tourNext: '次へ',
       tourDone: '完了',
@@ -1435,6 +1455,8 @@
       applyDeletes: '삭제으로 적용',
     
       tourSkip: '둘러보기 건너뛰기',
+      tourWelcomeTitle: 'CUCI에 오신 것을 환영합니다',
+      tourWelcomeBody: '주요 기능을 빠르게 둘러보고 바로 시작하세요.',
       tourBack: '뒤로',
       tourNext: '다음',
       tourDone: '완료',
@@ -1565,6 +1587,8 @@
       applyDeletes: 'تطبيق كمحذوفات',
     
       tourSkip: 'تخطي الجولة',
+      tourWelcomeTitle: 'مرحبًا بك في CUCI',
+      tourWelcomeBody: 'جولة سريعة في أدوات التحكم الأساسية لتبدأ العمل.',
       tourBack: 'السابق',
       tourNext: 'التالي',
       tourDone: 'إنهاء',
@@ -1695,6 +1719,8 @@
       applyDeletes: 'हटाने के रूप में लागू करें',
     
       tourSkip: 'टूर छोड़ें',
+      tourWelcomeTitle: 'CUCI में आपका स्वागत है',
+      tourWelcomeBody: 'शुरू करने के लिए मुख्य नियंत्रणों का एक संक्षिप्त दौरा।',
       tourBack: 'पीछे',
       tourNext: 'आगे',
       tourDone: 'पूरा',
@@ -1825,6 +1851,8 @@
       applyDeletes: 'Silme olarak uygula',
     
       tourSkip: 'Turu atla',
+      tourWelcomeTitle: "CUCI'ye hoş geldiniz",
+      tourWelcomeBody: 'Başlamanız için temel kontrollere hızlı bir tur.',
       tourBack: 'Geri',
       tourNext: 'İleri',
       tourDone: 'Bitti',

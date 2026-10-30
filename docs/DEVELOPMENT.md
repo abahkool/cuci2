@@ -581,9 +581,12 @@ Both are renderer-only (`src/app.js`, section *product tour*), driven by three
 `localStorage` keys: `cuci.tour` (`'1'` = dismissed), `cuci.launches` (integer, incremented
 once per boot in `scheduleLaunchPrompts()`) and `cuci.rated` (`'1'` = rated).
 
-- **Tour**: `TOUR_STEPS` is an ordered list of `{ sel, title, body }` — `sel` targets a
-  control a first job needs (`#btnAddVideo`, `#timelineWrap`, `#modeResult`,
-  `#btnAddSub`, `#btnExport`), the copy lives in `src/i18n.js` (`tour*` keys). `startTour()`
+- **Tour**: `TOUR_STEPS` is an ordered list of `{ sel, title, body }`. The first entry has
+  `sel: null` and is the **welcome card** (*Welcome to CUCI* + *Skip tour* / *Next*): it dims
+  the whole window (`.tour.welcome .tour-dim`) instead of drawing a ring, and is never skipped.
+  The other five steps target a control a first job needs (`#btnAddVideo`, `#timelineWrap`,
+  `#modeResult`, `#btnAddSub`, `#btnExport`), the copy lives in `src/i18n.js` (`tour*` keys).
+  `startTour()`
   reveals auto-hidden panes with `peekPane()` and renders **synchronously** — a hidden or
   occluded window never fires `requestAnimationFrame`, so deferring the first render to rAF
   leaves an empty card (the e2e runs with a hidden window).
@@ -593,10 +596,15 @@ once per boot in `scheduleLaunchPrompts()`) and `cuci.rated` (`'1'` = rated).
 - **Persistence**: *Skip tour* and *Done* both set `cuci.tour`, so the tour re-appears on
   every launch until it is dismissed and never again afterwards. The guide's *Show tour*
   button (`#guideTour`) bypasses the flag and is the only way back.
-- **Rating**: shown when `cuci.launches % 5 === 0` and `cuci.rated` is unset, at most once
-  per launch and never while the tour is visible. *Rate CUCI* calls `api.openStoreListing()`
-  (IPC `store:open`, so the renderer never builds a URL); *I already rated it* sets
-  `cuci.rated`; *Maybe later* just closes — the next prompt is the following multiple of five.
+- **Rating**: shown `RATING_DELAY_MS` (5000 ms) after the window loads when
+  `cuci.launches % 5 === 0` and `cuci.rated` is unset, at most once per launch and never while
+  the tour is visible (it retries every 2 s, up to 10 times, if the tour is still up).
+  It is a **modal with no escape hatch**: backdrop clicks and `Escape` do nothing, and only the
+  ✕, *Maybe later* and *I already rated it* close it. *Rate CUCI* opens the Store page via
+  `api.openStoreListing()` (IPC `store:open`, so the renderer never builds a URL) and shows the
+  result inline in `#rateStatus` — it does **not** mark the app as rated and does **not** close
+  the card. Only *I already rated it* writes `cuci.rated`, so the prompt keeps coming back on
+  every fifth launch until the user confirms.
 
 ### Appearance: theme & language
 
