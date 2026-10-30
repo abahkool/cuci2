@@ -20,14 +20,14 @@
           <path d="M20 4v16" />
         </svg>
       </button>
-      <span class="panel-logo">✂</span>
+      <img class="panel-logo" src="logo.png" alt="" aria-hidden="true" />
       <span class="panel-title" id="panelTitle">CUCI</span>
       <span class="panel-sub" id="panelSub"></span>
       <span class="spacer"></span>
       <span class="panel-status" id="panelStatus"></span>
     </header>
 
-    <!-- ───────────── side panel (media / cuts / subtitles) ───────────── -->
+    <!-- ───────────── side panel (media / deletes / subtitles) ───────────── -->
     <div id="panelSidebar" class="panel-body" hidden>
       <section class="panel quick-actions">
         <h3 data-i18n="actions">Actions</h3>
@@ -45,8 +45,8 @@
       </section>
 
       <section class="panel">
-        <h3><span data-i18n="cuts">Cuts</span> <span id="cutCount" class="pill">0</span></h3>
-        <div id="cutList" class="cut-list"></div>
+        <h3><span data-i18n="deletes">Deletions</span> <span id="deleteCount" class="pill">0</span></h3>
+        <div id="deleteList" class="delete-list"></div>
       </section>
 
       <section class="panel grow">
@@ -76,7 +76,7 @@
       </section>
     </div>
 
-    <!-- ───────────── control center (transport + cut tools) ───────────── -->
+    <!-- ───────────── control center (transport + delete tools) ───────────── -->
     <div id="panelTransport" class="panel-body transport-panel" hidden>
       <section class="transport">
         <div class="transport-row transport-main">
@@ -100,15 +100,15 @@
           <div class="transport-right">
             <div class="seg-toggle">
               <button id="modeSource" class="seg active" title="Preview the untouched source" data-i18n-title="sourceTitle" data-i18n="source">Source</button>
-              <button id="modeResult" class="seg" title="Preview the cut result" data-i18n-title="previewTitle" data-i18n="preview">Preview</button>
+              <button id="modeResult" class="seg" title="Preview the delete result" data-i18n-title="previewTitle" data-i18n="preview">Preview</button>
             </div>
             <label class="snap" title="Snap edits to whole frames" data-i18n-title="snapTitle"><input id="chkSnap" type="checkbox" checked /> <span data-i18n="snap">Snap frame</span></label>
             <label class="zoom"><span data-i18n="zoom">Zoom</span><input id="zoomRange" type="range" min="1" max="12" step="0.1" value="1" /></label>
           </div>
         </div>
 
-        <div class="transport-row transport-cuts">
-          <span class="cut-toolbar-label" data-i18n="cutTools">Cuts</span>
+        <div class="transport-row transport-deletes">
+          <span class="delete-toolbar-label" data-i18n="deleteTools">Deletions</span>
 
           <button id="btnSetIn" class="btn tiny glyph" title="Set In point at the playhead (I)" aria-label="Set In point" data-i18n-title="setIn" data-i18n-aria="setIn">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -120,7 +120,7 @@
               <path d="M15 4v16M15 4h-4M15 20h-4" />
             </svg>
           </button>
-          <button id="btnCut" class="btn tiny glyph danger" title="Cut the selected range / In→Out (X)" aria-label="Cut" data-i18n-title="cut" data-i18n-aria="cut">
+          <button id="btnDelete" class="btn tiny glyph danger" title="Delete the selected range / In→Out (X)" aria-label="Delete" data-i18n-title="delete" data-i18n-aria="delete">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <circle cx="6" cy="6" r="2.2" />
               <circle cx="6" cy="18" r="2.2" />
@@ -129,7 +129,7 @@
             </svg>
           </button>
 
-          <span class="cut-toolbar-sep"></span>
+          <span class="delete-toolbar-sep"></span>
 
           <button id="btnClearMarks" class="btn tiny glyph ghost" title="Clear In/Out points and selection" aria-label="Clear In/Out marks" data-i18n-title="clearMarks" data-i18n-aria="clearMarks">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -137,7 +137,7 @@
               <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
             </svg>
           </button>
-          <button id="btnClearCuts" class="btn tiny glyph ghost" title="Remove all cuts" aria-label="Remove all cuts" data-i18n-title="clearCuts" data-i18n-aria="clearCuts">
+          <button id="btnClearDeletes" class="btn tiny glyph ghost" title="Remove all deletions" aria-label="Remove all deletions" data-i18n-title="clearDeletes" data-i18n-aria="clearDeletes">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M4 7h16" />
               <path d="M9 7V4.5h6V7" />
@@ -155,7 +155,7 @@
             <div class="tl-base">
               <div id="ptlRuler" class="tl-ruler"></div>
               <div id="ptlFilm" class="tl-film"></div>
-              <div id="ptlCuts" class="tl-cuts"></div>
+              <div id="ptlDeletes" class="tl-deletes"></div>
               <div id="ptlSubs" class="tl-subs"></div>
             </div>
             <div class="tl-overlay">

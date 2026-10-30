@@ -7,15 +7,15 @@
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' media: data: blob:; media-src 'self' media: blob:; connect-src 'self' media:; object-src 'none'; base-uri 'none'"
     />
-    <title>CUCI — Cut Out Bad Scenes</title>
+    <title>CUCI — Delete Unnecessary Video Scenes</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <header class="topbar">
       <div class="brand">
-        <span class="logo">✂</span>
+        <img class="logo" src="logo.png" alt="" aria-hidden="true" />
         <span class="brand-name">CUCI</span>
-        <small data-i18n="tagline">Cut Out Bad Scenes</small>
+        <small data-i18n="tagline">Delete Unnecessary Video Scenes</small>
       </div>
       <div class="spacer"></div>
 
@@ -46,7 +46,7 @@
         <section class="panel quick-actions">
           <h3 data-i18n="actions">Actions</h3>
           <div class="action-grid">
-            <button id="btnJob" class="btn tiny" title="Save / open / share the cut job" data-i18n-title="jobHint" data-i18n="job">Job</button>
+            <button id="btnJob" class="btn tiny" title="Save / open / share the delete job" data-i18n-title="jobHint" data-i18n="job">Job</button>
             <button id="btnNsfw" class="btn tiny" title="Parent Assist — on-device AI that flags non-child-friendly scenes" data-i18n="parentAssist">Parent Assist</button>
             <button id="btnSidebarAddSub" class="btn tiny" data-i18n="addSubtitle">Add Subtitle</button>
             <button id="btnSidebarAddVideo" class="btn tiny" data-i18n="addVideo">Add Video</button>
@@ -60,8 +60,8 @@
         </section>
 
         <section class="panel">
-          <h3><span data-i18n="cuts">Cuts</span> <span id="cutCount" class="pill">0</span></h3>
-          <div id="cutList" class="cut-list"></div>
+          <h3><span data-i18n="deletes">Deletions</span> <span id="deleteCount" class="pill">0</span></h3>
+          <div id="deleteList" class="delete-list"></div>
         </section>
 
         <section class="panel grow">
@@ -142,15 +142,15 @@
             <div class="transport-right">
               <div class="seg-toggle">
                 <button id="modeSource" class="seg active" title="Preview the untouched source" data-i18n-title="sourceTitle" data-i18n="source">Source</button>
-                <button id="modeResult" class="seg" title="Preview the cut result" data-i18n-title="previewTitle" data-i18n="preview">Preview</button>
+                <button id="modeResult" class="seg" title="Preview the delete result" data-i18n-title="previewTitle" data-i18n="preview">Preview</button>
               </div>
               <label class="snap" title="Snap edits to whole frames" data-i18n-title="snapTitle"><input id="chkSnap" type="checkbox" checked /> <span data-i18n="snap">Snap frame</span></label>
               <label class="zoom"><span data-i18n="zoom">Zoom</span><input id="zoomRange" type="range" min="1" max="12" step="0.1" value="1" /></label>
             </div>
           </div>
 
-          <div class="transport-row transport-cuts">
-            <span class="cut-toolbar-label" data-i18n="cutTools">Cuts</span>
+          <div class="transport-row transport-deletes">
+            <span class="delete-toolbar-label" data-i18n="deleteTools">Deletions</span>
 
             <!-- Set In: a '[' bracket marking where the kept range starts -->
             <button id="btnSetIn" class="btn tiny glyph" title="Set In point at the playhead (I)" aria-label="Set In point" data-i18n-title="setIn" data-i18n-aria="setIn">
@@ -166,7 +166,7 @@
               </svg>
             </button>
 
-            <button id="btnCut" class="btn tiny glyph danger" title="Cut the selected range / In→Out (X)" aria-label="Cut" data-i18n-title="cut" data-i18n-aria="cut">
+            <button id="btnDelete" class="btn tiny glyph danger" title="Delete the selected range / In→Out (X)" aria-label="Delete" data-i18n-title="delete" data-i18n-aria="delete">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <circle cx="6" cy="6" r="2.2" />
                 <circle cx="6" cy="18" r="2.2" />
@@ -175,7 +175,7 @@
               </svg>
             </button>
 
-            <span class="cut-toolbar-sep"></span>
+            <span class="delete-toolbar-sep"></span>
 
             <!-- Clear marks: undo arrow (back to before the marks were set) -->
             <button id="btnClearMarks" class="btn tiny glyph ghost" title="Clear In/Out points and selection (undo the marks)" aria-label="Clear In/Out marks" data-i18n-title="clearMarks" data-i18n-aria="clearMarks">
@@ -185,8 +185,8 @@
               </svg>
             </button>
 
-            <!-- Clear cuts: trash -->
-            <button id="btnClearCuts" class="btn tiny glyph ghost" title="Remove all cuts" aria-label="Remove all cuts" data-i18n-title="clearCuts" data-i18n-aria="clearCuts">
+            <!-- Clear deletions: trash -->
+            <button id="btnClearDeletes" class="btn tiny glyph ghost" title="Remove all deletions" aria-label="Remove all deletions" data-i18n-title="clearDeletes" data-i18n-aria="clearDeletes">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M4 7h16" />
                 <path d="M9 7V4.5h6V7" />
@@ -217,7 +217,7 @@
               <div class="tl-base">
                 <div id="tlRuler" class="tl-ruler"></div>
                 <div id="tlFilm" class="tl-film"></div>
-                <div id="tlCuts" class="tl-cuts"></div>
+                <div id="tlDeletes" class="tl-deletes"></div>
                 <div id="tlSubs" class="tl-subs"></div>
               </div>
               <div class="tl-overlay">
@@ -233,7 +233,7 @@
             <div class="empty-card">
               <div class="empty-icon">🎬</div>
               <h2 data-i18n="emptyTitle">No media yet</h2>
-              <p data-i18n="emptyText">Add a video to start cutting with millisecond precision, frame snapping and automatic subtitle sync.</p>
+              <p data-i18n="emptyText">Add a video to start deleting with millisecond precision, frame snapping and automatic subtitle sync.</p>
               <button id="btnAddVideo2" class="btn primary" data-i18n="addVideo">Add Video</button>
             </div>
           </div>
@@ -442,7 +442,7 @@
     <div id="jobModal" class="modal hidden">
       <div class="modal-card wide">
         <div class="modal-head">
-          <h2 data-i18n="jobTitle">Cut job</h2>
+          <h2 data-i18n="jobTitle">Delete job</h2>
           <button id="jobClose" class="btn ghost icon" title="Close" data-i18n-title="close">✕</button>
         </div>
         <div class="modal-body">
@@ -454,13 +454,13 @@
           <!-- Export -->
           <div id="jobPanelExport" class="tab-panel" role="tabpanel">
             <p class="hint">
-              Save the cut list to a file to reopen later, or copy a share code to send over chat / email /
+              Save the delete list to a file to reopen later, or copy a share code to send over chat / email /
               social media.
             </p>
 
             <label class="field wide">
               <span class="field-head">
-                <span data-i18n="jobDesc">Description — what is this cut job for?</span>
+                <span data-i18n="jobDesc">Description — what is this delete job for?</span>
                 <b id="jobDescCount" class="field-counter">0 / 200</b>
               </span>
               <textarea
@@ -496,7 +496,7 @@
           <!-- Import -->
           <div id="jobPanelImport" class="tab-panel hidden" role="tabpanel">
             <p class="hint">
-              Open a job file, or paste a share code someone sent you. The cuts are applied to matching
+              Open a job file, or paste a share code someone sent you. The deletes are applied to matching
               clips; missing videos are requested when the job is applied.
             </p>
 
@@ -535,7 +535,7 @@
         <div class="modal-body">
           <p class="hint">
             Samples frames from the active clip and classifies each one with an on-device
-            image model, then marks flagged scenes as cuts. Everything runs locally — no
+            image model, then marks flagged scenes as deletions. Everything runs locally — no
             frames are uploaded.
           </p>
 
@@ -545,7 +545,7 @@
               <input id="nsfwInterval" type="number" min="0.25" max="60" step="0.25" value="2" />
             </label>
             <label class="field">
-              <span data-i18n="minCuts">Minimum cut length</span>
+              <span data-i18n="minDeletes">Minimum deletion length</span>
               <select id="nsfwMinDur">
                 <option value="0" data-i18n="optAny">any</option>
                 <option value="1000" data-i18n="opt1s">1 second</option>
@@ -582,7 +582,7 @@
           <button id="nsfwCancel" class="btn danger hidden" data-i18n="cancelScan">Cancel scan</button>
           <div class="spacer"></div>
           <button id="nsfwClose2" class="btn ghost" data-i18n="close">Close</button>
-          <button id="nsfwApply" class="btn" disabled data-i18n="applyCuts">Apply as cuts</button>
+          <button id="nsfwApply" class="btn" disabled data-i18n="applyDeletes">Apply as deletions</button>
           <button id="nsfwStart" class="btn primary" data-i18n="scan">Scan</button>
         </div>
       </div>
@@ -604,8 +604,8 @@
           </section>
 
           <section class="guide-section">
-            <h3 data-i18n="guideCutting">Cutting &amp; the timeline</h3>
-            <p data-i18n="guideCuttingText"></p>
+            <h3 data-i18n="guideDeleting">Deleting &amp; the timeline</h3>
+            <p data-i18n="guideDeletingText"></p>
           </section>
 
           <section class="guide-section">
@@ -645,18 +645,18 @@
               <tr><th><kbd>←</kbd> <kbd>→</kbd></th><td data-i18n="kStep">Step one frame</td></tr>
               <tr><th><kbd>Shift</kbd> + <kbd>←</kbd>/<kbd>→</kbd></th><td data-i18n="kSecond">Jump one second</td></tr>
               <tr><th><kbd>I</kbd> <kbd>O</kbd></th><td data-i18n="kInOut">Set In / Out points</td></tr>
-              <tr><th><kbd>X</kbd></th><td data-i18n="kCut">Cut the selection</td></tr>
+              <tr><th><kbd>X</kbd></th><td data-i18n="kDelete">Delete the selection</td></tr>
               <tr><th><kbd>Home</kbd> <kbd>End</kbd></th><td data-i18n="kStartEnd">Jump to clip start / end</td></tr>
               <tr><th><kbd>+</kbd> <kbd>−</kbd></th><td data-i18n="kZoom">Zoom the timeline</td></tr>
               <tr><th><kbd>Ctrl</kbd>+<kbd>Z</kbd></th><td data-i18n="kUndo">Undo</td></tr>
               <tr><th><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd></th><td data-i18n="kRedo">Redo</td></tr>
               <tr><th><kbd>Ctrl</kbd>+<kbd>1</kbd>/<kbd>2</kbd></th><td data-i18n="kPanels">Pin or hide the side panel / control center</td></tr>
               <tr><th><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>1</kbd>/<kbd>2</kbd></th><td data-i18n="kDetach">Detach or re-dock those panes</td></tr>
-              <tr><th><kbd>Ctrl</kbd>+<kbd>S</kbd></th><td data-i18n="kSaveJob">Save the cut job to a file</td></tr>
+              <tr><th><kbd>Ctrl</kbd>+<kbd>S</kbd></th><td data-i18n="kSaveJob">Save the delete job to a file</td></tr>
               <tr><th><kbd>Ctrl</kbd>+<kbd>C</kbd></th><td data-i18n="kCopyCode">Copy the share code</td></tr>
               <tr><th><kbd>Ctrl</kbd>+<kbd>V</kbd></th><td data-i18n="kPasteCode">Import a share code from the clipboard</td></tr>
               <tr><th><kbd>F1</kbd></th><td data-i18n="kGuide">Open this guide</td></tr>
-              <tr><th>Right-click</th><td data-i18n="kMenu">Cut context menu</td></tr>
+              <tr><th>Right-click</th><td data-i18n="kMenu">Deletion context menu</td></tr>
               <tr><th>Double-click</th><td data-i18n="kMarkDbl">Set In, then Out, then restart</td></tr>
             </table>
           </section>
@@ -682,7 +682,7 @@
     <div id="confirmModal" class="modal hidden">
       <div class="modal-card">
         <div class="modal-head">
-          <h2 data-i18n="confirmTitle">Import this cut job?</h2>
+          <h2 data-i18n="confirmTitle">Import this delete job?</h2>
           <button id="confirmClose" class="btn ghost icon" title="Close">✕</button>
         </div>
         <div class="modal-body">

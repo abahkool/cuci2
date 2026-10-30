@@ -3,8 +3,8 @@
   "identityName": "12345AbahKool.CUCI",
   "publisher": "CN=00000000-0000-0000-0000-000000000000",
   "publisherDisplayName": "AbahKool",
-  "displayName": "CUCI Video Cut Studio",
+  "displayName": "CUCI Video Delete Studio",
   "shortName": "CUCI",
-  "description": "Millisecond-precision video cut, merge and subtitle sync. On-device.",
+  "description": "Delete unnecessary video scenes with millisecond precision, merge clips and sync subtitles on-device.",
   "architecture": "x64"
 }

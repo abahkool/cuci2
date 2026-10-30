@@ -30,9 +30,9 @@
     'btnNextSec',
     'btnSetIn',
     'btnSetOut',
-    'btnCut',
+    'btnDelete',
     'btnClearMarks',
-    'btnClearCuts',
+    'btnClearDeletes',
     'modeSource',
     'modeResult',
   ];
@@ -71,8 +71,8 @@
     $('modeSource').classList.toggle('active', d.mode === 'source');
     $('modeResult').classList.toggle('active', d.mode === 'result');
     $('btnPlay').disabled = !d.hasClip;
-    $('btnCut').disabled = !d.hasClip;
-    $('btnClearCuts').disabled = !d.hasClip;
+    $('btnDelete').disabled = !d.hasClip;
+    $('btnClearDeletes').disabled = !d.hasClip;
     renderIo(d);
     $('panelStatus').textContent = d.clipName || t('noMedia');
   }
@@ -132,7 +132,7 @@
           <span>${clip.width}×${clip.height}</span>
           <span>${clip.fps ? clip.fps.toFixed(2) : '?'} fps</span>
           ${clip.hasAudio ? '' : '<span style="color:var(--warn)">no audio</span>'}
-          ${clip.cuts ? `<span style="color:var(--danger)">${clip.cuts} cut${clip.cuts > 1 ? 's' : ''}</span>` : ''}
+          ${clip.deletes ? `<span style="color:var(--danger)">${clip.deletes} delete${clip.deletes > 1 ? 's' : ''}</span>` : ''}
         </div>
         <div class="clip-actions">
           <button class="btn tiny" data-act="up" title="${t('msgMoveEarlier')}">↑</button>
@@ -153,28 +153,28 @@
     });
   }
 
-  function renderCutList(s) {
-    $('cutCount').textContent = String(s.cuts.length);
-    const list = $('cutList');
+  function renderDeleteList(s) {
+    $('deleteCount').textContent = String(s.deletes.length);
+    const list = $('deleteList');
     list.innerHTML = '';
     if (!s.clipName) {
       list.innerHTML = '<div class="sub-info"></div>';
       list.firstChild.textContent = t('selectClip');
     }
-    else if (!s.cuts.length) {
+    else if (!s.deletes.length) {
       list.innerHTML = '<div class="sub-info"></div>';
-      list.firstChild.textContent = t('noCuts');
+      list.firstChild.textContent = t('noDeletes');
     }
-    s.cuts.forEach((c) => {
+    s.deletes.forEach((c) => {
       const el = document.createElement('div');
-      el.className = 'cut-item';
+      el.className = 'delete-item';
       el.innerHTML =
-        `<span class="cut-time">${CU.fmt(c.start, 3)} → ${CU.fmt(c.end, 3)}</span>` +
-        `<span class="cut-dur">${CU.fmt(c.end - c.start, 3)}</span>` +
-        `<button class="btn tiny danger" title="Remove this cut">✕</button>`;
-      el.querySelector('button').addEventListener('click', () => send('cutDelete', { cutId: c.id }));
-      el.addEventListener('mouseenter', () => send('cutHover', { cutId: c.id, on: true }));
-      el.addEventListener('mouseleave', () => send('cutHover', { cutId: c.id, on: false }));
+        `<span class="delete-time">${CU.fmt(c.start, 3)} → ${CU.fmt(c.end, 3)}</span>` +
+        `<span class="delete-dur">${CU.fmt(c.end - c.start, 3)}</span>` +
+        `<button class="btn tiny danger" title="Remove this delete">✕</button>`;
+      el.querySelector('button').addEventListener('click', () => send('deleteRemove', { deleteId: c.id }));
+      el.addEventListener('mouseenter', () => send('deleteHover', { deleteId: c.id, on: true }));
+      el.addEventListener('mouseleave', () => send('deleteHover', { deleteId: c.id, on: false }));
       list.appendChild(el);
     });
   }
@@ -235,13 +235,13 @@
       `<b>${sub.tracks.length} track${sub.tracks.length > 1 ? 's' : ''}</b> · ` +
       `<b>${CU.escapeHtml(sub.activeName || '')}</b>${sub.activeEnabled ? '' : ' (excluded from export)'}<br>` +
       `${sub.eventCount} events · <span class="ok">${kept} kept</span>` +
-      (sub.dropped ? ` · <span class="warn">${sub.dropped} dropped inside cuts</span>` : '');
+      (sub.dropped ? ` · <span class="warn">${sub.dropped} dropped inside deletes</span>` : '');
 
     if (count) count.textContent = String(sub.eventCount);
     sub.rows.forEach((r) => {
       const el = document.createElement('div');
       el.className = 'sub-event' + (r.dropped ? ' dropped' : '');
-      const newLabel = r.dropped ? 'cut' : r.newStarts.map((v) => CU.fmt(v, 3)).join(', ');
+      const newLabel = r.dropped ? 'delete' : r.newStarts.map((v) => CU.fmt(v, 3)).join(', ');
       el.innerHTML =
         `<span class="se-time">${CU.fmt(r.start, 3)}</span>` +
         `<span class="se-arrow">→</span>` +
@@ -260,9 +260,9 @@
 
   function renderSidebar(s) {
     renderClipList(s);
-    renderCutList(s);
+    renderDeleteList(s);
     renderSubPanel(s);
-    $('panelStatus').textContent = s.clipName ? `${s.clipName} · ${s.cuts.length} cut${s.cuts.length === 1 ? '' : 's'}` : 'No clip selected';
+    $('panelStatus').textContent = s.clipName ? `${s.clipName} · ${s.deletes.length} delete${s.deletes.length === 1 ? '' : 's'}` : 'No clip selected';
   }
 
   /* ─────────────────── timeline (belongs to this pane) ─────────────────── */
@@ -271,7 +271,7 @@
     fps: 30,
     zoom: 1,
     pxPerMs: 0,
-    cuts: [],
+    deletes: [],
     subs: [],
     thumbs: null,
     time: 0,
@@ -294,7 +294,7 @@
     if (!duration) {
       tl.pxPerMs = 0;
       root.style.width = '100%';
-      ['ptlRuler', 'ptlFilm', 'ptlCuts', 'ptlSubs'].forEach((id) => ($(id).innerHTML = ''));
+      ['ptlRuler', 'ptlFilm', 'ptlDeletes', 'ptlSubs'].forEach((id) => ($(id).innerHTML = ''));
       renderTimelineOverlays();
       return;
     }
@@ -344,20 +344,20 @@
       film.appendChild(hint);
     }
 
-    // cuts
-    const cuts = $('ptlCuts');
-    cuts.innerHTML = '';
-    tl.cuts.forEach((c) => {
+    // deletes
+    const deletes = $('ptlDeletes');
+    deletes.innerHTML = '';
+    tl.deletes.forEach((c) => {
       const el = document.createElement('div');
-      el.className = 'tl-cut';
-      el.dataset.cutId = c.id;
+      el.className = 'tl-delete';
+      el.dataset.deleteId = c.id;
       el.style.left = c.start * ppm + 'px';
       el.style.width = Math.max(3, (c.end - c.start) * ppm) + 'px';
       el.innerHTML =
-        `<div class="cut-handle start" data-handle="start"></div>` +
-        `<div class="cut-handle end" data-handle="end"></div>` +
-        `<div class="cut-label">${CU.fmt(c.start, 3)} → ${CU.fmt(c.end, 3)} · ${CU.fmt(c.end - c.start, 3)}</div>`;
-      cuts.appendChild(el);
+        `<div class="delete-handle start" data-handle="start"></div>` +
+        `<div class="delete-handle end" data-handle="end"></div>` +
+        `<div class="delete-label">${CU.fmt(c.start, 3)} → ${CU.fmt(c.end, 3)} · ${CU.fmt(c.end - c.start, 3)}</div>`;
+      deletes.appendChild(el);
     });
 
     // subtitle lane
@@ -553,7 +553,7 @@
         break;
       case 'x':
       case 'X':
-        clickOf('btnCut');
+        clickOf('btnDelete');
         break;
       case 'Home':
         clickOf('btnStop');

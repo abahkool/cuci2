@@ -19,7 +19,7 @@
 # Notes
 #  * The obfuscated app is staged in .build/app and every artifact is built from
 #    there. scripts/verify-build.cjs boots it before packaging (i18n, media,
-#    cuts) so a broken obfuscation never reaches a release.
+#    deletes) so a broken obfuscation never reaches a release.
 #  * electron-builder is launched through node cli.js: the .cmd shim fails with
 #    EINVAL when spawned from PowerShell.
 #  * makeappx.exe comes from the Windows SDK when installed; otherwise the
@@ -55,7 +55,7 @@ if (-not ($Installer -or $Portable -or $Store -or $Appx)) { $Installer = $true }
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "  CUCI - Cut Out Bad Scenes - Build"      -ForegroundColor Cyan
+Write-Host "  CUCI - Delete Unnecessary Video Scenes - Build" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 
 Push-Location $ProjectRoot

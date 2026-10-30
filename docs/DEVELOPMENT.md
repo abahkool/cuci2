@@ -64,10 +64,10 @@ src/menu-i18n.js        native menu labels (14 languages)
 src/errors-i18n.js      error/status strings shown in notifications (14 languages)
   selftest.js           export-pipeline test against real ffmpeg   (node)
   test-locate.js        verifies the tool resolution chain         (node)
-  test-job.js           cut-job trust boundary: caps, bombs, XSS, SRT injection (node)
+  test-job.js           delete-job trust boundary: caps, bombs, XSS, SRT injection (node)
   test-nsfw.js          NSFW tensor/grouping unit tests + live scan (node)
   smoke.js              boots the real renderer, fails on console errors
-  e2e.js                full UI flow test (load → subtitle → cut → seek → export → job)
+  e2e.js                full UI flow test (load → subtitle → delete → seek → export → job)
   test-cancel.js        verifies cancel kills ffmpeg + removes residue
 scripts/
   obfuscate.mjs         stages .build/app with the renderer obfuscated (build.ps1 default)
@@ -81,7 +81,7 @@ src/
   styles.css            dark theme, timeline, modals, status bar, context menu
   util.js               window.CUCI: time formatting + small helpers
   srt.js                window.CUCI: subtitle parse / serialise / remap
-  job.js                window.CUCI: cut-job codec + untrusted-input validation
+  job.js                window.CUCI: delete-job codec + untrusted-input validation
   app.js                renderer application logic (the bulk of the UI)
 Sample/                 local scratch media for manual testing (entirely gitignored)
 docs/DEVELOPMENT.md     this file
@@ -356,7 +356,7 @@ real `ffmpeg.exe` as a child, so `child.kill()` only kills the shim. Cancellatio
 ## NSFW scene detection (`lib/nsfw.js`)
 
 The **Parental AI** button (NSFW detector) samples the active clip's source and turns flagged
-frames into cut ranges. It is entirely local — inference runs in the main process via
+frames into delete ranges. It is entirely local — inference runs in the main process via
 `onnxruntime-node`.
 
 ### Model choice
@@ -401,7 +401,7 @@ The scan is cancellable (`nsfw:cancel` sets a flag; the ffmpeg child is killed) 
 `nsfw:progress` for the status bar and the modal's progress bar.
 
 The renderer only *reviews* results: `applyNsfwSegments(ranges)` pushes an undo entry, adds the
-cuts, normalises/merges them and re-renders.
+deletes, normalises/merges them and re-renders.
 
 ## Job trust boundary (`src/job.js`)
 
@@ -415,13 +415,13 @@ code that turns them into data the app acts on, and it is deliberately paranoid:
 | Script execution | no `eval`, `Function` or dynamic import anywhere on the path — only `JSON.parse` |
 | Prototype pollution | `JSON.parse` reviver drops `__proto__` / `constructor` / `prototype`; `fromCompact()` and `sanitizeJob()` construct fresh objects containing only known fields |
 | Type confusion / injection | every field is type-checked and coerced; numbers must be finite and are clamped; export enums (container, codec, preset, resolution, fps, bitrate) are whitelisted |
-| Resource exhaustion via UI | arrays and totals are capped: 200 clips, 5 000 cuts/clip (50 000 total), 100 000 events/clip (500 000 total) |
+| Resource exhaustion via UI | arrays and totals are capped: 200 clips, 5 000 deletes/clip (50 000 total), 100 000 events/clip (500 000 total) |
 | Control characters | stripped from all strings; names collapsed to one line; description ≤ 200 chars; subtitle text ≤ 2 000 chars |
 | SRT/VTT cue injection | blank lines are collapsed and `-->` is replaced with `→`, so body text can never terminate a cue or create a new one. The same cleaning runs in `serializeSrt()` / `serializeVtt()`, covering subtitle files too |
 | HTML/XSS in the UI | every job-derived string is rendered with `textContent` or `CU.escapeHtml()`; job data is never interpolated into `innerHTML` |
 
 `applyJob()` calls `sanitizeJob()` again (defence in depth), so any future caller is safe even if
-it forgets to validate first. The renderer only ever applies cuts, a subtitle offset and export
+it forgets to validate first. The renderer only ever applies deletes, a subtitle offset and export
 *options* — job data cannot select a file path, spawn a process or reach the filesystem.
 
 Covered by `lib/test-job.js` (unit) and the e2e `job xss guard` step, which imports a hostile
@@ -456,7 +456,7 @@ wire()         DOM event wiring, IPC subscriptions, keyboard shortcuts
 ```js
 state = {
   clips: [ { id, path, name, fileSize, durationMs, fps, width, height, hasAudio,
-             cuts:[{id,start,end}],
+             deletes:[{id,start,end}],
              subtitles:[{id,path,name,format,events,enabled}], activeSubtitleId,
              thumbs, proxyPath } ],
   activeClipId, selection:{clipId,start,end}|null, inPoint, outPoint,
@@ -466,7 +466,7 @@ state = {
 }
 ```
 
-Derived helpers: `keptRanges(clip)` (duration minus cuts), `programRanges()` (all clips in
+Derived helpers: `keptRanges(clip)` (duration minus deletes), `programRanges()` (all clips in
 order → flat list of `{clipId, srcStart, srcEnd, outStart, outEnd}`), `remapAll()` (cached
 merged subtitle list).
 
@@ -530,17 +530,17 @@ panel window --'panel:cmd'--> panels.js --'panel:cmd'--> main renderer (onPanelC
   `pushPanelState(name)`. `panel:closed` (title-bar X) docks the pane back into the main
   window; the panel's own **Dock** button sends `panel:close-self`.
 - Snapshots carry a `kind`: `main` (per-pane view model) or `timeline`.
-  `sidebarSnapshot()` (clips, cuts, subtitle tracks/rows) and `transportSnapshot()`
+  `sidebarSnapshot()` (clips, deletes, subtitle tracks/rows) and `transportSnapshot()`
   (timecodes, seek ratio, mode, in/out, selection, zoom) are coalesced through
   `scheduleSidebarSync()` (40 ms) / `scheduleTransportSync()` (60 ms); `timelineSnapshot()`
-  (duration, cuts, subtitle blocks, filmstrip) goes through `scheduleTimelineSync()` (120 ms,
+  (duration, deletes, subtitle blocks, filmstrip) goes through `scheduleTimelineSync()` (120 ms,
   triggered from `renderTimeline()`). Only built while the matching window is open.
 - Commands (`onPanelCommand`) are validated then routed into the existing handlers:
   `click` with an id from `PANEL_CLICK_IDS` → `els[id].click()`; plus `seek`, `zoom`, `snap`,
-  `activate`, `clip`, `cutDelete`, `cutHover`, `seekTo`, `subOffset`, `subToggle`,
-  `subActivate`, `subRemove`. Cut/track/clip ids are checked against current state first.
+  `activate`, `clip`, `deleteDelete`, `deleteHover`, `seekTo`, `subOffset`, `subToggle`,
+  `subActivate`, `subRemove`. Delete/track/clip ids are checked against current state first.
 - The control center window also renders the timeline (`#ptlTimeline`, reusing the `.tl-*`
-  widgets): `src/panel.js` draws the ruler/filmstrip/cuts/subtitle lane and sends `select`
+  widgets): `src/panel.js` draws the ruler/filmstrip/deletes/subtitle lane and sends `select`
   (drag), `seekTo` (click / playhead drag) and `mark` (double-click → In then Out). Zoom comes
   from the transport snapshot; the view auto-scrolls with the playhead while playing.
 - Bounds live in `settings.json` under `panels.<name>` (`panel:open` falls back to defaults
@@ -549,7 +549,7 @@ panel window --'panel:cmd'--> panels.js --'panel:cmd'--> main renderer (onPanelC
 
 ### Rendering
 
-- `renderTimeline()` → `buildBase()` (ruler ticks, filmstrip `<img>`, cut blocks, subtitle
+- `renderTimeline()` → `buildBase()` (ruler ticks, filmstrip `<img>`, delete blocks, subtitle
   lane, filmstrip placeholder) **plus** `renderOverlays()` (selection, In/Out markers,
   playhead). Split so drags only repaint the cheap overlay.
 - `postTick()` runs on `timeupdate` (playhead, transport, subtitle overlay, autoscroll).
@@ -567,7 +567,7 @@ Seeking in result mode:
 - the scrubber calls `seekResult(outputMs)`, which pauses, finds the range containing that
   output time and seeks the `<video>` to `srcStart + (outputMs - outStart)`.
 - the timeline is **source-time** based, so a click/scrub there goes through
-  `sourceToResultMs(clipId, srcMs)` first (inside a cut it snaps to the next kept frame).
+  `sourceToResultMs(clipId, srcMs)` first (inside a delete it snaps to the next kept frame).
   `seekTo()` branches to `seekResult()` in result mode; without that the playhead moved but
   the preview stayed put.
 - `programPlay(fromResultMs)` must **keep** the requested output position inside the found
@@ -590,7 +590,7 @@ use those variables instead of hard-coded colours. Persisted in
 - Markup uses `data-i18n` (textContent), `data-i18n-title`, `data-i18n-placeholder` and
   `data-i18n-aria`; `apply(lang)` rewrites them and sets `<html lang|dir>` (`ar` → RTL).
 - Strings the renderer generates use `CU.i18n.t('key')` (aliased as `t()` in `app.js`);
-  the sidebar/cut/subtitle empty states, the In/Out readout and the idle status are the
+  the sidebar/delete/subtitle empty states, the In/Out readout and the idle status are the
   ones that matter.
 - `resolve(preferred)` uses the explicit choice, else the system locale
   (`navigator.languages`), else English. `localStorage["cuci.lang"]` gives an instant boot;
@@ -621,7 +621,7 @@ use those variables instead of hard-coded colours. Persisted in
 → `npm test` → clean `dist/` and `.build/` → **`scripts/obfuscate.mjs`** stages `.build/app`
 (renderer JS obfuscated; `node_modules` + `vendor` junctioned so deps and `extraResources`
 resolve) → **`scripts/verify-build.cjs`** boots that stage in Electron and checks CUCI
-helpers, preload API, i18n switching, theme, media probing and a cut → `node
+helpers, preload API, i18n switching, theme, media probing and a delete → `node
 node_modules/electron-builder/cli.js` for `-Installer`/`-Portable` with
 `--config.directories.app=.build/app` (never the `.cmd` shim → EINVAL) → `node
 scripts/build-msix.mjs [--appx] --app-dir .build/app` for `-Store`/`-Appx` → optional `-Sign`
@@ -648,7 +648,7 @@ state or language changes.
 
 Accelerators are only registered for actions that are safe while typing (`Ctrl+O`,
 `Ctrl+Shift+A`, `Ctrl+E`, `Ctrl+S`, `Ctrl+Shift+O`, `Ctrl+,`, `Ctrl+=`/`Ctrl+-`, `F1`,
-`F11`). Undo/redo/marks/cuts keep their context-aware renderer shortcuts so text fields keep
+`F11`). Undo/redo/marks/deletes keep their context-aware renderer shortcuts so text fields keep
 native editing. Developer Tools and Reload are not in the menu at all.
 
 Job sharing follows the same split: `Ctrl+S` is the menu accelerator for *File ▸ Save job
@@ -691,13 +691,13 @@ collapsed until the snapshot reports a track, with the same per-clip count map).
 ### User guide + job import confirmation
 
 - **User guide** (`#guideModal`, topbar **?** or **F1**): static markup with `data-i18n`
-  attributes — sections for getting started, cutting, preview, subtitles, Parent Assist,
+  attributes — sections for getting started, deleting, preview, subtitles, Parent Assist,
   export, jobs, workspace, a shortcut table (`<kbd>`) and tips. It is translated by the same
   `CU.i18n.apply()` pass, so no JS rendering is involved.
 - **Import confirmation**: `openJobFile()` / `importShareCode()` never apply a payload
   directly. `requestJobImport(text, label)` runs `CU.parseJobText()` (byte caps + bounded
   inflate) and `CU.sanitizeJob()` (whitelists, length caps, plain strings), builds a preview
-  with `findClipForEntry()`, then shows `#confirmModal` — description, clips, cuts, subtitle
+  with `findClipForEntry()`, then shows `#confirmModal` — description, clips, deletes, subtitle
   tracks, matched/missing videos and the export format — and only calls `applyJob()` when the
   user confirms. Every value in the dialog is written with `textContent`; job text is never
   passed to `innerHTML`.
@@ -706,7 +706,7 @@ collapsed until the snapshot reports a track, with the same per-clip count map).
 
 `init()` exposes `window.__cuciApp = { state, api, CU, addVideos, loadSubtitleFromPath,
 keptRanges, programRanges, remapAll, applyThumbSetting, buildJob, applyJob,
-encodeShareCode, decodeShareCode, addCut, removeCut, renderAll, seekTo, currentSetup,
+encodeShareCode, decodeShareCode, addDelete, removeDelete, renderAll, seekTo, currentSetup,
 setPanelPinned, setPanelDetached }`.
 Used by `lib/e2e.js` and handy in DevTools.
 
@@ -723,7 +723,7 @@ Used by `lib/e2e.js` and handy in DevTools.
 | `serializeVtt(events)` | events → VTT text |
 | `rangeOutputOffsets(ranges)` | cumulative output start of each kept range |
 | `remapEvents(events, ranges, baseOffset, globalOffset)` | source→output mapping (below) |
-| `droppedEvents(events, ranges)` | events fully inside cuts (for UI colouring) |
+| `droppedEvents(events, ranges)` | events fully inside deletes (for UI colouring) |
 
 ### The remap formula
 
@@ -746,7 +746,7 @@ outEnd   = baseOffset + rangeOutputOffsets[i] + (e - r_i.start) + globalOffset
 single clip). An event spanning a boundary produces one output event per overlapped range.
 
 > **Regression note:** an early version omitted `rangeOutputOffsets[i]`, which shifted every
-> post-cut subtitle too far left. Keep the e2e `subtitle remap` assertion green
+> post-delete subtitle too far left. Keep the e2e `subtitle remap` assertion green
 > (`DUMMY 07` at source 2:30 must land at output 0:45).
 
 ---
@@ -766,14 +766,14 @@ Empty paths mean "auto-detect" (system, then bundled). `loadThumbs` and `preferB
 default to `false`; the `nsfw*` keys remember the last scan settings.
 
 NSFW defaults are deliberately aggressive — sensitivity `0.3` (the slider minimum) and a
-5 s minimum cut length — so brief scenes are not missed. Raise the threshold if the first
+5 s minimum delete length — so brief scenes are not missed. Raise the threshold if the first
 pass produces too many false positives.
 
-### Cut job — verbose (`.cuci.json`; old `.cuci2.json` files still load)
+### Delete job — verbose (`.cuci.json`; old `.cuci2.json` files still load)
 
 ```json
 {
-  "app": "CUCI", "kind": "cut-job", "version": 1,
+  "app": "CUCI", "kind": "delete-job", "version": 1,
   "created": "2025-01-01T00:00:00.000Z",
   "description": "Remove the intro and the sponsor break.",
   "subOffsetMs": -250,
@@ -783,7 +783,7 @@ pass produces too many false positives.
   "clips": [
     { "name":"bbb.mp4", "size":276134947, "durationMs":634600, "fps":30,
       "width":1920, "height":1080, "hasAudio":true,
-      "cuts": [[60000,154000]],
+      "deletes": [[60000,154000]],
       "subtitles": [
         { "name":"bbb.en.srt", "format":"srt", "events": [[1000,4000,"Hello"]] },
         { "name":"bbb.id.srt", "format":"srt", "events": [[1000,4000,"Halo"]] }
@@ -796,9 +796,14 @@ pass produces too many false positives.
 singular `"subtitle": {...}`; `sanitizeJob()` still accepts that and normalises it to a
 one-element array.
 
+Jobs written before the cut→delete rename (v1.0.x) spell the per-clip range list `"cuts"`
+and the kind `"cut-job"`. `sanitizeJob()` accepts `"cuts"` as an alias for `"deletes"`
+(the kind is not validated on input, only written on output), so old `.cuci.json` files
+and share codes keep importing; re-saving always writes the new names.
+
 `subtitle.events` is `null` unless the user chose to embed subtitles.
 
-### Cut job — compact (share code payload)
+### Delete job — compact (share code payload)
 
 Short keys, used **only** inside the share code:
 
@@ -861,11 +866,11 @@ npm run test:cancel # electron lib/test-cancel.js
 | Suite | What it covers |
 | --- | --- |
 | `test:locate` | the ffmpeg resolution chain: default finds *something*, a bogus custom path falls through, `preferBundled` selects the vendored build and it reports `libass` |
-| `test:job` | cut-job trust boundary: round-trip, size caps, zip bomb, prototype pollution, numeric clamps, array caps, text sanitising, SRT injection, export whitelist |
+| `test:job` | delete-job trust boundary: round-trip, size caps, zip bomb, prototype pollution, numeric clamps, array caps, text sanitising, SRT injection, export whitelist |
 | `test:nsfw` | tensor normalisation, softmax and range grouping (always); plus a real scan of a generated clip when the ONNX model is present |
 | `selftest` | builds sample clips (mixed resolution, one silent), joins them with the production filtergraph, asserts output duration (~6 s) and streams |
 | `smoke` | loads the real `src/index.html` in a hidden window; fails on any renderer console error |
-| `e2e` | loads a generated video, checks snapshots are **off** by default then enables them, verifies filmstrip, double-click In/Out, subtitles + cut remap, seek/step, context menu, job codec round-trip, status bar, export guard, and a burn-in export (`5.000 s`) |
+| `e2e` | loads a generated video, checks snapshots are **off** by default then enables them, verifies filmstrip, double-click In/Out, subtitles + delete remap, seek/step, context menu, job codec round-trip, status bar, export guard, and a burn-in export (`5.000 s`) |
 | `cancel` | starts a deliberately slow 4K `veryslow` export, cancels it, asserts **0** ffmpeg processes remain (immediately and after 3 s), the partial output is deleted and temp dirs are cleaned |
 
 Notes:
@@ -893,7 +898,7 @@ https://download.blender.org/peach/bigbuckbunny_movies/
 ```
 
 Then create `Sample/bbb.srt` with a dummy track (a handful of events, ideally including
-some inside the ranges you plan to cut and one spanning a cut boundary) to exercise
+some inside the ranges you plan to delete and one spanning a delete boundary) to exercise
 subtitle remapping by hand.
 
 ---
@@ -933,14 +938,14 @@ npm run dist
 3. Read it in `refreshInfo()` (`state.settings = …`) and apply it in the Save handler.
 
 **Add a timeline context-menu item**
-Extend `buildContextItems(t, cutId)` in `src/app.js`; it returns `{ label, hint, key,
+Extend `buildContextItems(t, deleteId)` in `src/app.js`; it returns `{ label, hint, key,
 disabled, danger, action }` entries (or `{ sep: true }`). The menu is rendered by
 `showContextMenu()`.
 
-**Add a cut action**
-Reuse `getEditRange()`, `addCut(start, end)`, `clearMarks()`, `clearCuts()`,
+**Add a delete action**
+Reuse `getEditRange()`, `addDelete(start, end)`, `clearMarks()`, `clearDeletes()`,
 `applyDoubleClickMark(t)` in `src/app.js`, and remember to `invalidate()` the `remapAll()`
-cache after mutating cuts.
+cache after mutating deletes.
 
 ---
 
@@ -962,7 +967,7 @@ cache after mutating cuts.
 ## Known constraints
 
 - Preview is limited to Chromium-supported codecs; use the proxy for MKV/HEVC/ProRes.
-- Export always re-encodes (frame-accurate cuts + heterogeneous sources).
+- Export always re-encodes (frame-accurate deletes + heterogeneous sources).
 - `ass`/`ssa` are not fully parsed — only SRT-style timestamped lines; convert to SRT first.
 - Burning subtitles requires an ffmpeg build with libass.
 - The filmstrip decodes the whole file, hence it is opt-in (`loadThumbs`).

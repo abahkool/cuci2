@@ -1,4 +1,4 @@
-/* CUCI renderer — cut out bad scenes */
+/* CUCI renderer — delete out bad scenes */
 (function () {
   const api = window.api;
   const CU = window.CUCI;
@@ -117,8 +117,8 @@
     [
       'video', 'subtitleOverlay', 'playerNotice', 'playerNoticeText', 'btnMakeProxy', 'btnDismissNotice',
       'btnAddVideo', 'btnAddVideo2', 'btnAddSub', 'btnExport', 'btnSettings', 'ffStatus',
-      'clipList', 'clipCount', 'cutList', 'cutCount', 'ioReadout',
-      'btnSetIn', 'btnSetOut', 'btnCut', 'btnClearCuts', 'btnClearMarks',
+      'clipList', 'clipCount', 'deleteList', 'deleteCount', 'ioReadout',
+      'btnSetIn', 'btnSetOut', 'btnDelete', 'btnClearDeletes', 'btnClearMarks',
       'subInfo', 'subOffset', 'btnSubAdd', 'subTrackList', 'btnSubExport', 'subEventList',
       'btnToggleSubEvents', 'subEventCount',
       'btnSidebarAddSub', 'btnSidebarAddVideo',
@@ -127,7 +127,7 @@
       'mainPane', 'transportBar', 'timelineWrap', 'playerSplitter', 'sidebar', 'playerWrap',
       'btnPinSidebar', 'btnPinTransport', 'btnDetachSidebar', 'btnDetachTransport',
       'revealBar', 'btnRevealSidebar', 'btnRevealTransport',
-      'timelineScroll', 'timeline', 'tlRuler', 'tlFilm', 'tlCuts', 'tlSubs',
+      'timelineScroll', 'timeline', 'tlRuler', 'tlFilm', 'tlDeletes', 'tlSubs',
       'tlSelection', 'tlMarkerIn', 'tlMarkerOut', 'tlPlayhead', 'emptyState',
       'exportModal', 'expPath', 'expBrowse', 'expContainer', 'expVcodec', 'expCrf', 'expCrfVal',
       'expPreset', 'expRes', 'expFps', 'expAbitrate', 'expBurn', 'expBurnTrack', 'expSrt', 'expSummary',
@@ -205,10 +205,10 @@
 
   function keptRanges(clip) {
     if (!clip) return [];
-    const cuts = [...clip.cuts].sort((a, b) => a.start - b.start);
+    const deletes = [...clip.deletes].sort((a, b) => a.start - b.start);
     const out = [];
     let cur = 0;
-    for (const c of cuts) {
+    for (const c of deletes) {
       if (c.start > cur) out.push({ start: cur, end: c.start });
       cur = Math.max(cur, c.end);
     }
@@ -441,7 +441,7 @@
     return JSON.stringify(
       state.clips.map((c) => ({
         id: c.id,
-        cuts: c.cuts.map((x) => ({ id: x.id, start: x.start, end: x.end })),
+        deletes: c.deletes.map((x) => ({ id: x.id, start: x.start, end: x.end })),
         subtitles: (c.subtitles || []).map((t) => ({
           id: t.id,
           path: t.path,
@@ -467,7 +467,7 @@
     for (const d of data) {
       const c = byId.get(d.id);
       if (!c) continue;
-      c.cuts = d.cuts || [];
+      c.deletes = d.deletes || [];
       c.subtitles = (d.subtitles || []).map((t) => ({ ...t }));
       c.activeSubtitleId = d.activeSubtitleId || (c.subtitles[0] ? c.subtitles[0].id : null);
       ordered.push(c);
@@ -511,7 +511,7 @@
           videoCodec: info.videoCodec,
           audioCodec: info.audioCodec,
           fileSize: info.size || 0,
-          cuts: [],
+          deletes: [],
           subtitles: [],
           activeSubtitleId: null,
           thumbs: null,
@@ -727,7 +727,7 @@
     invalidate();
     updateStatusInfo();
     updateClipList();
-    updateCutList();
+    updateDeleteList();
     updateSubPanel();
     renderTimeline();
     updateTransport();
@@ -742,7 +742,7 @@
     if (!clip) {
       state.pxPerMs = 0;
       els.timeline.style.width = '100%';
-      [els.tlRuler, els.tlFilm, els.tlCuts, els.tlSubs].forEach((e) => (e.innerHTML = ''));
+      [els.tlRuler, els.tlFilm, els.tlDeletes, els.tlSubs].forEach((e) => (e.innerHTML = ''));
       renderOverlays();
       return;
     }
@@ -798,19 +798,19 @@
       els.tlFilm.appendChild(hint);
     }
 
-    // cuts
-    els.tlCuts.innerHTML = '';
-    for (const cut of clip.cuts) {
+    // deletes
+    els.tlDeletes.innerHTML = '';
+    for (const deletion of clip.deletes) {
       const el = document.createElement('div');
-      el.className = 'tl-cut';
-      el.dataset.cutId = cut.id;
-      el.style.left = cut.start * ppm + 'px';
-      el.style.width = Math.max(3, (cut.end - cut.start) * ppm) + 'px';
+      el.className = 'tl-delete';
+      el.dataset.deleteId = deletion.id;
+      el.style.left = deletion.start * ppm + 'px';
+      el.style.width = Math.max(3, (deletion.end - deletion.start) * ppm) + 'px';
       el.innerHTML =
-        `<div class="cut-handle start" data-handle="start"></div>` +
-        `<div class="cut-handle end" data-handle="end"></div>` +
-        `<div class="cut-label">${CU.fmt(cut.start, 3)} → ${CU.fmt(cut.end, 3)} · ${CU.fmt(cut.end - cut.start, 3)}</div>`;
-      els.tlCuts.appendChild(el);
+        `<div class="delete-handle start" data-handle="start"></div>` +
+        `<div class="delete-handle end" data-handle="end"></div>` +
+        `<div class="delete-label">${CU.fmt(deletion.start, 3)} → ${CU.fmt(deletion.end, 3)} · ${CU.fmt(deletion.end - deletion.start, 3)}</div>`;
+      els.tlDeletes.appendChild(el);
     }
 
     // subtitles (active track)
@@ -824,7 +824,7 @@
         el.className = 'tl-sub' + (dropped.has(ev) ? ' dropped' : '');
         el.style.left = ev.start * ppm + 'px';
         el.style.width = Math.max(2, (ev.end - ev.start) * ppm) + 'px';
-        el.title = `${CU.fmt(ev.start, 3)} → ${CU.fmt(ev.end, 3)}\n${ev.text}${dropped.has(ev) ? '\n\n(entirely inside a cut — will be removed)' : ''}`;
+        el.title = `${CU.fmt(ev.start, 3)} → ${CU.fmt(ev.end, 3)}\n${ev.text}${dropped.has(ev) ? '\n\n(entirely inside a deletion — will be removed)' : ''}`;
         el.textContent = ev.text.replace(/\s*\n\s*/g, ' ');
         el.dataset.subStart = String(ev.start);
         els.tlSubs.appendChild(el);
@@ -894,7 +894,7 @@
           <span>${clip.width}×${clip.height}</span>
           <span>${clip.fps ? clip.fps.toFixed(2) : '?'} fps</span>
           ${clip.hasAudio ? '' : '<span style="color:var(--warn)">no audio</span>'}
-          ${clip.cuts.length ? `<span style="color:var(--danger)">${clip.cuts.length} cut${clip.cuts.length > 1 ? 's' : ''}</span>` : ''}
+          ${clip.deletes.length ? `<span style="color:var(--danger)">${clip.deletes.length} delete${clip.deletes.length > 1 ? 's' : ''}</span>` : ''}
         </div>
         <div class="clip-actions">
           <button class="btn tiny" data-act="up" title="${t('msgMoveEarlier')}">↑</button>
@@ -950,36 +950,36 @@
     }
   }
 
-  function updateCutList() {
+  function updateDeleteList() {
     scheduleSidebarSync();
     const clip = activeClip();
-    const cuts = clip ? [...clip.cuts].sort((a, b) => a.start - b.start) : [];
-    els.cutCount.textContent = String(cuts.length);
-    els.cutList.innerHTML = '';
+    const deletes = clip ? [...clip.deletes].sort((a, b) => a.start - b.start) : [];
+    els.deleteCount.textContent = String(deletes.length);
+    els.deleteList.innerHTML = '';
     if (!clip) {
-      els.cutList.innerHTML = '<div class="sub-info"></div>';
-      els.cutList.firstChild.textContent = t('selectClip');
-    } else if (!cuts.length) {
-      els.cutList.innerHTML = '<div class="sub-info"></div>';
-      els.cutList.firstChild.textContent = t('noCuts');
+      els.deleteList.innerHTML = '<div class="sub-info"></div>';
+      els.deleteList.firstChild.textContent = t('selectClip');
+    } else if (!deletes.length) {
+      els.deleteList.innerHTML = '<div class="sub-info"></div>';
+      els.deleteList.firstChild.textContent = t('noDeletes');
     }
-    cuts.forEach((c) => {
+    deletes.forEach((c) => {
       const el = document.createElement('div');
-      el.className = 'cut-item';
+      el.className = 'delete-item';
       el.innerHTML =
-        `<span class="cut-time">${CU.fmt(c.start, 3)} → ${CU.fmt(c.end, 3)}</span>` +
-        `<span class="cut-dur">${CU.fmt(c.end - c.start, 3)}</span>` +
+        `<span class="delete-time">${CU.fmt(c.start, 3)} → ${CU.fmt(c.end, 3)}</span>` +
+        `<span class="delete-dur">${CU.fmt(c.end - c.start, 3)}</span>` +
         `<button class="btn tiny danger" data-del="${c.id}">✕</button>`;
-      el.querySelector('[data-del]').addEventListener('click', () => removeCut(c.id));
-      el.addEventListener('mouseenter', () => highlightCut(c.id, true));
-      el.addEventListener('mouseleave', () => highlightCut(c.id, false));
-      els.cutList.appendChild(el);
+      el.querySelector('[data-del]').addEventListener('click', () => removeDelete(c.id));
+      el.addEventListener('mouseenter', () => highlightDelete(c.id, true));
+      el.addEventListener('mouseleave', () => highlightDelete(c.id, false));
+      els.deleteList.appendChild(el);
     });
     updateIoReadout();
   }
 
-  function highlightCut(id, on) {
-    const el = els.tlCuts.querySelector(`[data-cut-id="${id}"]`);
+  function highlightDelete(id, on) {
+    const el = els.tlDeletes.querySelector(`[data-delete-id="${id}"]`);
     if (el) el.style.outline = on ? '2px solid #fff' : 'none';
   }
 
@@ -1058,14 +1058,14 @@
       `<b>${tracks.length} track${tracks.length > 1 ? 's' : ''}</b> · ` +
       `<b>${CU.escapeHtml(active.name)}</b>${active.enabled === false ? ' (excluded from export)' : ''}<br>` +
       `${rows.length} events · <span class="ok">${keptCount} kept</span>` +
-      (droppedCount ? ` · <span class="warn">${droppedCount} dropped inside cuts</span>` : '');
+      (droppedCount ? ` · <span class="warn">${droppedCount} dropped inside deletes</span>` : '');
 
     const max = 400;
     rows.slice(0, max).forEach((row) => {
       const ev = row.ev;
       const el = document.createElement('div');
       el.className = 'sub-event' + (row.dropped ? ' dropped' : '');
-      const newLabel = row.dropped ? 'cut' : row.parts.map((p) => CU.fmt(p.start, 3)).join(', ');
+      const newLabel = row.dropped ? 'deletion' : row.parts.map((p) => CU.fmt(p.start, 3)).join(', ');
       el.innerHTML =
         `<span class="se-time">${CU.fmt(ev.start, 3)}</span>` +
         `<span class="se-arrow">→</span>` +
@@ -1137,19 +1137,19 @@
     els.subtitleOverlay.innerHTML = active.map((e) => `<span>${CU.escapeHtml(e.text)}</span>`).join('');
   }
 
-  /* ───────────────────────────── cut operations ───────────────────────────── */
-  function normalizeCuts(clip) {
-    const cuts = [...clip.cuts].sort((a, b) => a.start - b.start);
+  /* ───────────────────────────── delete operations ───────────────────────────── */
+  function normalizeDeletes(clip) {
+    const deletes = [...clip.deletes].sort((a, b) => a.start - b.start);
     const merged = [];
-    for (const c of cuts) {
+    for (const c of deletes) {
       const last = merged[merged.length - 1];
       if (last && c.start <= last.end + 1) last.end = Math.max(last.end, c.end);
       else merged.push({ id: c.id, start: c.start, end: c.end });
     }
-    clip.cuts = merged;
+    clip.deletes = merged;
   }
 
-  function addCut(start, end) {
+  function addDelete(start, end) {
     const clip = activeClip();
     if (!clip) return;
     let s = snapMs(Math.min(start, end));
@@ -1161,8 +1161,8 @@
       return;
     }
     pushUndo();
-    clip.cuts.push({ id: CU.uid('cut'), start: s, end: e });
-    normalizeCuts(clip);
+    clip.deletes.push({ id: CU.uid('delete'), start: s, end: e });
+    normalizeDeletes(clip);
     state.selection = null;
     state.inPoint = null;
     state.outPoint = null;
@@ -1170,11 +1170,11 @@
     renderAll();
   }
 
-  function removeCut(id) {
+  function removeDelete(id) {
     const clip = activeClip();
     if (!clip) return;
     pushUndo();
-    clip.cuts = clip.cuts.filter((c) => c.id !== id);
+    clip.deletes = clip.deletes.filter((c) => c.id !== id);
     invalidate();
     renderAll();
   }
@@ -1192,7 +1192,7 @@
     return null;
   }
 
-  function cutSelection() {
+  function deleteSelection() {
     const clip = activeClip();
     if (!clip) return toast(t('msgAddVideo'), 'warn', 2600);
     const r = getEditRange();
@@ -1205,7 +1205,7 @@
         return toast(t('msgInOutSame'), 'warn', 4200);
       return toast(t('msgNothingSelected'), 'warn', 4200);
     }
-    addCut(r.start, r.end);
+    addDelete(r.start, r.end);
   }
 
   /** Double-click on the ruler/filmstrip: set In, then Out, then start a new range. */
@@ -1239,11 +1239,11 @@
     updateIoReadout();
   }
 
-  function clearCuts() {
+  function clearDeletes() {
     const clip = activeClip();
-    if (!clip || !clip.cuts.length) return;
+    if (!clip || !clip.deletes.length) return;
     pushUndo();
-    clip.cuts = [];
+    clip.deletes = [];
     state.selection = null;
     invalidate();
     renderAll();
@@ -1256,7 +1256,7 @@
     els.ctxMenu.innerHTML = '';
   }
 
-  function buildContextItems(t, cutId) {
+  function buildContextItems(t, deleteId) {
     const clip = activeClip();
     const range = getEditRange();
     const at = CU.fmt(t, 3);
@@ -1267,33 +1267,33 @@
     items.push({ sep: true });
 
     items.push({
-      label: 'Cut In → Out',
+      label: 'Delete In → Out',
       key: 'X',
       hint: range ? CU.fmt(range.end - range.start, 3) : '',
       disabled: !range,
-      action: () => cutSelection(),
+      action: () => deleteSelection(),
     });
 
     if (state.inPoint != null && Math.abs(t - state.inPoint) > 1) {
-      items.push({ label: 'Cut from In to here', hint: CU.fmt(Math.abs(t - state.inPoint), 3), action: () => addCut(state.inPoint, t) });
+      items.push({ label: 'Delete from In to here', hint: CU.fmt(Math.abs(t - state.inPoint), 3), action: () => addDelete(state.inPoint, t) });
     }
     if (state.outPoint != null && Math.abs(state.outPoint - t) > 1) {
-      items.push({ label: 'Cut from here to Out', hint: CU.fmt(Math.abs(state.outPoint - t), 3), action: () => addCut(t, state.outPoint) });
+      items.push({ label: 'Delete from here to Out', hint: CU.fmt(Math.abs(state.outPoint - t), 3), action: () => addDelete(t, state.outPoint) });
     }
 
-    const cut = cutId && clip ? clip.cuts.find((c) => c.id === cutId) : null;
-    if (cut) {
+    const deletion = deleteId && clip ? clip.deletes.find((c) => c.id === deleteId) : null;
+    if (deletion) {
       items.push({ sep: true });
-      items.push({ label: 'Remove this cut', danger: true, hint: CU.fmt(cut.end - cut.start, 3), action: () => removeCut(cut.id) });
+      items.push({ label: 'Remove this deletion', danger: true, hint: CU.fmt(deletion.end - deletion.start, 3), action: () => removeDelete(deletion.id) });
     }
 
     items.push({ sep: true });
     items.push({ label: 'Clear marks', disabled: state.inPoint == null && state.outPoint == null && !state.selection, action: () => clearMarks() });
-    items.push({ label: 'Clear cuts', danger: true, disabled: !clip || !clip.cuts.length, action: () => clearCuts() });
+    items.push({ label: 'Clear deletions', danger: true, disabled: !clip || !clip.deletes.length, action: () => clearDeletes() });
     return items;
   }
 
-  function showContextMenu(clientX, clientY, timeMs, cutId) {
+  function showContextMenu(clientX, clientY, timeMs, deleteId) {
     const clip = activeClip();
     if (!clip) return;
     const t = snapMs(timeMs);
@@ -1306,7 +1306,7 @@
     head.textContent = `at ${CU.fmt(t, 3)}${frame}`;
     menu.appendChild(head);
 
-    for (const it of buildContextItems(t, cutId)) {
+    for (const it of buildContextItems(t, deleteId)) {
       if (it.sep) {
         const s = document.createElement('div');
         s.className = 'ctx-sep';
@@ -1357,7 +1357,7 @@
       if (srcMs >= r.srcStart && srcMs <= r.srcEnd) return r.outStart + (srcMs - r.srcStart);
     }
     // Inside a removed range: snap forward to the next kept frame (or back to
-    // the last one when the clip is cut away to its end).
+    // the last one when the clip is delete away to its end).
     const next = mine.find((r) => r.srcStart >= srcMs);
     return next ? next.outStart : mine[mine.length - 1].outEnd;
   }
@@ -1520,16 +1520,16 @@
       seekTo(snapMs(xToMs(e.clientX)));
       return;
     }
-    const cutEl = target.closest('.tl-cut');
-    if (cutEl) {
-      const cut = clip.cuts.find((c) => c.id === cutEl.dataset.cutId);
-      if (!cut) return;
+    const deleteEl = target.closest('.tl-delete');
+    if (deleteEl) {
+      const deletion = clip.deletes.find((c) => c.id === deleteEl.dataset.deleteId);
+      if (!deletion) return;
       const handle = target.closest('[data-handle]');
       const ms = snapMs(xToMs(e.clientX));
       if (handle) {
-        drag = { type: 'cut-edge', cutId: cut.id, side: handle.dataset.handle, pushed: false };
+        drag = { type: 'delete-edge', deleteId: deletion.id, side: handle.dataset.handle, pushed: false };
       } else {
-        drag = { type: 'cut-move', cutId: cut.id, grabMs: ms, origStart: cut.start, origEnd: cut.end, moved: false, pushed: false };
+        drag = { type: 'delete-move', deleteId: deletion.id, grabMs: ms, origStart: deletion.start, origEnd: deletion.end, moved: false, pushed: false };
       }
       return;
     }
@@ -1564,35 +1564,35 @@
       renderOverlays();
       return;
     }
-    const cut = clip.cuts.find((c) => c.id === drag.cutId);
-    if (!cut) return;
+    const deletion = clip.deletes.find((c) => c.id === drag.deleteId);
+    if (!deletion) return;
     if (!drag.pushed && drag.type !== 'select' && drag.type !== 'scrub' && drag.type !== 'playhead') {
       pushUndo();
       drag.pushed = true;
     }
-    if (drag.type === 'cut-edge') {
-      if (drag.side === 'start') cut.start = CU.clamp(ms, 0, cut.end - 1);
-      else cut.end = CU.clamp(ms, cut.start + 1, clip.durationMs);
-    } else if (drag.type === 'cut-move') {
+    if (drag.type === 'delete-edge') {
+      if (drag.side === 'start') deletion.start = CU.clamp(ms, 0, deletion.end - 1);
+      else deletion.end = CU.clamp(ms, deletion.start + 1, clip.durationMs);
+    } else if (drag.type === 'delete-move') {
       const delta = ms - drag.grabMs;
       if (Math.abs(delta) > 1) drag.moved = true;
       const len = drag.origEnd - drag.origStart;
       let s = CU.clamp(drag.origStart + delta, 0, clip.durationMs - len);
-      cut.start = s;
-      cut.end = s + len;
+      deletion.start = s;
+      deletion.end = s + len;
     }
     invalidate();
-    updateCutElement(cut);
-    updateCutList();
+    updateDeleteElement(deletion);
+    updateDeleteList();
   }
 
-  function updateCutElement(cut) {
-    const el = els.tlCuts.querySelector(`[data-cut-id="${cut.id}"]`);
+  function updateDeleteElement(deletion) {
+    const el = els.tlDeletes.querySelector(`[data-delete-id="${deletion.id}"]`);
     if (!el) return;
-    el.style.left = cut.start * state.pxPerMs + 'px';
-    el.style.width = Math.max(3, (cut.end - cut.start) * state.pxPerMs) + 'px';
-    const label = el.querySelector('.cut-label');
-    if (label) label.textContent = `${CU.fmt(cut.start, 3)} → ${CU.fmt(cut.end, 3)} · ${CU.fmt(cut.end - cut.start, 3)}`;
+    el.style.left = deletion.start * state.pxPerMs + 'px';
+    el.style.width = Math.max(3, (deletion.end - deletion.start) * state.pxPerMs) + 'px';
+    const label = el.querySelector('.delete-label');
+    if (label) label.textContent = `${CU.fmt(deletion.start, 3)} → ${CU.fmt(deletion.end, 3)} · ${CU.fmt(deletion.end - deletion.start, 3)}`;
   }
 
   function onPointerUp() {
@@ -1611,24 +1611,24 @@
         renderOverlays();
       }
     }
-    if ((drag.type === 'cut-edge' || drag.type === 'cut-move') && clip) {
-      normalizeCuts(clip);
+    if ((drag.type === 'delete-edge' || drag.type === 'delete-move') && clip) {
+      normalizeDeletes(clip);
       invalidate();
-      updateCutList();
+      updateDeleteList();
       updateClipList();
       renderTimeline();
     }
     drag = null;
   }
 
-  /* ─────────────────── cut job: save / share / import ─────────────────── */
+  /* ─────────────────── delete job: save / share / import ─────────────────── */
   const round3 = (v) => Math.round((Number(v) || 0) * 1000) / 1000;
 
   function buildJob(includeSubtitles) {
     const description = (state.jobDescription || '').trim().slice(0, 200);
     return {
       app: 'CUCI',
-      kind: 'cut-job',
+      kind: 'delete-job',
       version: 1,
       created: new Date().toISOString(),
       description: description || undefined,
@@ -1653,7 +1653,7 @@
           width: clip.width,
           height: clip.height,
           hasAudio: !!clip.hasAudio,
-          cuts: [...clip.cuts].sort((a, b) => a.start - b.start).map((c) => [round3(c.start), round3(c.end)]),
+          deletes: [...clip.deletes].sort((a, b) => a.start - b.start).map((c) => [round3(c.start), round3(c.end)]),
           subtitles: [],
         };
         entry.subtitles = (clip.subtitles || []).map((t) => ({
@@ -1717,10 +1717,10 @@
       }
       usedIds.add(clip.id);
       matched.push(clip);
-      clip.cuts = (entry.cuts || [])
-        .map((c) => ({ id: CU.uid('cut'), start: Number(c[0]) || 0, end: Number(c[1]) || 0 }))
+      clip.deletes = (entry.deletes || [])
+        .map((c) => ({ id: CU.uid('delete'), start: Number(c[0]) || 0, end: Number(c[1]) || 0 }))
         .filter((c) => c.end > c.start);
-      normalizeCuts(clip);
+      normalizeDeletes(clip);
       const incomingTracks = Array.isArray(entry.subtitles) ? entry.subtitles : [];
       clip.subtitles = incomingTracks
         .filter((t) => t && Array.isArray(t.events) && t.events.length)
@@ -1815,11 +1815,11 @@
     const code = await CU.encodeShareCode(job);
     els.jobCode.value = code;
     const bytes = new TextEncoder().encode(code).length;
-    const cuts = job.clips.reduce((a, c) => a + c.cuts.length, 0);
+    const deletes = job.clips.reduce((a, c) => a + c.deletes.length, 0);
     const hasSubs = job.clips.some((c) => (c.subtitles || []).some((t) => t.events && t.events.length));
     const sizeHint = bytes <= 280;
     els.jobCodeInfo.textContent =
-      tf('msgShareInfo', { chars: bytes.toLocaleString(), clips: job.clips.length, cuts }) +
+      tf('msgShareInfo', { chars: bytes.toLocaleString(), clips: job.clips.length, deletes }) +
       (hasSubs ? t('msgShareInfoSubs') : '') +
       (sizeHint ? t('msgShareTweet') : '');
     els.jobCodeInfo.classList.toggle('warn', bytes > 4000);
@@ -1893,7 +1893,7 @@
     }
   }
 
-  /** Copy the share code for the current cuts. Used by the Job panel button and by
+  /** Copy the share code for the current deletes. Used by the Job panel button and by
    *  the global Ctrl+C shortcut, so the code is regenerated from the live state. */
   async function copyShareCode() {
     if (!state.clips.length) return toast(t('msgAddVideo'), 'warn');
@@ -1966,8 +1966,8 @@
     };
     if (job.description) add('confirmDescription', job.description);
     add('confirmClips', job.clips.length);
-    const cuts = job.clips.reduce((n, c) => n + c.cuts.length, 0);
-    if (cuts) add('confirmCuts', cuts);
+    const deletes = job.clips.reduce((n, c) => n + c.deletes.length, 0);
+    if (deletes) add('confirmDeletes', deletes);
     const tracks = job.clips.reduce((n, c) => n + (c.subtitles || []).filter((x) => x.events && x.events.length).length, 0);
     if (tracks) add('confirmSubtitles', tracks);
     add('confirmFound', `${matched} / ${job.clips.length}`);
@@ -2024,7 +2024,7 @@
     await requestJobImport(text, ' from share code');
   }
 
-  /** Switch the cut-job modal between its Export and Import tabs. */
+  /** Switch the delete-job modal between its Export and Import tabs. */
   function selectJobTab(which) {
     const isExport = which !== 'import';
     els.jobTabExport.classList.toggle('active', isExport);
@@ -2100,7 +2100,7 @@
     els.nsfwResults.innerHTML = '';
     els.nsfwProgressWrap.classList.add('hidden');
     els.nsfwApply.disabled = true;
-    els.nsfwApply.textContent = t('applyCuts');
+    els.nsfwApply.textContent = t('applyDeletes');
     state.nsfwSegments = [];
     els.nsfwModal.classList.remove('hidden');
     await refreshNsfwModelInfo();
@@ -2189,7 +2189,7 @@
     els.nsfwApply.textContent = tf('msgNsfwApplyN', { n: state.nsfwSegments.length });
   }
 
-  /** Add the given ranges as cuts on the active clip. Returns how many were added. */
+  /** Add the given ranges as deletes on the active clip. Returns how many were added. */
   function applyNsfwSegments(segments) {
     const clip = activeClip();
     if (!clip || !Array.isArray(segments) || !segments.length) return 0;
@@ -2199,17 +2199,17 @@
       const s = CU.clamp(Number(seg.start) || 0, 0, clip.durationMs);
       const e = CU.clamp(Number(seg.end) || 0, 0, clip.durationMs);
       if (e - s < 1) continue;
-      clip.cuts.push({ id: CU.uid('cut'), start: s, end: e });
+      clip.deletes.push({ id: CU.uid('delete'), start: s, end: e });
       added += 1;
     }
-    normalizeCuts(clip);
+    normalizeDeletes(clip);
     state.selection = null;
     invalidate();
     renderAll();
     return added;
   }
 
-  function applyNsfwCuts() {
+  function applyNsfwDeletes() {
     const n = applyNsfwSegments(state.nsfwSegments);
     if (!n) return toast(t('msgNsfwNone'), 'warn');
     setStatus(tf('msgNsfwMarked', { n }), 'ok', { timeout: 4500 });
@@ -2322,7 +2322,7 @@
   }
 
   // Guards against accidentally exporting the full source when the user meant
-  // to cut something: the first click arms, the second confirms.
+  // to delete something: the first click arms, the second confirms.
   let exportConfirmArmed = false;
 
   function resetExportConfirm() {
@@ -2335,7 +2335,7 @@
     const { ranges, total, width, height, fps, tracks, subs } = currentSetup();
     const completed = state.clips.reduce((a, c) => a + c.durationMs, 0);
     const removed = Math.max(0, completed - total);
-    const noCuts = removed < 1;
+    const noDeletes = removed < 1;
     const fmt = exportFormat(els.expContainer.value);
     const lines = [
       `${t('confirmClips')}: ${state.clips.length}`,
@@ -2353,8 +2353,8 @@
         return i > 0 ? `<b>${CU.escapeHtml(l.slice(0, i))}</b>: ${CU.escapeHtml(l.slice(i + 2))}` : CU.escapeHtml(l);
       })
       .join('\n');
-    if (noCuts) {
-      html += '\n\n<b style="color:var(--warn)">⚠ ' + CU.escapeHtml(t('msgNoCutsSummary')) + '</b>';
+    if (noDeletes) {
+      html += '\n\n<b style="color:var(--warn)">⚠ ' + CU.escapeHtml(t('msgNoDeletesSummary')) + '</b>';
     }
     els.expSummary.innerHTML = html;
     refreshBurnTrackOptions(tracks);
@@ -2366,7 +2366,7 @@
     const first = state.clips[0];
     if (!first) return '';
     const dir = CU.dirname(first.path);
-    return pathJoin(dir, CU.stripExt(first.name) + '.cut.' + exportFormat(els.expContainer.value).ext);
+    return pathJoin(dir, CU.stripExt(first.name) + '.delete.' + exportFormat(els.expContainer.value).ext);
   }
 
   function openExportModal() {
@@ -2396,7 +2396,7 @@
       exportConfirmArmed = true;
       els.expStart.classList.add('armed');
       els.expStart.textContent = t('expArm');
-      toast(t('msgNoCutsConfirm'), 'warn', 7000);
+      toast(t('msgNoDeletesConfirm'), 'warn', 7000);
       return;
     }
     resetExportConfirm();
@@ -2887,7 +2887,7 @@
   /* ───────── panel windows: state snapshots + commands ───────── */
   function sidebarSnapshot() {
     const clip = activeClip();
-    const cuts = clip ? [...clip.cuts].sort((a, b) => a.start - b.start) : [];
+    const deletes = clip ? [...clip.deletes].sort((a, b) => a.start - b.start) : [];
     const tracks = (clip && clip.subtitles) || [];
     const active = clip ? activeSubtitleTrack(clip) : null;
     let rows = [];
@@ -2919,11 +2919,11 @@
         kept: totalKept(c),
         subCount: (c.subtitles || []).length,
         hasProxy: !!c.proxyPath,
-        cuts: c.cuts.length,
+        deletes: c.deletes.length,
       })),
       activeClipId: state.activeClipId,
       clipName: clip ? clip.name : null,
-      cuts: cuts.map((c) => ({ id: c.id, start: c.start, end: c.end })),
+      deletes: deletes.map((c) => ({ id: c.id, start: c.start, end: c.end })),
       sub: {
         tracks: tracks.map((t) => ({
           id: t.id,
@@ -2971,10 +2971,10 @@
   }
 
   /* Slower, structural payload for the timeline that lives in the control
-     center window (cuts, subtitle blocks, filmstrip). */
+     center window (deletes, subtitle blocks, filmstrip). */
   function timelineSnapshot() {
     const clip = activeClip();
-    if (!clip) return { durationMs: 0, fps: 30, cuts: [], subs: [], thumbs: null };
+    if (!clip) return { durationMs: 0, fps: 30, deletes: [], subs: [], thumbs: null };
     const ranges = keptRanges(clip);
     const track = activeSubtitleTrack(clip);
     let subs = [];
@@ -2994,7 +2994,7 @@
     return {
       durationMs: clip.durationMs,
       fps: clip.fps || 30,
-      cuts: [...clip.cuts].sort((a, b) => a.start - b.start).map((c) => ({ id: c.id, start: c.start, end: c.end })),
+      deletes: [...clip.deletes].sort((a, b) => a.start - b.start).map((c) => ({ id: c.id, start: c.start, end: c.end })),
       subs,
       thumbs,
     };
@@ -3076,7 +3076,7 @@
 
   const PANEL_CLICK_IDS = new Set([
     'btnStop', 'btnPrevSec', 'btnPrevFrame', 'btnPlay', 'btnNextFrame', 'btnNextSec',
-    'btnSetIn', 'btnSetOut', 'btnCut', 'btnClearMarks', 'btnClearCuts',
+    'btnSetIn', 'btnSetOut', 'btnDelete', 'btnClearMarks', 'btnClearDeletes',
     'modeSource', 'modeResult', 'btnSubAdd', 'btnSubExport',
     'btnJob', 'btnNsfw', 'btnSidebarAddSub', 'btnSidebarAddVideo',
   ]);
@@ -3118,11 +3118,11 @@
       await handleClipAction(act, msg.clipId);
       return;
     }
-    if (action === 'cutDelete' || action === 'cutHover') {
+    if (action === 'deleteRemove' || action === 'deleteHover') {
       const clip = activeClip();
-      if (!clip || !clip.cuts.some((c) => c.id === msg.cutId)) return;
-      if (action === 'cutDelete') removeCut(msg.cutId);
-      else highlightCut(msg.cutId, !!msg.on);
+      if (!clip || !clip.deletes.some((c) => c.id === msg.deleteId)) return;
+      if (action === 'deleteRemove') removeDelete(msg.deleteId);
+      else highlightDelete(msg.deleteId, !!msg.on);
       return;
     }
     if (action === 'seekTo') {
@@ -3257,9 +3257,9 @@
         case 'redo': redo(); break;
         case 'set-in': els.btnSetIn.click(); break;
         case 'set-out': els.btnSetOut.click(); break;
-        case 'cut': els.btnCut.click(); break;
+        case 'delete': els.btnDelete.click(); break;
         case 'clear-marks': els.btnClearMarks.click(); break;
-        case 'clear-cuts': els.btnClearCuts.click(); break;
+        case 'clear-deletes': els.btnClearDeletes.click(); break;
         case 'mode-source': els.modeSource.click(); break;
         case 'mode-result': els.modeResult.click(); break;
         case 'toggle-snap':
@@ -3390,7 +3390,7 @@
     els.nsfwClose.addEventListener('click', closeNsfwModal);
     els.nsfwClose2.addEventListener('click', closeNsfwModal);
     els.nsfwStart.addEventListener('click', startNsfwScan);
-    els.nsfwApply.addEventListener('click', applyNsfwCuts);
+    els.nsfwApply.addEventListener('click', applyNsfwDeletes);
     els.nsfwCancel.addEventListener('click', async () => {
       await api.nsfwCancel();
       els.nsfwStatus.textContent = t('msgCancelling');
@@ -3451,9 +3451,9 @@
       renderOverlays();
       updateIoReadout();
     });
-    els.btnCut.addEventListener('click', cutSelection);
+    els.btnDelete.addEventListener('click', deleteSelection);
     els.btnClearMarks.addEventListener('click', clearMarks);
-    els.btnClearCuts.addEventListener('click', clearCuts);
+    els.btnClearDeletes.addEventListener('click', clearDeletes);
 
     els.modeSource.addEventListener('click', async () => {
       pause();
@@ -3549,13 +3549,13 @@
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
 
-    // right-click context menu for the cut tools
+    // right-click context menu for the delete tools
     els.timeline.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       const clip = activeClip();
       if (!clip || state.exporting) return;
-      const cutEl = e.target.closest('.tl-cut');
-      showContextMenu(e.clientX, e.clientY, xToMs(e.clientX), cutEl ? cutEl.dataset.cutId : null);
+      const deleteEl = e.target.closest('.tl-delete');
+      showContextMenu(e.clientX, e.clientY, xToMs(e.clientX), deleteEl ? deleteEl.dataset.deleteId : null);
     });
     window.addEventListener(
       'pointerdown',
@@ -3566,9 +3566,9 @@
     );
     els.timelineScroll.addEventListener('scroll', hideContextMenu);
     window.addEventListener('blur', hideContextMenu);
-    els.tlCuts.addEventListener('dblclick', (e) => {
-      const cutEl = e.target.closest('.tl-cut');
-      if (cutEl) removeCut(cutEl.dataset.cutId);
+    els.tlDeletes.addEventListener('dblclick', (e) => {
+      const deleteEl = e.target.closest('.tl-delete');
+      if (deleteEl) removeDelete(deleteEl.dataset.deleteId);
     });
 
     // Double-click: markers are removed, ruler/filmstrip sets In then Out.
@@ -3587,7 +3587,7 @@
         setStatus(t('msgOutCleared'), 'info', { timeout: 2000 });
         return;
       }
-      if (e.target.closest('.tl-cut')) return; // the cut handler removes the cut
+      if (e.target.closest('.tl-delete')) return; // the delete handler removes the delete
       if (e.target.closest('#tlRuler') || e.target.closest('#tlFilm')) applyDoubleClickMark(snapMs(xToMs(e.clientX)));
     });
 
@@ -3948,7 +3948,7 @@
         break;
       case 'x':
       case 'X':
-        cutSelection();
+        deleteSelection();
         break;
       case 'Home':
         pause();
@@ -4042,8 +4042,8 @@
       applyJob,
       encodeShareCode: CU.encodeShareCode,
       decodeShareCode: CU.decodeShareCode,
-      addCut,
-      removeCut,
+      addDelete,
+      removeDelete,
       renderAll,
       seekTo,
       currentSetup,

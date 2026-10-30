@@ -5,8 +5,8 @@ a fresh session start cheaply, without re-reading the codebase.
 
 ## What this is
 
-**CUCI** — Electron desktop app: millisecond-precision video cut/merge, automatic subtitle
-sync (multiple tracks), on-device NSFW ("Parent Assist") scan, shareable cut jobs, MSIX/APPX
+**CUCI** — Electron desktop app: millisecond-precision video delete/merge, automatic subtitle
+sync (multiple tracks), on-device NSFW ("Parent Assist") scan, shareable delete jobs, MSIX/APPX
 store packaging.
 
 - Repo: https://github.com/abahkool/cuci2 — branch `main` (the repo keeps its original name)
@@ -47,7 +47,7 @@ Docs: `README.md` (users) · `docs/DEVELOPMENT.md` (architecture, IPC, data form
 | `src/panel.html` | 177 | detached panel window markup (side panel + control center + timeline) |
 | `src/panel.js` | 622 | thin panel view: renders snapshots, forwards commands |
 | `src/panel.css` | 119 | panel window chrome |
-| `src/job.js` | 380 | cut-job codec + **untrusted-input** validation (`sanitizeJob`) |
+| `src/job.js` | 380 | delete-job codec + **untrusted-input** validation (`sanitizeJob`) |
 | `src/i18n.js` | 1623 | 14-language UI dictionary, detection, `<html dir>` switching, `CU.i18n.extend` |
 | `src/guide-i18n.js` | 836 | user-guide strings (14 languages) |
 | `src/messages-i18n.js` | 700 | settings-page + notification strings (14 languages) |
@@ -63,7 +63,7 @@ Docs: `README.md` (users) · `docs/DEVELOPMENT.md` (architecture, IPC, data form
 | `scripts/msix-tools.mjs` | 175 | locate/provision makeappx + signtool (SDK, PATH or NuGet BuildTools) |
 | `scripts/fetch-ffmpeg.mjs` | 196 | resumable ffmpeg download into `vendor/ffmpeg` (postinstall) |
 | `scripts/build-msix.mjs` | 247 | MSIX/APPX staging + `makeappx` packing + unpack round-trip |
-| `scripts/make-store-assets.mjs` | 97 | placeholder MSIX/listing artwork |
+| `scripts/make-store-assets.mjs` | 106 | MSIX/listing artwork + multi-size `build/icon.ico` from `icons/logo.png` |
 
 Tests: `lib/selftest.js` (export graph, every format), `lib/test-locate.js`, `lib/test-job.js`,
 `lib/test-nsfw.js`, `lib/smoke.js`, `lib/e2e.js`, `lib/test-cancel.js`.
@@ -101,7 +101,7 @@ Renderer↔panel windows: `panel:state` (snapshot, `kind: main | timeline`), `pa
 state = {
   clips: [{
     id, path, name, fileSize, durationMs, fps, width, height, hasAudio,
-    cuts: [{ id, start, end }],                              // ms, removed ranges
+    deletes: [{ id, start, end }],                              // ms, removed ranges
     subtitles: [{ id, path, name, format, events, enabled }], // multi-track
     activeSubtitleId, thumbs: { dir, files, stepMs }, proxyPath
   }],
@@ -132,12 +132,12 @@ state = {
 5. **Subtitle text is cleaned** in `sanitizeSubtitleText` and in `serializeSrt/serializeVtt`:
    blank lines collapsed, `-->` → `→`, to prevent cue injection.
    **Job imports are confirmed first**: `requestJobImport()` decodes with
-   `parseJobText`/`sanitizeJob`, then shows `#confirmModal` (description, clips, cuts, subtitle
+   `parseJobText`/`sanitizeJob`, then shows `#confirmModal` (description, clips, deletes, subtitle
    tracks, found/missing clips, format) and only calls `applyJob` after the user confirms.
    Dialog values use `textContent`, never innerHTML.
 6. **Timeline geometry** uses `--timeline-h`; the splitter handle is `#playerSplitter`; the
    height persists in `localStorage["cuci.timelineHeight"]`.
-7. **Export guard**: exporting with 0 cuts requires a second click (prevents accidental
+7. **Export guard**: exporting with 0 deletes requires a second click (prevents accidental
    full-length re-encodes).
 8. **Detached panels are real OS windows** (`lib/panels.js` + `src/panel.*`). The main
    renderer is the only source of truth: panels get snapshots (`panel:state`, `kind: main |
@@ -155,12 +155,12 @@ state = {
 11. **Job-derived strings** are always rendered via `textContent` or `CU.escapeHtml()`.
 12. Transport uses a CSS grid with named areas; breakpoint at 1250 px moves the right-hand
     controls to their own row.
-13. Cut tools are inline SVG (no icon library).
+13. Delete tools are inline SVG (no icon library).
 14. Electron-builder must be spawned via `node .../cli.js`, not the `.cmd` shim (EINVAL).
 15. **Never package the working tree**: `build.ps1` and the `dist`/`store:*` npm scripts run
     `scripts/obfuscate.mjs` first and build from `.build/app`. After changing renderer code,
     re-run `npm run obfuscate` + `npm run verify:build` before trusting a package (verify
-    boots the obfuscated stage: globals, preload, i18n, theme, media probe, subtitle+cut).
+    boots the obfuscated stage: globals, preload, i18n, theme, media probe, subtitle+delete).
 16. MSIX/APPX must be packed with **makeappx** and round-tripped with `makeappx unpack`
     (`build-msix.mjs`). `msix-tools.mjs` finds the Windows SDK copy or downloads
     `Microsoft.Windows.SDK.BuildTools` from NuGet into `vendor/msix-tools/`. Do not hand-roll
@@ -212,7 +212,7 @@ npm run test:e2e          # full UI flow (~4-5 min)
 npm run test:cancel       # verifies cancel kills ffmpeg + cleans residue
 npm run obfuscate         # stage + obfuscate .build/app (renderer only)
 npm run verify:build      # boot the obfuscated stage, 11 assertions
-npm run store:assets      # regenerate placeholder MSIX/listing artwork
+npm run store:assets      # regenerate MSIX/listing artwork + build/icon.ico from icons/logo.png
 npm run store:stage       # build + lay out dist/msix (no makeappx needed)
 npm run store:package     # stage + pack .msix (provisions makeappx if missing)
 npm run store:appx        # same, .appx output
@@ -240,7 +240,7 @@ Do **not** `npm install` for no reason — `postinstall` fetches ~110 MB ffmpeg 
 - Debug handle exposes: `state`, `api`, `CU`, `addVideos`, `addSubtitleToClip`,
   `loadSubtitleFromPath`, `keptRanges`, `programRanges`, `remapAll`, `remapAllTracks`,
   `applyThumbSetting`, `applyNsfwSegments`, `buildJob`, `applyJob`, `encodeShareCode`,
-  `decodeShareCode`, `addCut`, `removeCut`, `renderAll`, `seekTo`, `currentSetup`,
+  `decodeShareCode`, `addDelete`, `removeDelete`, `renderAll`, `seekTo`, `currentSetup`,
   `setPanelPinned`, `setPanelDetached`.
 - Prefer DOM/state assertions over screenshots. If a screenshot is needed, call
   `win.show(); win.focus()` first — `capturePage()` returns an empty image for an unpainted
@@ -258,10 +258,10 @@ Do **not** `npm install` for no reason — `postinstall` fetches ~110 MB ffmpeg 
 ## Current status
 
 Implemented and tested: timeline editing (drag select, I/O marks, double-click In/Out,
-right-click cut menu, cut-edge drag, undo/redo), multi-clip merge, frame-accurate export with
+right-click delete menu, delete-edge drag, undo/redo), multi-clip merge, frame-accurate export with
 progress + cancel, **8 export containers** (mp4/mov/mkv/webm/avi/wmv/flv/ts), subtitle sync
 with **multiple tracks per clip** (enable/remove, per-track `.srt` export, "track to burn",
-collapsible text list that opens when a track appears), Parent Assist (NSFW) scanning, cut jobs
+collapsible text list that opens when a track appears), Parent Assist (NSFW) scanning, delete jobs
 (file + compact share code, Export/Import tabs, description, **remembered job file** so `Ctrl+S`
 re-saves silently after the first save, `Ctrl+C`/`Ctrl+V` share-code shortcuts) with **safe
 import preview + confirmation**, status bar with

@@ -20,6 +20,12 @@ if (process.platform === 'win32' && !process.windowsStore) {
 
 let mainWindow = null;
 
+/** Window/taskbar icon: the real .ico when present (dev runs), else Electron's. */
+function appIcon() {
+  const ico = path.join(__dirname, 'build', 'icon.ico');
+  return fs.existsSync(ico) ? ico : undefined;
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1500,
@@ -27,7 +33,8 @@ function createWindow() {
     minWidth: 1040,
     minHeight: 680,
     backgroundColor: '#0b0d12',
-    title: 'CUCI — Cut Out Bad Scenes',
+    title: 'CUCI — Delete Unnecessary Video Scenes',
+    icon: appIcon(),
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),

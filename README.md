@@ -1,4 +1,4 @@
-# ✂ CUCI — Cut Out Bad Scenes
+# CUCI — Delete Unnecessary Video Scenes
 
 A small desktop app (Electron) for **trimming unwanted scenes out of a video with
 millisecond precision**, **joining clips together**, and **automatically re-syncing
@@ -6,14 +6,14 @@ subtitles** to the new length. Everything is powered by `ffmpeg`.
 
 ```
 ┌───────────────────────────────────────────────────────────────────────┐
-│  ✂ CUCI   cut out bad scenes                     [+ Sub] [+ Video] [Export]│
+│  CUCI   delete unnecessary video scenes     [+ Sub] [+ Video] [Export]│
 ├────────────┬──────────────────────────────────────────────────────────┤
 │ Media      │                     video preview                        │
-│ Cuts       ├──────────────────────────────────────────────────────────┤
-│ Subtitles  │  ◀◀ ‹ ▶ › ▶▶  0:04.250 / 0:32.800  ──●──── [Source|Preview]│
+│ Deletes    ├──────────────────────────────────────────────────────────┤
+│ Subtitles  │  ◀◀ ‹ ▶ › ▶▶  0:04.250 / 0:32.800  ──●── [Source|Preview]│
 │            ├──────────────────────────────────────────────────────────┤
 │            │  ┃────┃████████┃──────┃████┃────────────────  filmstrip  │
-│            │  ░░░░░ subtitle track ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  │
+│            │  ░░░░░ subtitle track ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░│
 ├────────────┴──────────────────────────────────────────────────────────┤
 │ ● Loaded 170 keyframe snapshots          1/1 · bbb.mp4 · 1920×1080 …  │
 └───────────────────────────────────────────────────────────────────────┘
@@ -31,27 +31,27 @@ subtitles** to the new length. Everything is powered by `ffmpeg`.
 
 - **Millisecond precision** — edit points are stored and exported to the millisecond
   (`trim=start=1.234:end=5.678`). Optional **frame snapping** using the real source fps.
-- **Cut & merge** — remove as many ranges as you like from each clip, reorder clips, and
+- **Delete & merge** — remove as many ranges as you like from each clip, reorder clips, and
   CUCI joins the kept segments into one continuous output (sources with different
   resolutions/fps, or missing audio, are normalised automatically).
 - **Subtitle auto-sync, multiple tracks** — the subtitle text list collapses (expanded by
   default) so the sidebar stays short; load one or more `.srt` / `.vtt` files per clip
-  and CUCI remaps every track through the cut list:
-  - events after a cut shift earlier by exactly the removed duration,
-  - events spanning a cut boundary are trimmed/split,
-  - events fully inside a cut are dropped,
+  and CUCI remaps every track through the delete list:
+  - events after a delete shift earlier by exactly the removed duration,
+  - events spanning a delete boundary are trimmed/split,
+  - events fully inside a delete are dropped,
   - a global manual **offset (ms)** is available for nudging.
   Export the remapped subtitles as `.srt`, and/or **burn them into the video**.
 - **Source / Preview** — watch the untouched source while editing, or switch to *Preview* to
-  play back the cut timeline seamlessly (skipping removed ranges).
+  play back the delete timeline seamlessly (skipping removed ranges).
 - **Fast timeline tools** — drag to select, `I`/`O` marks, **double-click the ruler or
-  filmstrip** to set In then Out, and a **right-click context menu** with all cut actions.
-- **Save & share cut jobs** — store your cut list + subtitles + export settings as a
+  filmstrip** to set In then Out, and a **right-click context menu** with all delete actions.
+- **Save & share delete jobs** — store your delete list + subtitles + export settings as a
   `.cuci.json` file, or as a compact one-line code you can paste into chat/email/social.
 - **Status bar** — live progress (*analyzing*, *loading keyframe snapshots*, *exporting*),
   sticky errors/warnings, active-clip info, and a click-to-open message history.
 - **Parent Assist** — scan the active clip with an on-device image classifier and turn flagged
-  (non-child-friendly) scenes into cuts in one click. Everything runs locally; no frames are
+  (non-child-friendly) scenes into deletes in one click. Everything runs locally; no frames are
   uploaded.
 - **Preview proxy** — if Chromium can't decode a container/codec (e.g. MKV/HEVC), generate a
   low-res H.264 proxy for previewing; exports still use the original files.
@@ -69,7 +69,7 @@ subtitles** to the new length. Everything is powered by `ffmpeg`.
   Français, Deutsch, Português, Русский, 日本語, 한국어, العربية (RTL), हिन्दी and Türkçe.
   The language follows your system automatically and can be pinned in Settings.
 - **Built-in user guide** — press **F1** (or the **?** button) for a translated walkthrough:
-  cutting, preview, subtitles, Parent Assist, export, jobs, the workspace and every keyboard
+  deleting, preview, subtitles, Parent Assist, export, jobs, the workspace and every keyboard
   shortcut, plus a tips section.
 - **Dark / Light / System theme** — the default follows Windows; pick one in Settings.
 - Undo/redo and keyboard shortcuts throughout.
@@ -95,7 +95,7 @@ electron-builder (NSIS/portable) → Microsoft Store `.msix` / legacy `.appx` �
 
 Renderer JavaScript is obfuscated with `javascript-obfuscator` before every package (also for
 `npm run dist` / `npm run store:*`). Every artifact is built from the obfuscated stage, and
-`scripts/verify-build.cjs` boots that stage first (i18n, media probe, cuts) so a broken
+`scripts/verify-build.cjs` boots that stage first (i18n, media probe, deletes) so a broken
 obfuscation never ships.
 
 `makeappx.exe` is used from the installed Windows SDK when present; otherwise the Microsoft
@@ -149,17 +149,17 @@ terminal — handy when developing.
 ## Quick start
 
 1. **Add Video** — pick one or more files. They appear under *Media* in join order.
-2. **Make a cut** — any of:
+2. **Make a delete** — any of:
    - **double-click** the ruler or filmstrip to drop an **In** point, double-click again
-     for the **Out** point (a third double-click starts a new range), then press **Cut**, or
-   - drag across the filmstrip to select a range and press **Cut**, or
-   - position the playhead and press `I` / `O`, then **Cut**, or
+     for the **Out** point (a third double-click starts a new range), then press **Delete**, or
+   - drag across the filmstrip to select a range and press **Delete**, or
+   - position the playhead and press `I` / `O`, then **Delete**, or
    - **right-click the timeline** for a context menu: *Set In here*, *Set Out here*,
-     *Cut In → Out*, *Cut from In to here*, *Cut from here to Out*, *Remove this cut*,
-     *Clear marks*, *Clear cuts*.
-   The cut tools sit in the toolbar directly under the player — **`[`** set In, **`]`** set Out,
-   **`✂`** cut, **eraser** clear marks, **trash** clear cuts (hover for tooltips) — with the
-   current In/Out values on the right. The sidebar *Cuts* panel lists only the ranges you've
+     *Delete In → Out*, *Delete from In to here*, *Delete from here to Out*, *Remove this delete*,
+     *Clear marks*, *Clear deletes*.
+   The delete tools sit in the toolbar directly under the player — **`[`** set In, **`]`** set Out,
+   **`✂`** delete, **eraser** clear marks, **trash** clear deletes (hover for tooltips) — with the
+   current In/Out values on the right. The sidebar *Deletes* panel lists only the ranges you've
    removed.
    Drag the thin grip between the player and the toolbar to resize the player/timeline split
    (double-click it to reset).
@@ -189,7 +189,7 @@ The ⚙ button opens Settings:
 - **Theme** — System (follows Windows, default), Dark or Light.
 - **Language** — System (auto-detect) or one of the 14 bundled languages.
 - **Real application menu** — File (add media, export, jobs, settings), Edit (undo/redo,
-  marks, cuts), View (source/preview, snap, zoom, panel pinning/detaching, theme, language,
+  marks, deletes), View (source/preview, snap, zoom, panel pinning/detaching, theme, language,
   full screen) and Help (user guide, shortcuts, about) — translated with the UI and with
   live checkmarks; Electron’s default Reload/DevTools menu is gone.
 - **Settings apply immediately** — there is no Save button; theme, language, thumbnails and
@@ -211,23 +211,23 @@ Settings are stored in your Electron user-data folder (`settings.json`).
 | `←` / `→` | Step one frame |
 | `Shift` + `←` / `→` | Step one second |
 | `I` / `O` | Set in / out point |
-| `X` | Cut the current selection |
+| `X` | Delete the current selection |
 | `Home` / `End` | Jump to clip start / end |
 | `+` / `-` | Zoom the timeline |
 | `Ctrl` + `Z` | Undo |
 | `Ctrl` + `Shift` + `Z` / `Ctrl` + `Y` | Redo |
 | `Ctrl` + `1` / `2` | Pin (show) or auto-hide the side panel · control center (timeline follows) |
 | `Ctrl` + `Shift` + `1` / `2` | Detach / re-dock the side panel · control center |
-| `Ctrl` + `S` | Save the cut job to a file (re-saves the same file once one is known) |
-| `Ctrl` + `C` | Copy the share code of the current cuts |
+| `Ctrl` + `S` | Save the delete job to a file (re-saves the same file once one is known) |
+| `Ctrl` + `C` | Copy the share code of the current deletes |
 | `Ctrl` + `V` | Import a share code from the clipboard (asks for confirmation) |
-| Right-click | Cut context menu at the pointer |
+| Right-click | Delete context menu at the pointer |
 | Double-click ruler / filmstrip | Set In, then Out, then start a new range |
 | Double-click In/Out marker | Remove that marker |
 
 ---
 
-## Cut jobs (save / reopen / share)
+## Delete jobs (save / reopen / share)
 
 The **Job** button opens a two-tab panel:
 
@@ -237,7 +237,7 @@ The **Job** button opens a two-tab panel:
 - **Copy code** copies the compact share code.
 - **Importing asks first** — a job file or share code is decoded with the same hardened
   parser (size caps, bounded inflate, `sanitizeJob`), summarised in a confirmation dialog
-  (description, clips, cuts, subtitles, matched/missing videos, format) and only applied when
+  (description, clips, deletes, subtitles, matched/missing videos, format) and only applied when
   you confirm.
 - Add an optional **description** and, if you like, embed the subtitle text.
 
@@ -250,7 +250,7 @@ The **Job** button opens a two-tab panel:
 > never executed. A crafted code cannot run script, pollute prototypes, or inject extra
 > subtitle cues into an exported `.srt`.
 
-A job stores the cut list, subtitle offset, export settings, an optional **description**
+A job stores the delete list, subtitle offset, export settings, an optional **description**
 (up to 200 characters) written by the creator, and a source fingerprint (file name + byte
 size + duration). Subtitle tracks can optionally be embedded so a share is fully
 self-contained.
@@ -264,7 +264,7 @@ CUCI-1z.<base64url( deflate-raw( JSON ) )>
 - `CUCI-1` — app + format version; `z` = deflate-raw (`p` = plain, automatic fallback).
   Codes that start with the old `CUCI2-1` prefix (the app’s previous name) still import.
 - **base64url** (no `+ / =`) survives chat, email and URLs unchanged.
-- A compact key schema keeps it small: a single-clip job with two cuts is **~230
+- A compact key schema keeps it small: a single-clip job with two deletes is **~230
   characters** (fits a tweet); a description and embedded subtitles make it larger.
 
 On import, clips are matched by file name, byte size and duration. If a source video isn't
@@ -277,7 +277,7 @@ file(s).
 
 The **Parent Assist** button extracts frames from the active clip at a configurable interval
 (default: one every 2 seconds), classifies each one, and turns consecutive flagged samples
-into cut ranges you review before applying.
+into delete ranges you review before applying.
 
 A shorter interval catches shorter scenes at a proportional time cost — the modal shows the
 frame count and an estimate before you start.
@@ -291,13 +291,13 @@ frame count and an estimate before you start.
   If `vendor/nsfw/` already contains it (as in a dev checkout), that copy is used and nothing
   is downloaded.
 - **Controls** — *Sensitivity* (default `0.30`, the most aggressive; raise it to reduce false
-  positives), *Sample every* (`0.25`–`60` seconds, default 2) and *Minimum cut length*
+  positives), *Sample every* (`0.25`–`60` seconds, default 2) and *Minimum delete length*
   (default 5 s). The modal shows how many frames that means and a rough processing estimate.
   Expect roughly 5 frames/second of analysis on a typical CPU.
 - **Fresh frames, not the filmstrip** — the scanner extracts new frames at the chosen interval
   (`fps=1/<interval>` in ffmpeg). It does **not** reuse the timeline keyframe snapshots, which
   are far too small (64 px tall) and too sparse to classify reliably.
-- **Review first** — detected ranges are listed with their peak score; **Apply as cuts** adds
+- **Review first** — detected ranges are listed with their peak score; **Apply as deletes** adds
   them (undo with `Ctrl`+`Z`). Nothing is marked automatically until you confirm.
 
 > Detection quality depends entirely on the model. Treat the result as a first pass and
@@ -307,10 +307,10 @@ frame count and an estimate before you start.
 
 The built-in player only decodes what Chromium supports (typically H.264/VP8/VP9/AV1 with
 AAC/Opus). MKV/HEVC/ProRes and similar may not preview. In that case CUCI offers
-**Create preview proxy** — it generates a small H.264 version for the player. **Cutting and
+**Create preview proxy** — it generates a small H.264 version for the player. **Deleting and
 exporting always use the original files**, so output quality is never affected.
 
-Export always re-encodes (needed for frame-accurate cuts and joining sources with different
+Export always re-encodes (needed for frame-accurate deletes and joining sources with different
 resolutions/fps/audio). Choose a CRF you're happy with.
 
 ---
@@ -319,7 +319,7 @@ resolutions/fps/audio). Choose a CRF you're happy with.
 
 - **`[pid:...:ERROR:ffmpeg_common.cc] Unsupported pixel format: -1` on exit** — harmless.
   That is Chromium's *bundled* media library (not CUCI's `ffmpeg` CLI) tearing down the
-  `<video>` decoder as the window closes. It does not affect cutting, matching or exports.
+  `<video>` decoder as the window closes. It does not affect deleting, matching or exports.
 - **`ffmpeg ✗ not found`** — the bundled build is probably missing too. Run
   `npm run fetch:ffmpeg`, or install ffmpeg / set its full path in ⚙ Settings.
 - **Export fails with "No such filter: subtitles"** — your ffmpeg build lacks libass; turn
@@ -329,8 +329,8 @@ resolutions/fps/audio). Choose a CRF you're happy with.
 - **NSFW scan fails to start** — the model needs a one-time ~84 MB download; if you are
   offline, place `model_quantized.onnx` in `vendor/nsfw/` (or set `CUCI_NSFW_MODEL_DIR` to a
   folder containing it) and it will be used directly.
-- **Nothing was cut out of the export** — open Export and check the `removed` line; if it is
-  `0:00.000` the cut list is empty and Export will ask you to confirm.
+- **Nothing was delete out of the export** — open Export and check the `removed` line; if it is
+  `0:00.000` the delete list is empty and Export will ask you to confirm.
 
 ---
 
@@ -346,7 +346,7 @@ Microsoft Store (MSIX):
 
 ```bash
 cp store/identity.example.json store/identity.json   # fill in from Partner Center
-npm run store:assets                                 # placeholder artwork (replace with branding)
+npm run store:assets                                 # rebuild store artwork + icon.ico from icons/logo.png
 npm run store:package                                # -> dist/CUCI_<version>_x64.msix
 ```
 

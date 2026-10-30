@@ -6,7 +6,7 @@
  *
  * Boots the *staged* renderer + main-process modules in an isolated Electron
  * profile and checks that the obfuscated scripts still work: CUCI helpers, the
- * preload API, the debug handle, i18n, theme, media probing and a cut.
+ * preload API, the debug handle, i18n, theme, media probing and a delete.
  * Exits non-zero so build.ps1 can stop before packaging a broken build.
  */
 
@@ -140,16 +140,16 @@ app.whenReady().then(async () => {
           if (clip) {
             const okSub = await a.loadSubtitleFromPath(clip, ${JSON.stringify(sample.srt)});
             out.subs = okSub ? clip.subtitles.length : 0;
-            a.addCut(0, 500);
+            a.addDelete(0, 500);
             out.kept = Math.round(a.programRanges().total);
-            out.cutRows = document.querySelectorAll('#cutList .cut-item').length;
+            out.deleteRows = document.querySelectorAll('#deleteList .delete-item').length;
           }
           return out;
         })()`,
       );
       await sleep(300);
       check('media probe + clip list', media.clips === 1 && media.duration > 1500 && media.runtime === 1, JSON.stringify(media));
-      check('subtitle + cut pipeline', media.subs >= 1 && media.kept > 0 && media.cutRows >= 1, JSON.stringify(media));
+      check('subtitle + delete pipeline', media.subs >= 1 && media.kept > 0 && media.deleteRows >= 1, JSON.stringify(media));
     }
 
     const failed = results.filter((r) => !r.ok);

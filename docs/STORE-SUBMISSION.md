@@ -58,7 +58,7 @@ Fill it in from **Partner Center → Product identity**:
 | `identityName` | Package/Identity/Name | `12345AbahKool.CUCI` (must match your Partner Center reservation) |
 | `publisher` | Package/Identity/Publisher | `CN=1A2B3C4D-...` |
 | `publisherDisplayName` | Package/Properties/PublisherDisplayName | `AbahKool` |
-| `displayName` | your reserved product name | `CUCI Video Cut Studio` |
+| `displayName` | your reserved product name | `CUCI Video Delete Studio` |
 | `shortName` | tile short name (≤ 40 chars) | `CUCI` |
 | `architecture` | — | `x64` (or `arm64`) |
 
@@ -92,7 +92,7 @@ Or drive the tools directly:
 
 ```bash
 npm install
-npm run store:assets      # regenerate placeholder artwork (only when it changes)
+npm run store:assets      # rebuild store artwork + build/icon.ico from icons/logo.png
 npm run store:package     # builds the app and packs dist/CUCI_<version>_x64.msix
 ```
 
@@ -194,7 +194,7 @@ npm test
 | `test:nsfw` | tensor/softmax/grouping units + a live scan when the model is present |
 | `test:export` | joins mixed-resolution + silent clips with the production filtergraph |
 | `test:smoke` | boots the real renderer, fails on any console error |
-| `test:e2e` | full UI flow: load → subtitle → cut → seek → context menu → job → export → cancel |
+| `test:e2e` | full UI flow: load → subtitle → delete → seek → context menu → job → export → cancel |
 | `test:cancel` | cancelling kills ffmpeg and leaves no residue |
 
 ### 5.2 Windows App Certification Kit (WACK)
@@ -224,23 +224,23 @@ Run on a clean Windows 10/11 x64 machine (no dev tools installed).
 
 - [ ] App launches; the Actions panel shows **no** ffmpeg chip (it only appears on problems); Settings shows `ffmpeg ✓ <version> · bundled`
 - [ ] Settings shows the resolved path, source and `libass ✓`
-- [ ] A full cut + export works end to end
+- [ ] A full delete + export works end to end
 - [ ] **With `--no-ffmpeg`**: status bar shows a clear "ffmpeg not found" error and Settings offers the Browse / config path — no crash
 
 **Core editing**
 
 - [ ] Add a long video (≥ 10 min) → duration/fps shown correctly
-- [ ] Drag-select → Cut; In/Out → Cut; double-click ruler sets In then Out; right-click menu
-- [ ] Cut edges drag; `Ctrl`+`Z` undoes
+- [ ] Drag-select → Delete; In/Out → Delete; double-click ruler sets In then Out; right-click menu
+- [ ] Delete edges drag; `Ctrl`+`Z` undoes
 - [ ] Merge order ↑/↓ changes the exported result
-- [ ] Load `.srt` → events remap across cuts; export burns subtitles; `.srt` written next to the output
-- [ ] Export guard: with no cuts, Start asks for confirmation
+- [ ] Load `.srt` → events remap across deletes; export burns subtitles; `.srt` written next to the output
+- [ ] Export guard: with no deletes, Start asks for confirmation
 - [ ] Export **Cancel** stops ffmpeg (check Task Manager — no orphan `ffmpeg.exe`)
 
 **Content scan**
 
 - [ ] `Parental AI` on a short clip: model downloads once, progress shows, results listed
-- [ ] "Apply as cuts" adds undoable cuts
+- [ ] "Apply as deletes" adds undoable deletes
 - [ ] Cancel mid-scan stops promptly
 - [ ] Offline: scan fails with a clear message rather than hanging
 
@@ -269,7 +269,7 @@ Paste-ready. Verify character limits in Partner Center (typical: description 10,
 
 ### Display name
 
-> **CUCI Video Cut Studio**
+> **CUCI Video Delete Studio**
 
 Tiles use the short name **CUCI**.
 
@@ -280,37 +280,37 @@ Tiles use the short name **CUCI**.
 ### Description
 
 ```
-CUCI is a focused desktop editor for one job: cutting out the parts you don't want and
+CUCI is a focused desktop editor for one job: deleting out the parts you don't want and
 joining what's left — with subtitles that stay in sync.
 
 MILLISECOND PRECISION
 Every edit point is stored and exported to the millisecond, with optional frame snapping
 based on the real source frame rate. What you set is what you get.
 
-CUT, MERGE, REPEAT
+DELETE, MERGE, REPEAT
 Remove as many ranges as you like from each clip, reorder clips, and CUCI joins the kept
 segments into one continuous file. Clips with different resolutions, frame rates or missing
 audio are normalised automatically.
 
-SUBTITLES THAT FOLLOW YOUR CUTS
-Load an .srt or .vtt and CUCI rewrites the timings to match your edit: captions after a cut
-move earlier by exactly the removed time, captions spanning a cut are trimmed, and captions
+SUBTITLES THAT FOLLOW YOUR DELETES
+Load an .srt or .vtt and CUCI rewrites the timings to match your edit: captions after a delete
+move earlier by exactly the removed time, captions spanning a delete are trimmed, and captions
 inside a removed scene are dropped. Export the corrected subtitle file, or burn the captions
 straight into the video.
 
 FAST TIMELINE TOOLS
 Set in and out points with a keystroke, double-click the ruler, or right-click the timeline
-for a full cut menu. Drag cut edges to fine-tune, preview the untouched source or the final
+for a full delete menu. Drag delete edges to fine-tune, preview the untouched source or the final
 result, and undo anything with Ctrl+Z.
 
 FIND SCENES AUTOMATICALLY
 Scan a clip with a built-in on-device classifier to flag NSFW content and mark those scenes
-as cuts in one pass. No frames ever leave your computer.
+as deletes in one pass. No frames ever leave your computer.
 
 SHARE AN EDIT, NOT A FILE
-Save your cut list as a small job file, or copy a compact one-line code that pastes into
+Save your delete list as a small job file, or copy a compact one-line code that pastes into
 chat, email or a message. Anyone with the same source video can load it and get your exact
-edit — including an optional note explaining what you cut and why.
+edit — including an optional note explaining what you delete and why.
 
 BUILT FOR REAL FILES
 Preview codecs your player can't handle by generating a lightweight proxy. Exports offer
@@ -325,13 +325,13 @@ Requires ffmpeg for encoding — either install it yourself or use the copy bund
 ### Product features (each ≤ 200 chars)
 
 ```
-Millisecond-precision cutting with optional frame snapping
+Millisecond-precision deleting with optional frame snapping
 Merge multiple clips; different resolutions and frame rates are normalised automatically
-Subtitle auto-sync: .srt/.vtt timings are rewritten to match your cuts, or burned in
-Double-click the timeline to set in/out points; right-click for a full cut menu
-Auto-detect NSFW scenes with an on-device classifier and mark them as cuts
+Subtitle auto-sync: .srt/.vtt timings are rewritten to match your deletes, or burned in
+Double-click the timeline to set in/out points; right-click for a full delete menu
+Auto-detect NSFW scenes with an on-device classifier and mark them as deletes
 Save and share edits as a small job file or a compact one-line code
-Source and Result preview modes with seamless playback across cuts
+Source and Result preview modes with seamless playback across deletes
 Generate a preview proxy for codecs your player can't decode
 H.264/H.265 export with CPU or GPU encoding, quality presets and live progress
 Cancel an export at any time — it stops cleanly and leaves no leftovers
@@ -342,16 +342,16 @@ Runs entirely on your device; no media is uploaded
 ### Search terms (keywords — up to 7)
 
 ```
-video cutter
+video deleteter
 trim video
 merge video
 subtitle sync
 srt editor
-cut video
+delete video
 video editor
 ```
 
-Alternates if any are taken: `split video`, `video trimming`, `subtitle editor`, `scene cut`, `mp4 cutter`.
+Alternates if any are taken: `split video`, `video trimming`, `subtitle editor`, `scene delete`, `mp4 deleteter`.
 
 ### Category
 
@@ -382,11 +382,11 @@ Hardware H.264/H.265 encoding (NVENC) is optional and used when available.
 ```
 First Microsoft Store release.
 
-• Millisecond-precision cutting and merging with frame snapping
+• Millisecond-precision deleting and merging with frame snapping
 • Subtitle auto-sync — .srt/.vtt timings rewritten to match your edit, or burned in
-• Double-click the timeline for in/out points, plus a right-click cut menu
+• Double-click the timeline for in/out points, plus a right-click delete menu
 • On-device NSFW scene detection
-• Save and share cut jobs as a file or a one-line code
+• Save and share delete jobs as a file or a one-line code
 • Preview proxy for exotic codecs; cancellable exports with progress
 ```
 
@@ -404,8 +404,8 @@ First Microsoft Store release.
 
 Suggested screenshots (capture at 1920×1080):
 
-1. Main window with a loaded video, several cuts on the timeline and the status bar visible.
-2. The Subtitles panel showing *original → new* timings beside a cut.
+1. Main window with a loaded video, several deletes on the timeline and the status bar visible.
+2. The Subtitles panel showing *original → new* timings beside a delete.
 3. The export dialog showing "removed 9:34.000" and the progress bar.
 4. The NSFW scan modal with detected scenes listed.
 5. A Job panel showing the share code and description field.
@@ -422,7 +422,7 @@ Suggested screenshots (capture at 1920×1080):
 | `SplashScreen.png` | 620×300 |
 | `LockScreenLogo.png` | 24×24 |
 
-All of these are **placeholders** generated by `npm run store:assets` (dark background, accent wordmark). Replace them with real branding and re-run the build. Also replace `build/icon.ico` (the executable icon).
+All of these are generated from the app logo (`icons/logo.png`) by `npm run store:assets`: the logo is scaled into each shape with its aspect ratio preserved and padded with the app background colour. Update the logo, re-run the script, and the tile set and `build/icon.ico` (multi-size executable icon) are rebuilt together.
 
 ---
 
@@ -448,7 +448,7 @@ Disclose this in the Store description too (the copy in §6 already does). Expec
 Paste into **Partner Center → Submission → Notes for certification**:
 
 ```
-CUCI is an offline video cutting utility. It ships no media content.
+CUCI is an offline video deleting utility. It ships no media content.
 
 - The NSFW detection feature runs an ONNX image classifier entirely on-device
   (onnxruntime-node). No frames, files or telemetry leave the machine.
@@ -460,7 +460,7 @@ CUCI is an offline video cutting utility. It ships no media content.
 - No account, sign-in or purchase is required.
 
 Test account: none required.
-Test steps: launch → Add Video → drag on the timeline → Cut → Export.
+Test steps: launch → Add Video → drag on the timeline → Delete → Export.
 ```
 
 ### Privacy policy (required URL)
@@ -498,7 +498,7 @@ Contact: <your email>
 - [ ] **WACK** run and the report is clean
 - [ ] Decided on bundled ffmpeg (§4) and — if bundled — added third-party notices
 - [ ] Exe icon is the real one (`build/icon.ico`)
-- [ ] Real artwork replaces every placeholder in `store/Assets/` and `store/listing/`
+- [ ] `npm run store:assets` was re-run after the last logo change (`store/Assets/`, `store/listing/`, `build/icon.ico`)
 
 **Listing**
 - [ ] Description, short description, features and search terms entered

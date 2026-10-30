@@ -2,7 +2,7 @@
   "name": "cuci",
   "productName": "CUCI",
   "version": "1.0.1",
-  "description": "CUCI — Cut Out Bad Scenes. Millisecond-precision video cut & merge with automatic subtitle sync.",
+  "description": "CUCI — Delete Unnecessary Video Scenes. Millisecond-precision scene deletion, clip merging and automatic subtitle sync.",
   "main": "main.js",
   "author": "CUCI",
   "license": "MIT",

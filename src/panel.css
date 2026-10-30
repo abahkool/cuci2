@@ -33,8 +33,10 @@ body.panel-shell {
 }
 
 .panel-logo {
-  color: var(--accent);
-  filter: drop-shadow(0 0 8px rgba(108, 140, 255, 0.5));
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  filter: drop-shadow(0 0 8px rgba(108, 140, 255, 0.4));
 }
 
 .panel-title {
@@ -109,8 +111,8 @@ body.panel-shell {
   background: var(--panel-2);
 }
 
-/* The panel window can be narrow; keep the cut row from spilling. */
-.transport-panel .transport-cuts {
+/* The panel window can be narrow; keep the delete row from spilling. */
+.transport-panel .transport-deletes {
   row-gap: 6px;
 }
 

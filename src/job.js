@@ -1,4 +1,4 @@
-/* CUCI cut-job codec + trust boundary (classic script -> window.CUCI)
+/* CUCI delete-job codec + trust boundary (classic script -> window.CUCI)
  *
  * Job files and share codes are UNTRUSTED input. This module is the only place
  * that turns them into data the app will act on. It:
@@ -18,8 +18,8 @@
     compressedBytes: 1_000_000, // base64-decoded payload
     jsonBytes: 4 * 1024 * 1024, // decompressed payload / .json file
     clips: 200,
-    cutsPerClip: 5_000,
-    totalCuts: 50_000,
+    deletesPerClip: 5_000,
+    totalDeletes: 50_000,
     subtitlesPerClip: 20,
     subtitleEventsPerClip: 100_000,
     totalSubtitleEvents: 500_000,
@@ -165,7 +165,7 @@
         ? [e.container, e.videoCodec, e.crf, e.preset, e.resolution, e.fps, e.audioBitrate, e.burnSubtitles ? 1 : 0, e.writeSrt === false ? 0 : 1]
         : undefined,
       c: job.clips.map((c) => {
-        const o = { n: c.name, z: c.size || undefined, d: c.durationMs, f: c.fps, w: c.width, h: c.height, A: c.hasAudio ? 1 : 0, x: c.cuts };
+        const o = { n: c.name, z: c.size || undefined, d: c.durationMs, f: c.fps, w: c.width, h: c.height, A: c.hasAudio ? 1 : 0, x: c.deletes };
         const tracks = (c.subtitles || []).filter((t) => t.events && t.events.length);
         if (tracks.length === 1) {
           // Legacy-compatible single-track shape.
@@ -187,7 +187,7 @@
     const e = Array.isArray(k.e) ? k.e : null;
     return {
       app: 'CUCI',
-      kind: 'cut-job',
+      kind: 'delete-job',
       version: k.v,
       created: k.t,
       description: k.D != null ? k.D : k.description,
@@ -215,7 +215,7 @@
           width: c.w,
           height: c.h,
           hasAudio: !!c.A,
-          cuts: c.x,
+          deletes: c.x,
           subtitles: Array.isArray(c.u)
           ? c.u.filter(isObject).map((u) => ({ name: u.n, format: u.f, events: u.v }))
           : isObject(c.u)
@@ -256,26 +256,27 @@
     if (raw.app !== 'CUCI' && raw.app !== 'CUCI2') throw new Error(msg('errNotCuciJob', 'Not a CUCI job.'));
     if (!Array.isArray(raw.clips)) throw new Error(msg('errJobNoClips', 'Job has no clips.'));
 
-    let cutTotal = 0;
+    let deleteTotal = 0;
     let eventTotal = 0;
     const clips = [];
 
     for (const c of raw.clips.slice(0, LIMITS.clips)) {
       if (!isObject(c)) continue;
 
-      // cuts: arrays of [start, end] in ms
-      const cuts = [];
-      if (Array.isArray(c.cuts)) {
-        for (const pair of c.cuts.slice(0, LIMITS.cutsPerClip)) {
+      // deletes: arrays of [start, end] in ms; the pre-rename `cuts` key is still accepted
+      const deletes = [];
+      const rawDeletes = Array.isArray(c.deletes) ? c.deletes : Array.isArray(c.cuts) ? c.cuts : [];
+      if (rawDeletes.length) {
+        for (const pair of rawDeletes.slice(0, LIMITS.deletesPerClip)) {
           if (!Array.isArray(pair) || pair.length < 2) continue;
           const s = num(pair[0], NaN, 0, LIMITS.ms);
           const e = num(pair[1], NaN, 0, LIMITS.ms);
           if (!Number.isFinite(s) || !Number.isFinite(e) || e <= s) continue;
-          cuts.push([Math.round(s * 1000) / 1000, Math.round(e * 1000) / 1000]);
+          deletes.push([Math.round(s * 1000) / 1000, Math.round(e * 1000) / 1000]);
         }
       }
-      if (cutTotal + cuts.length > LIMITS.totalCuts) cuts.length = Math.max(0, LIMITS.totalCuts - cutTotal);
-      cutTotal += cuts.length;
+      if (deleteTotal + deletes.length > LIMITS.totalDeletes) deletes.length = Math.max(0, LIMITS.totalDeletes - deleteTotal);
+      deleteTotal += deletes.length;
 
       // subtitles: plural array; the legacy singular `subtitle` is still accepted
       const rawTracks = Array.isArray(c.subtitles) ? c.subtitles : isObject(c.subtitle) ? [c.subtitle] : [];
@@ -312,7 +313,7 @@
         width: Math.round(num(c.width, 0, 0, 100_000)),
         height: Math.round(num(c.height, 0, 0, 100_000)),
         hasAudio: c.hasAudio === true,
-        cuts,
+        deletes,
         subtitles,
       });
     }
@@ -321,7 +322,7 @@
 
     return {
       app: 'CUCI',
-      kind: 'cut-job',
+      kind: 'delete-job',
       version: Math.round(num(raw.version, 1, 0, 1000)),
       created: text(raw.created, 64),
       description: text(raw.description, LIMITS.descriptionChars),
