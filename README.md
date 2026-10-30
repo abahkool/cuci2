@@ -241,6 +241,8 @@ The **Job** button opens a two-tab panel:
 
 - **Save job file…** writes a readable `<name>.cuci.json` you can reopen later.
 - **Copy code** copies the compact share code.
+- **Share buttons** post the code to Facebook, Telegram or r/cuci: CUCI copies the code
+  to the clipboard first (Facebook's sharer drops the text), then opens the sharing page.
 - **Importing asks first** — a job file or share code is decoded with the same hardened
   parser (size caps, bounded inflate, `sanitizeJob`), summarised in a confirmation dialog
   (description, clips, deletes, subtitles, matched/missing videos, format) and only applied when

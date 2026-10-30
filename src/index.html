@@ -488,7 +488,17 @@
             </label>
             <div class="job-row">
               <button id="jobCopy" class="btn" data-i18n="copyCode">Copy code</button>
-              <button id="jobRefresh" class="btn ghost" data-i18n="refresh">Refresh</button>
+              <div class="share-row" role="group" aria-label="Share">
+                <button id="jobShareFb" class="btn ghost icon share-btn share-fb" data-i18n-title="shareFacebook" title="Share on Facebook">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><path d="M15 4h-2.2A3.3 3.3 0 0 0 9.5 7.3V10H7v3h2.5v7h3.2v-7h2.4l.5-3h-2.9V7.6c0-.4.3-.7.7-.7H15z"/></svg>
+                </button>
+                <button id="jobShareTg" class="btn ghost icon share-btn share-tg" data-i18n-title="shareTelegram" title="Share on Telegram">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><path d="M21.6 4.3 2.9 11.5c-.6.2-.6 1 0 1.2l4.5 1.5 1.7 5.4c.2.6 1 .7 1.4.2l2.4-2.6 4.4 3.2c.5.4 1.3.1 1.4-.6l3-14.3c.1-.7-.6-1.3-1.1-1.2zM9.9 14.2l8.2-5.9-6.6 7.3-.2 3z"/></svg>
+                </button>
+                <button id="jobShareRd" class="btn ghost icon share-btn share-rd" data-i18n-title="shareReddit" title="Share on Reddit (r/cuci)">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="13.6" r="6.9"/><circle cx="9.3" cy="12.7" r="0.9" fill="currentColor" stroke="none"/><circle cx="14.7" cy="12.7" r="0.9" fill="currentColor" stroke="none"/><path d="M9.2 16.2c.8.8 1.7 1.2 2.8 1.2s2-.4 2.8-1.2"/><path d="M12 6.7V5l3.2-1"/><circle cx="16.1" cy="3.8" r="1"/></svg>
+                </button>
+              </div>
               <span id="jobCodeInfo" class="job-info"></span>
             </div>
           </div>

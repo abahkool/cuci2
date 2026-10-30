@@ -139,6 +139,17 @@ app.whenReady().then(async () => {
     })()`);
     check('i18n switching works (obfuscated)', i18nProbe.malay === 'Eksport' && i18nProbe.rtl && i18nProbe.english === 'Export', JSON.stringify(i18nProbe));
 
+    // ---- social share buttons
+    const shareProbe = await win.webContents.executeJavaScript(`(() => {
+      const ids = ['jobShareFb', 'jobShareTg', 'jobShareRd'];
+      return {
+        buttons: ids.filter((id) => document.getElementById(id)).length,
+        titles: ids.map((id) => (document.getElementById(id) || {}).title || ''),
+        refresh: !!document.getElementById('jobRefresh'),
+        ipc: typeof window.api.openShareLink === 'function',
+      };
+    })()`);
+    check('share buttons shipped', shareProbe.buttons === 3 && shareProbe.titles.every((t) => t.length > 5) && shareProbe.refresh === false && shareProbe.ipc === true, JSON.stringify(shareProbe));
     const sample = makeSample();
     if (!sample) {
       console.log('  SKIP  media probe (ffmpeg not on PATH)');

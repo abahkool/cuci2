@@ -2507,6 +2507,26 @@ html[dir='rtl'] .sub-events-toggle[aria-expanded='false'] svg {
   margin-top: 6px;
   padding: 9px 16px;
 }
+.share-row {
+  display: flex;
+  gap: 6px;
+}
+.share-btn {
+  width: 30px;
+  padding: 0;
+  justify-content: center;
+}
+.share-btn svg {
+  width: 15px;
+  height: 15px;
+}
+.share-btn:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+.share-fb:hover { color: #1877f2; }
+.share-tg:hover { color: #2aabee; }
+.share-rd:hover { color: #ff4500; }
 .rate-status {
   margin: 0;
   max-width: 330px;

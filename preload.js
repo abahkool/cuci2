@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('api', {
 
   clipboardWrite: (text) => ipcRenderer.invoke('clipboard:write', text),
   clipboardRead: () => ipcRenderer.invoke('clipboard:read'),
+  openShareLink: (url) => ipcRenderer.invoke('share:open', url),
 
   probe: (p) => ipcRenderer.invoke('media:probe', p),
   thumbs: (p, opts) => ipcRenderer.invoke('media:thumbs', p, opts),

@@ -196,6 +196,7 @@ are `webContents.send` pushes. Channels live in `lib/ipc.js`; the renderer reach
 | `fs:writeText` | `path, content` | `true` |
 | `shell:showItem` | `path` | `true` |
 | `store:open` | — | `{ ok, url, error? }` — opens `ms-windows-store://pdp/?productid=9NSMJN6FDMV8` |
+| `share:open` | `url` | `{ ok, url, error? }` — opens a social sharer link; https only, ≤8000 chars, host must be in `SHARE_HOSTS` |
 | `clipboard:write` | `text` | `true` |
 | `clipboard:read` | — | `string` |
 | `media:probe` | `path` | `{ name, size, durationMs, fps, width, height, hasVideo, hasAudio, videoCodec, audioCodec, rotation }` |

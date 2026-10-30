@@ -90,7 +90,7 @@ Tests: `lib/selftest.js` (export graph, every format), `lib/test-locate.js`, `li
 
 IPC channels (`lib/ipc.js`): `app:info`, `settings:set`, `dialog:openVideos|openSubtitles|openFile|saveFile`,
 `fs:readText|writeText`, `media:probe|thumbs|proxy`, `nsfw:status|scan|cancel`,
-`export:start|cancel`, `clipboard:read|write`, `shell:showItem`.
+`export:start|cancel`, `clipboard:read|write`, `shell:showItem`, `store:open`, `share:open`.
 Push events: `export:progress`, `thumbs:progress`, `nsfw:progress`, `proxy:log`.
 Renderer↔main menu sync: `menu:command` (push), `menu:state` (renderer → main).
 Renderer↔panel windows: `panel:state` (snapshot, `kind: main | timeline`), `panel:cmd` (validated).
@@ -210,6 +210,15 @@ state = {
     rect. The Store link goes through IPC `store:open` — the renderer must not build URLs.
     The rating prompt is a modal with **no backdrop/Escape dismissal**, opens 5 s after load, and
     only *I already rated it* sets `cuci.rated`: opening the Store page must not stop the prompt.
+
+26. **Share links are allowlisted in the main process.** The Job panel's Facebook /
+    Telegram / Reddit (r/cuci) buttons call `shareCode(target)` and `shareUrl()` in
+    `src/app.js`; the URL goes through IPC `share:open`, which re-parses it and only opens
+    `https` on a host listed in `SHARE_HOSTS` (`lib/ipc.js`, at most 8000 chars). The code is
+    copied to the clipboard first because Facebook's sharer ignores text; Reddit posts to
+    `https://www.reddit.com/r/cuci/submit?selftext=true`. Strings: `share*`,
+    `msgShareCopiedPaste`, `msgShareOpenFailed`. The old manual *Refresh* button is gone --
+    the code refreshes on open, on description edits and right before copying.
 
 ## Commands
 
