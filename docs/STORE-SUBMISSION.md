@@ -267,6 +267,16 @@ Run on a clean Windows 10/11 x64 machine (no dev tools installed).
 
 Paste-ready. Verify character limits in Partner Center (typical: description 10,000 · features 20 × 200 · search terms 7 × 30).
 
+> The English copy below is the master. Localised **description + product features + keywords** for all 14
+> app languages live in [`Sample/msstore/`](../Sample/msstore) (one `en-us.txt`, `ms-my.txt`, … per Store
+> locale, plus a `README.md` index) — the remaining fields in this section stay English-only.
+
+### Listing stack
+
+- Display name and category: §6 (below)
+- Description / features / keywords: `Sample/msstore/<locale>.txt`
+- Visual assets: §7 · age rating, privacy and declarations: §8
+
 ### Display name
 
 > **CUCI Video Delete Studio**
@@ -342,16 +352,16 @@ Runs entirely on your device; no media is uploaded
 ### Search terms (keywords — up to 7)
 
 ```
-video deleteter
+delete video scenes
 trim video
 merge video
 subtitle sync
 srt editor
-delete video
+remove video parts
 video editor
 ```
 
-Alternates if any are taken: `split video`, `video trimming`, `subtitle editor`, `scene delete`, `mp4 deleteter`.
+Alternates if any are taken: `split video`, `video trimming`, `subtitle editor`, `scene removal`, `mp4 trimmer`.
 
 ### Category
 
