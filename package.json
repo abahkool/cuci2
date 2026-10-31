@@ -1,10 +1,10 @@
 {
   "name": "cuci",
-  "productName": "CUCI",
-  "version": "1.0.1",
+  "productName": "CUCI - Delete Unnecessary Video Scenes",
+  "version": "1.0.3",
   "description": "CUCI — Delete Unnecessary Video Scenes. Millisecond-precision scene deletion, clip merging and automatic subtitle sync.",
   "main": "main.js",
-  "author": "CUCI",
+  "author": "SINI Digital Solutions",
   "license": "MIT",
   "scripts": {
     "start": "electron .",
@@ -35,7 +35,7 @@
     "javascript-obfuscator": "^5.9.0"
   },
   "build": {
-    "appId": "com.cuci.app",
+    "appId": "Slopless.App.CUCI-DeleteUnnecessaryVideoScenes",
     "productName": "CUCI",
     "files": [
       "main.js",
@@ -52,6 +52,14 @@
         "filter": [
           "**/*"
         ]
+      },
+      {
+        "from": "THIRD-PARTY-NOTICES.md",
+        "to": "THIRD-PARTY-NOTICES.md"
+      },
+      {
+        "from": "LICENSE",
+        "to": "LICENSE.txt"
       }
     ],
     "electronLanguages": [

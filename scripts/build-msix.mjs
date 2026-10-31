@@ -14,6 +14,8 @@
  *   --skip-build        reuse an existing dist/<arch>-unpacked
  *   --app-dir <dir>     build this app directory (used for the obfuscated stage)
  *   --identity <file>   identity JSON (default store/identity.json, falls back to the example)
+ *   --allow-example-identity  pack anyway with placeholder identity (local testing only —
+ *                       Partner Center rejects such a package)
  *   --arch x64|arm64    target architecture (default x64)
  *   --version x.y.z.b   4-part MSIX version (default: package.json version + .0)
  *   --sign <pfx>        sign the package (needs --cert-pass or SIGNCERT_PASS) — local testing only
@@ -72,11 +74,69 @@ function loadIdentity() {
 }
 
 const { id: identity, fromExample, file: idFile } = loadIdentity();
-if (fromExample) {
-  console.warn('\n!! store/identity.json not found — using store/identity.example.json.');
-  console.warn('   The package will NOT be submittable until it carries your real');
-  console.warn('   Partner Center identity (see docs/STORE-SUBMISSION.md).\n');
+const allowExampleIdentity = has('--allow-example-identity');
+
+/*
+ * Fail fast: Partner Center validates the manifest against the reserved product,
+ * so a placeholder identity costs a full build plus a 200+ MB upload and then:
+ *   "The PublisherDisplayName element in the app manifest is X, which doesn't
+ *    match your publisher display name: Y."
+ * (and the all-zero publisher GUID is rejected for the same reason).
+ */
+const PLACEHOLDER_PUBLISHER = /^CN=0{8}-0{4}-0{4}-0{4}-0{12}$/i;
+const GUID_PUBLISHER = /^CN=[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function identityProblems(id) {
+  const out = [];
+  const v = (k) => String(id[k] ?? '').trim();
+  if (!v('identityName')) out.push('identityName is empty — copy Package/Identity/Name from Partner Center');
+  else if (!/^[A-Za-z0-9._-]+$/.test(v('identityName'))) {
+    out.push(`identityName "${v('identityName')}" has illegal characters (A-Z a-z 0-9 . _ - only)`);
+  }
+  if (!v('publisher')) out.push('publisher is empty — copy Package/Identity/Publisher (CN=<GUID>) from Partner Center');
+  else if (PLACEHOLDER_PUBLISHER.test(v('publisher'))) out.push('publisher is still the placeholder all-zero GUID');
+  else if (!GUID_PUBLISHER.test(v('publisher'))) out.push(`publisher "${v('publisher')}" must look like CN=1A2B3C4D-1111-2222-3333-444455556666`);
+  if (!v('publisherDisplayName')) {
+    out.push('publisherDisplayName is empty — it must equal the Publisher display name of your Partner Center account');
+  }
+  if (!v('displayName')) out.push('displayName is empty');
+  if (v('shortName') && v('shortName').length > 40) out.push('shortName must be ≤ 40 characters (tile limit)');
+  return out;
 }
+
+const problems = identityProblems(identity);
+const identitySubmittable = !fromExample && problems.length === 0;
+
+if (!identitySubmittable) {
+  const lines = ['', '== package identity is NOT submittable =='];
+  if (fromExample) lines.push(`  using the example file: ${path.relative(root, idFile)}`);
+  for (const p of problems) lines.push(`  - ${p}`);
+  if (allowExampleIdentity) {
+    lines.push('', '  --allow-example-identity given: continuing anyway (local testing only).', '');
+    console.warn(lines.join('\n'));
+  } else {
+    lines.push(
+      '',
+      '  Unlike any other build artifact, an MSIX is validated field-by-field against',
+      '  your reserved product, so a placeholder identity is rejected at submission:',
+      '    "The PublisherDisplayName element ... doesn\'t match your publisher display name."',
+      '',
+      '  Fix: cp store/identity.example.json store/identity.json and fill it in from',
+      '  Partner Center → your app → Product identity (plus the account\'s Publisher',
+      '  display name). See docs/STORE-SUBMISSION.md §2 and §11 (submission errors).',
+      '',
+      '  For a throwaway test package: re-run with --allow-example-identity',
+      '',
+    );
+    console.error(lines.join('\n'));
+    process.exit(5);
+  }
+}
+
+console.log('\n== identity ==');
+console.log(`  Name        ${identity.identityName}`);
+console.log(`  Publisher   ${identity.publisher}`);
+console.log(`  Display     ${identity.publisherDisplayName}  (must match your Partner Center account)`);
 
 /* ── helpers ───────────────────────────────────────────────────── */
 function run(cmd, args, opts = {}) {

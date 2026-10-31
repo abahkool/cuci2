@@ -1,0 +1,76 @@
+CUCI — Notes for certification (paste into Partner Center → Submission → Notes for certification)
+=================================================================================================
+
+Nothing to fill in. Two lengths are provided: use FULL if the field accepts it (Partner Center
+caps this field at ~2000 characters), otherwise COMPACT. CUCI collects no personal data, so there
+is no privacy policy URL — see store/privacy-statement.txt.
+
+
+-------------------------------------------------------------------------------------------------
+FULL VERSION
+-------------------------------------------------------------------------------------------------
+CUCI is an offline desktop utility (Electron, full-trust MSIX) that removes unwanted parts of the
+user's own videos. No media is bundled; no account, ads, purchases or telemetry.
+
+WHAT IT DOES: the user adds their own videos, marks ranges on a timeline, and exports a new file
+with those ranges cut out (optionally merging clips and burning in subtitles). "Parent Assist" is an
+optional on-device scan that flags scenes a parent may want to remove; it is a content filter, not
+an adult-content player.
+
+TEST (no account needed; any local .mp4/.mov works)
+1. Launch CUCI from Start.
+2. Actions > Add videos (or drag a file in).
+3. Drag on the timeline, then click Delete (or right-click > Delete range).
+4. Click Export, keep MP4, click Start: progress runs and the output .mp4 is written to the path
+   shown. F1 opens the in-app guide (first-run tour can be skipped).
+
+NETWORK: the only outbound request is a one-time, user-initiated ~89 MB download of an on-device
+classifier model from huggingface.co when Parent Assist is first used. Inference runs locally via
+onnxruntime; no frames, files or telemetry leave the machine. If it is blocked, the scan errors
+and the rest of the app works. External links (guide > GitHub, Store rating,
+Telegram/WhatsApp/Reddit share buttons) open in the default browser only after a click.
+
+NOT BUGS
+- AVI/WMV/FLV/TS may not preview (Chromium lacks those codecs); exporting still works.
+- Exporting with zero deletions asks for a second confirmation, to avoid accidental re-encodes.
+- ffmpeg/ffprobe are bundled and run as separate processes (GPLv3; licence and source offer:
+  https://github.com/abahkool/cuci2).
+
+DATA: all local. No accounts, ads, telemetry or crash reports, so no personal data is collected and
+no privacy policy URL is provided; the privacy statement is in the Store description.
+
+
+-------------------------------------------------------------------------------------------------
+COMPACT VERSION
+-------------------------------------------------------------------------------------------------
+CUCI is an offline video-editing utility (Electron, full-trust MSIX) for removing unwanted parts of
+the user's own videos. No media is bundled; no account, ads, purchases or telemetry.
+
+TEST (no test account needed; any local .mp4/.mov works): launch > Actions > Add videos > drag a
+range on the timeline > Delete > Export > Start. Output goes to the path shown. F1 is in-app help.
+
+Only network call: a one-time, user-initiated ~89 MB on-device classifier model download from
+huggingface.co when Parent Assist is first used (inference runs locally, nothing is uploaded).
+Links open in the default browser only after a click.
+
+Not bugs: AVI/WMV/FLV/TS may not preview (Chromium codecs; export still works); exporting with zero
+deletions asks for a second confirmation; ffmpeg runs as a bundled separate process (GPLv3 — see
+THIRD-PARTY-NOTICES.md at https://github.com/abahkool/cuci2).
+
+All data stays local (%APPDATA%\CUCI). No accounts, telemetry or ads, so no personal data is
+collected and no privacy policy URL is provided.
+
+
+-------------------------------------------------------------------------------------------------
+NOTES
+-------------------------------------------------------------------------------------------------
+- Keep this factual: certification testers only need the launch path, one editing flow, the model
+  download explanation, and the "expected surprises" above.
+- Do not paste marketing copy. The only URL in the text is the GPLv3 source offer; leave Partner
+  Center's "Privacy policy URL" field empty (see store/privacy-statement.txt for the wording).
+- If the submission is rejected on 10.4 (adult content) or 10.1 (external links), point at the
+  Parent Assist paragraph and the "links open only after a click" sentence.
+- Character counts: FULL 1934 / COMPACT 1126 (no placeholder to replace). Both fit Partner
+  Center's ~2000-character limit.
+- The packaged app ships THIRD-PARTY-NOTICES.md and LICENSE.txt in `resources/` (see package.json
+  `build.extraResources`), so the GPLv3 source offer referenced above is inside the MSIX too.

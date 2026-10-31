@@ -16,7 +16,8 @@ store packaging.
 - License: MIT
 
 Docs: `README.md` (users) · `docs/DEVELOPMENT.md` (architecture, IPC, data formats, tests) ·
-`docs/STORE-SUBMISSION.md` (MSIX, WACK, listing copy).
+`docs/STORE-SUBMISSION.md` (MSIX, WACK, listing copy) · `docs/index.html` (landing page,
+GitHub-Pages-ready, single file + `docs/assets/`).
 
 ## Start here (cheapest path)
 

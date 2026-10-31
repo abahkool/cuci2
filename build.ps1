@@ -15,6 +15,7 @@
 #   .\build.ps1 -NoObfuscate             # package readable sources (debug only)
 #   .\build.ps1 -SkipTests -SkipVerify   # packaging only
 #   .\build.ps1 -Sign                    # sign the produced binaries
+#   .\build.ps1 -Store -AllowExampleIdentity  # test package, REJECTED by the Store
 #
 # Notes
 #  * The obfuscated app is staged in .build/app and every artifact is built from
@@ -37,7 +38,8 @@ param(
     [switch]$NoDownload = $false,
     [switch]$SkipTests = $false,
     [switch]$SkipVerify = $false,
-    [switch]$SkipVersion = $false
+    [switch]$SkipVersion = $false,
+    [switch]$AllowExampleIdentity = $false
 )
 
 $ErrorActionPreference = 'Stop'
@@ -163,11 +165,17 @@ try {
     if (-not ($Store -or $Appx)) {
         Info 'Skipped (use -Store and/or -Appx)'
     } else {
-        if (-not (Test-Path (Join-Path $ProjectRoot 'store\identity.json'))) {
-            Warn 'store/identity.json is missing - the example identity is used.'
-            Warn 'Copy store/identity.example.json and fill in your Partner Center values before uploading.'
+        if (-not (Test-Path (Join-Path $ProjectRoot 'store\identity.json')) -and -not $AllowExampleIdentity) {
+            Die @'
+store/identity.json is missing - an MSIX built with the example identity is rejected
+by Partner Center ("The PublisherDisplayName element ... doesn't match your publisher
+display name"). Copy store/identity.example.json to store/identity.json and fill in the
+values from Partner Center -> your app -> Product identity. See docs/STORE-SUBMISSION.md.
+For a throwaway test package: -AllowExampleIdentity
+'@
         }
         $msixArgs = @()
+        if ($AllowExampleIdentity) { $msixArgs += '--allow-example-identity' }
         if (-not (Test-Path (Join-Path $DistDir 'win-unpacked'))) {
             Info 'No win-unpacked yet - build-msix will create it.'
         }

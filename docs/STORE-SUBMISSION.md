@@ -13,6 +13,7 @@ tooling, the test plan, and ready-to-paste listing copy.
 - [8. Age rating, privacy & declarations](#8-age-rating-privacy--declarations)
 - [9. Submission checklist](#9-submission-checklist)
 - [10. Updating the app](#10-updating-the-app)
+- [11. Submission errors](#11-submission-errors)
 
 ---
 
@@ -65,6 +66,17 @@ Fill it in from **Partner Center → Product identity**:
 `store/identity.json` is **gitignored** — it is your account-specific identity, not source.
 
 > `publisher` must match exactly, character for character, including the `CN=` prefix and GUID. A mismatch is the most common certification rejection.
+>
+> `publisher` is the GUID of the **account** (Package/Identity/Publisher), `publisherDisplayName`
+> is the **account's** Publisher display name (Partner Center → *Account settings* → Publishers),
+> and `identityName` is the reserved product's Package/Identity/Name. Many sellers rename the
+> publisher display name later, while the identity name keeps the original prefix
+> (`12345AbahKool.CUCI`) — **copy all three, never guess**.
+>
+> `scripts/build-msix.mjs` validates this file and **refuses to pack** (exit 5) when
+> `identityName`/`publisher` are empty, the publisher GUID is the all-zero placeholder, or the
+> display names are blank, because Partner Center rejects such a package after a 200+ MB upload.
+> For a throwaway test package use `--allow-example-identity` (or `build.ps1 -AllowExampleIdentity`).
 
 ---
 
@@ -176,7 +188,10 @@ Three options:
 | Bundle + comply | default build | Must publish the ffmpeg source offer / licence text. See *Third-party notices* below. |
 | Bundle an LGPL build | replace `vendor/ffmpeg` with an `-lgpl` BtbN build | No `libx264`/`libx265` — encoding falls back to a different codec, so the app's H.264/H.265 presets would break. |
 
-If you bundle, add a `THIRD-PARTY-NOTICES.md` covering ffmpeg (GPLv3), `onnxruntime-node` (MIT), Electron (MIT) and the model licences (`AdamCodd/vit-base-nsfw-detector` — check the model card), and link it from the Store description.
+If you bundle, the `THIRD-PARTY-NOTICES.md` at the repo root covers ffmpeg (GPLv3 + source offer),
+`onnxruntime-node` (MIT), Electron/Chromium (MIT + `LICENSES.chromium.html`) and the runtime-downloaded
+model (`AdamCodd/vit-base-nsfw-detector`). It ships inside the package (`build.extraResources` →
+`resources/THIRD-PARTY-NOTICES.md`) and is linked from the Store description.
 
 ---
 
@@ -327,7 +342,15 @@ Preview codecs your player can't handle by generating a lightweight proxy. Expor
 H.264/H.265, CPU or GPU encoding, quality and resolution presets, with live progress and a
 working Cancel.
 
-Your media stays yours. Everything runs locally; nothing is uploaded.
+PRIVACY
+CUCI runs entirely on your device. It has no account, no ads, no purchases and no telemetry.
+Your videos, subtitles and exported files are read and written only where you point the app;
+preferences and cached thumbnails stay inside your Windows user profile. Network access happens
+only when you start the optional Parent Assist scan, which downloads an AI model file once and then
+analyses frames locally — no video, frame, filename or personal data is uploaded. Links to GitHub,
+Telegram, WhatsApp, Reddit and the Microsoft Store open in your browser only after you click them.
+We collect no personal data, so there is no separate privacy policy page: this statement is the
+complete policy.
 
 Requires ffmpeg for encoding — either install it yourself or use the copy bundled with the app.
 ```
@@ -383,7 +406,7 @@ Hardware H.264/H.265 encoding (NVENC) is optional and used when available.
 | --- | --- |
 | Support contact info | your support email or GitHub Issues URL |
 | Website | `https://github.com/abahkool/cuci2` |
-| Privacy policy URL | required — see §8 |
+| Privacy policy URL | **leave empty** — no personal data is collected, see §8 |
 | Copyright / trademark | `© 2025 AbahKool` |
 | License | MIT (plus third-party notices if ffmpeg is bundled) |
 
@@ -463,43 +486,92 @@ Disclose this in the Store description too (the copy in §6 already does). Expec
 
 ### Declarations / notes for certification
 
-Paste into **Partner Center → Submission → Notes for certification**:
+Paste into **Partner Center → Submission → Notes for certification**. The maintained copy (two
+lengths, ~1.9K and ~1.1K characters, both under the field's ~2,000-character limit) lives in
+[`store/notes-for-certification.txt`](../store/notes-for-certification.txt); the full version is:
 
 ```
-CUCI is an offline video deleting utility. It ships no media content.
+CUCI is an offline desktop utility (Electron, full-trust MSIX) that removes unwanted parts of the
+user's own videos. No media is bundled; no account, ads, purchases or telemetry.
 
-- The NSFW detection feature runs an ONNX image classifier entirely on-device
-  (onnxruntime-node). No frames, files or telemetry leave the machine.
-- The only network access is a one-time, user-triggered download of the classifier
-  model (~84 MB) from huggingface.co. If that fails the app continues to work and
-  the feature is simply unavailable.
-- ffmpeg is used as a separate command-line process for encoding. [If bundled:
-  "A GPLv3 ffmpeg build is bundled; see THIRD-PARTY-NOTICES.md."]
-- No account, sign-in or purchase is required.
+WHAT IT DOES: the user adds their own videos, marks ranges on a timeline, and exports a new file
+with those ranges cut out (optionally merging clips and burning in subtitles). "Parent Assist" is an
+optional on-device scan that flags scenes a parent may want to remove; it is a content filter, not
+an adult-content player.
 
-Test account: none required.
-Test steps: launch → Add Video → drag on the timeline → Delete → Export.
+TEST (no account needed; any local .mp4/.mov works)
+1. Launch CUCI from Start.
+2. Actions > Add videos (or drag a file in).
+3. Drag on the timeline, then click Delete (or right-click > Delete range).
+4. Click Export, keep MP4, click Start: progress runs and the output .mp4 is written to the path
+   shown. F1 opens the in-app guide (first-run tour can be skipped).
+
+NETWORK: the only outbound request is a one-time, user-initiated ~89 MB download of an on-device
+classifier model from huggingface.co when Parent Assist is first used. Inference runs locally via
+onnxruntime; no frames, files or telemetry leave the machine. If it is blocked the scan reports an
+error and the rest of the app works. External links (guide > GitHub, Store rating,
+Telegram/WhatsApp/Reddit share buttons) open in the default browser only after a click.
+
+NOT BUGS
+- AVI/WMV/FLV/TS may not preview (Chromium lacks those codecs); exporting still works.
+- Exporting with zero deletions asks for a second confirmation, to avoid accidental re-encodes.
+- ffmpeg/ffprobe are bundled and run as separate processes. ffmpeg is GPLv3; licence text and the
+  source offer are at https://github.com/abahkool/cuci2 (THIRD-PARTY-NOTICES.md).
+
+DATA: all local. No accounts, ads, telemetry or crash reports, so no personal data is collected and
+no privacy policy URL is provided; the privacy statement is in the Store description.
 ```
 
-### Privacy policy (required URL)
+There is no placeholder to replace — CUCI collects nothing, so there is no privacy policy page
+(§8 below). Rules for this field: no marketing copy, no download links; the single URL in the text
+is the GPLv3 source offer. If certification pushes back on adult content (10.4) or external links (10.1), quote the
+*Parent Assist* paragraph and the "links open only after a click" sentence.
 
-The app collects nothing; you still need a published URL. Minimal text (host it as a GitHub Pages page or a `PRIVACY.md` on the repo):
+`THIRD-PARTY-NOTICES.md` (repo root) is the source of the GPLv3 statement referenced above; it and
+`LICENSE` are shipped inside the package via `build.extraResources` (`resources/` next to the app).
+
+### Privacy statement (no URL)
+
+**Decision: CUCI ships no privacy policy page and no policy URL.** Store policy 10.5.1 only
+requires a privacy policy URL when the product collects personal information or uses a
+third-party service that does — CUCI does neither (no account, telemetry, analytics, crash
+reporting, advertising ID or location). Leave Partner Center's *Privacy policy URL* field **empty**
+and keep the privacy answers in the submission consistent: *no personal data collected*, *no
+telemetry*, *no advertising*.
+
+Instead of a URL, this statement is the policy. It is used verbatim in the Store description and in
+the certification notes; the maintained copy (plus a `PRIVACY.md`-ready long version, and the exact
+Partner Center answers) is [`store/privacy-statement.txt`](../store/privacy-statement.txt).
 
 ```
-CUCI privacy policy
-
-CUCI processes video and subtitle files entirely on your device. We do not collect,
-store, transmit or sell any personal data, usage analytics, telemetry or media.
-
-Network access happens only when you explicitly ask the app to download the optional
-on-device content-detection model, which is fetched from huggingface.co. That request
-contains no information about you or your media.
-
-Files you open, edit or export remain on your computer. The app stores only your own
-preferences (window-independent settings such as ffmpeg paths) under %APPDATA%\CUCI.
-
-Contact: <your email>
+Privacy: CUCI runs entirely on your device. It has no account, no ads, no purchases and no
+telemetry. Your videos, subtitles and exported files are read and written only where you point the
+app; preferences and cached thumbnails stay inside your Windows user profile (%APPDATA%\CUCI and
+%TEMP%). Network access happens only when you start the optional Parent Assist scan, which
+downloads an AI model file from huggingface.co once and then analyses frames locally — no video,
+frame, filename or personal data is uploaded. Links to GitHub, Telegram, WhatsApp, Reddit and the
+Microsoft Store open in your browser only after you click them. We collect no personal data, so
+there is no separate privacy policy page: this statement is the complete policy.
 ```
+
+Facts behind every sentence (for review, not for pasting): settings in
+`%APPDATA%\CUCI\settings.json` (`lib/ipc.js:52`), thumbnails/proxies/subtitle temp in `%TEMP%`
+(`lib/ipc.js:257,559,609`), model in `%APPDATA%\CUCI\models\nsfw` (`lib/nsfw.js:50`), only
+outbound request is the huggingface model download (`lib/nsfw.js:70`), external links via
+`shell.openExternal` only from `share:open` / `store:open` / the Help menu.
+
+If Partner Center ever blocks submission on a missing URL (it validates the declared data
+collection, not the app), the zero-hosting fallback is the long version as `PRIVACY.md` in the repo
+and its GitHub URL — do not stand up a separate site.
+
+### Landing page / public privacy URL
+
+`docs/index.html` is a self-contained marketing page for the product (assets in `docs/assets/`).
+If you ever prefer a real URL over the empty privacy field, publish the `docs/` folder as GitHub
+Pages (Settings → Pages → Source: *Deploy from a branch* → `/docs`): the page then lives at
+`https://abahkool.github.io/cuci2/` and its `#privacy` section is the same statement as above.
+That URL can be pasted into the Partner Center *Privacy policy URL* field — the empty field is
+still the simpler choice.
 
 ---
 
@@ -524,7 +596,7 @@ Contact: <your email>
 - [ ] ≥ 1 screenshot at 1366×768+, no personal/unlicensed content visible
 - [ ] 300×300 listing logo uploaded
 - [ ] Support email/URL and website set
-- [ ] Privacy policy URL published and reachable
+- [ ] Privacy policy URL field left empty; the privacy statement in the description matches `store/privacy-statement.txt`
 - [ ] Copyright line set
 
 **Compliance**
@@ -543,3 +615,58 @@ Contact: <your email>
 4. Write the "What's new" notes (§6) and submit.
 
 Store updates are incremental: users get the new MSIX automatically. The NSFW model is **not** part of the package — it lives in user data, so it survives updates and is only downloaded once.
+
+---
+
+## 11. Submission errors
+
+Partner Center validates the uploaded manifest field-by-field against the reserved product, so a
+mismatch costs a full 200+ MB upload and comes back after a few minutes. Decode the message
+before rebuilding:
+
+### `You must upload at least one package. If you are using market groups, then each market group must have at least one package.`
+
+A cascade, not a separate problem: the submission's package list is empty because the package you
+uploaded **failed acceptance validation** (or you removed it). Fix the package error below,
+remove the rejected file, upload the new one — this message disappears on its own.
+
+### `The PublisherDisplayName element in the app manifest is X, which doesn't match your publisher display name: Y.`
+
+`<Package><Properties><PublisherDisplayName>` came from `publisherDisplayName` in
+`store/identity.json` and must equal the **account** Publisher display name
+(Partner Center → *Account settings* → Publishers), not the app's display name.
+
+Typical cause in this repo: `store/identity.json` was missing, so
+`store/identity.example.json` was used and the package carried `AbahKool` /
+`CN=00000000-0000-0000-0000-000000000000`. The publisher GUID error usually follows the same
+build; fixing only the display name is not enough — fill both fields from
+**Product identity**:
+
+| Manifest element | `store/identity.json` key | Partner Center field |
+| --- | --- | --- |
+| `Identity/@Publisher` | `publisher` | Package/Identity/Publisher (`CN=<GUID>`) |
+| `Identity/@Name` | `identityName` | Package/Identity/Name |
+| `Properties/PublisherDisplayName` | `publisherDisplayName` | Account publisher display name |
+
+Then rebuild (`npm run store:package`) and check the identity **without uploading** —
+`dist/msix/AppxManifest.xml` is rendered from the same values:
+
+```powershell
+Select-String -Path dist\msix\AppxManifest.xml -Pattern 'Name=|Publisher|DisplayName'
+```
+
+`scripts/build-msix.mjs` now refuses to pack when the identity is still the placeholder (exit 5),
+so this specific rejection can only come from an old artifact.
+
+### `You must provide a package that supports each selected device family (or uncheck the box for unsupported device families). Note that targeting the Xbox device family requires a neutral or x64 package.`
+
+Nothing is wrong with the package: in **Pricing & availability → Device family** you have
+**Xbox** and/or **HoloLens** ticked, but `store/AppxManifest.xml.template` only declares
+`<TargetDeviceFamily Name="Windows.Desktop">`. CUCI is an Electron desktop app with
+`runFullTrust`, so untick **Xbox** and **HoloLens** and keep **PC** (Windows 10/11 desktop).
+
+### Version conflicts after a failed upload
+
+A rejected package still occupies its version slot. Remove it from the submission before
+uploading the fixed build; the same `1.0.2.0` is then accepted. If Partner Center still refuses,
+bump `version` in `package.json` to `1.0.3` (→ `1.0.3.0`), rebuild and upload that instead.

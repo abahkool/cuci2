@@ -1,0 +1,93 @@
+CUCI — privacy statement (no privacy policy URL)
+================================================
+
+Decision: CUCI ships no privacy-policy page. It collects nothing, so under Store policy 10.5.1 a
+privacy policy URL is only required when an app collects personal information or uses a
+third-party service that does. Leave Partner Center → Submission → Privacy policy URL **empty**
+and make sure the *Privacy* answers in the submission say: no personal data collected, no
+telemetry, no advertising ID, no location.
+
+Instead of a URL, the statement below is used in three places:
+  (a) the tail of the Store description          -> SHORT version
+  (b) the certification notes                    -> SHORT version (already in
+                                                    store/notes-for-certification.txt)
+  (c) an in-app "Privacy" line if you ever want it -> SHORT version
+
+If Partner Center ever refuses to submit without a URL (it validates the IARC/privacy answers,
+not the app), the zero-effort fallback is a `PRIVACY.md` in the repo and its GitHub URL — the FULL
+version below is written to be pasted as that file unchanged. Do not invent a separate hosted page.
+
+
+-------------------------------------------------------------------------------------------------
+SHORT VERSION — for the Store description / notes / in-app  (749 characters)
+-------------------------------------------------------------------------------------------------
+Privacy: CUCI runs entirely on your device. It has no account, no ads, no purchases and no
+telemetry. Your videos, subtitles and exported files are read and written only where you point the
+app; preferences and cached thumbnails stay inside your Windows user profile (%APPDATA%\CUCI and
+%TEMP%). Network access happens only when you start the optional Parent Assist scan, which
+downloads an AI model file from huggingface.co once and then analyses frames locally — no video,
+frame, filename or personal data is uploaded. Links to GitHub, Telegram, WhatsApp, Reddit and the
+Microsoft Store open in your browser only after you click them. We collect no personal data, so
+there is no separate privacy policy page: this statement is the complete policy.
+
+
+-------------------------------------------------------------------------------------------------
+FULL VERSION — for PRIVACY.md / a listing page, if one is ever needed
+-------------------------------------------------------------------------------------------------
+# CUCI privacy policy
+
+CUCI ("the app") is a desktop video-editing utility published by SINI Digital Solutions. This
+policy describes exactly what the app does with your data. It is short because the app collects
+nothing.
+
+## What we collect
+Nothing. There is no account, no sign-in, no telemetry, no analytics, no crash reporting, no
+advertising identifier and no usage statistics. We do not know that you installed the app, we
+cannot identify you, and there is nothing for us to sell or share.
+
+## What stays on your device
+- **Your media.** Video and subtitle files are opened where they are, processed by a local ffmpeg
+  process, and written only to the output path you choose. Nothing is copied to a server.
+- **Preferences.** Window layout, theme, language and the ffmpeg path are stored in
+  `%APPDATA%\CUCI\settings.json`.
+- **Temporary files.** Timeline thumbnails, preview proxies and subtitle working copies are written
+  to your `%TEMP%` folder (`cuci-thumb-*`, `cuci-proxy`, `cuci-sub-*`) and removed by the app when
+  the session ends or the source changes.
+- **The optional Parent Assist model.** If you start a scan, a ~89 MB classifier model is
+  downloaded once and stored in `%APPDATA%\CUCI\models\nsfw`.
+
+## The only network request
+Starting a **Parent Assist** scan downloads the classifier model from `huggingface.co`. That HTTP
+request contains no information about you or your media — not the file name, not a hash, not an ID.
+All analysis then runs locally on your machine. If the download is blocked, the scan reports an
+error and every other feature keeps working. Nothing else in the app contacts the internet.
+
+## External links
+The user guide links to the project's GitHub page, the rating prompt links to the Microsoft Store
+page, and the job panel offers Telegram / WhatsApp / Reddit share buttons. Each of those opens in
+your default browser only after a click, and each site's own privacy policy applies there. A share
+code is copied to your clipboard locally; nothing is posted until you paste it yourself.
+
+## Children
+The app collects no data from anyone, including children. Its Parent Assist feature exists to help
+parents find and remove scenes they consider inappropriate; it never displays, stores or transmits
+imagery.
+
+## Changes
+If a future version ever collects data, this policy and the Store listing will be updated before
+that version is published.
+
+## Contact
+Questions about this policy: <your-email>
+
+
+-------------------------------------------------------------------------------------------------
+WHAT TO ANSWER IN PARTNER CENTER (keep it consistent with the above)
+-------------------------------------------------------------------------------------------------
+- Privacy policy URL: leave empty.
+- "Does this product collect personal information?" -> No.
+- "Does this product use telemetry / analytics / advertising?" -> No.
+- Age rating (IARC): discloses user-provided video playback + an adult-content detector; see
+  docs/STORE-SUBMISSION.md §8.
+- Notes for certification: the DATA paragraph points here ("collects no personal data, so no
+  privacy policy URL").
